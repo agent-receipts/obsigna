@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Short-lived PostToolUse hook binary. Currently supports Claude Code; designed to support additional runtimes via the `formats` map in `main.go`. Reads a JSON frame from stdin, maps it to an `emitter.Event`, and forwards it to `obsigna-daemon` over a Unix-domain socket. Exits 0 when the frame is unreadable or the runtime isn't recognised; once a runtime is identified, a failure to record the receipt exits 1 with a stderr message. Never pauses or modifies the tool call. Built on [sdk/go/emitter](../sdk/go/emitter/).
+Short-lived PostToolUse / PostToolUseFailure hook binary. Currently supports Claude Code; designed to support additional runtimes via the `formats` map in `main.go`. Reads a JSON frame from stdin, maps it to an `emitter.Event`, and forwards it to `obsigna-daemon` over a Unix-domain socket. A `PostToolUseFailure` frame carries an `error` string (and no `tool_response`); it maps to `decision="allowed"` with a non-empty error, so the daemon records the call as `outcome.status=failure` instead of leaving no receipt. Exits 0 when the frame is unreadable or the runtime isn't recognised; once a runtime is identified, a failure to record the receipt exits 1 with a stderr message. Never pauses or modifies the tool call. Built on [sdk/go/emitter](../sdk/go/emitter/).
 
 ## Getting started
 

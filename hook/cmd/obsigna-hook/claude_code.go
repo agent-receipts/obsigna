@@ -22,13 +22,27 @@ type claudeCodeFrame struct {
 	AgentID        string          `json:"agent_id"`
 	AgentType      string          `json:"agent_type"`
 	TranscriptPath string          `json:"transcript_path"`
+
+	// Error and IsInterrupt are carried only on PostToolUseFailure frames.
+	// Error is the human-readable failure message (Claude Code always sends a
+	// non-empty string here); IsInterrupt distinguishes a user/abort
+	// cancellation from a genuine execution error. A PostToolUseFailure frame
+	// carries no tool_response.
+	Error       string `json:"error"`
+	IsInterrupt bool   `json:"is_interrupt"`
 }
 
-// readClaudeCode parses a Claude Code PostToolUse or PreToolUse stdin frame
-// and maps it to an emitter.Event. The decision is derived from the
-// hook_event_name field:
-//   - "PostToolUse" → "allowed" (tool ran successfully)
-//   - "PreToolUse"  → "pending" (tool is about to run; outcome not yet known)
+// readClaudeCode parses a Claude Code PostToolUse, PostToolUseFailure, or
+// PreToolUse stdin frame and maps it to an emitter.Event. The decision is
+// derived from the hook_event_name field:
+//   - "PostToolUse"        → "allowed" (tool ran successfully)
+//   - "PostToolUseFailure" → "allowed" + non-empty Error (tool ran but failed;
+//     the daemon stamps outcome.status=failure from the error)
+//   - "PreToolUse"         → "pending" (tool is about to run; outcome not yet known)
+//
+// PostToolUse fires only on success and PostToolUseFailure only on failure, so
+// capturing both is what records a failed (or interrupted) tool call as a
+// failure row in the chain rather than leaving no receipt at all.
 //
 // The returned sessionID is the host-supplied session identifier from the
 // frame; it is the empty string when absent.
@@ -44,10 +58,26 @@ func readClaudeCode(stdin []byte, env func(string) string) (emitter.Event, strin
 		return emitter.Event{}, "", errors.New("missing tool_name")
 	}
 
-	var decision string
+	var decision, failureErr string
 	switch f.HookEventName {
 	case "PostToolUse":
 		decision = "allowed"
+	case "PostToolUseFailure":
+		// The tool call was permitted and ran, but execution failed (or was
+		// interrupted). Record it as "allowed" with a non-empty error: the
+		// daemon maps decision="allowed" + a non-empty error to
+		// outcome.status=failure. Guarantee non-empty text so a failure frame
+		// is never silently downgraded to success by that rule, even on the
+		// rare frame that carries no message.
+		decision = "allowed"
+		failureErr = strings.TrimSpace(f.Error)
+		if failureErr == "" {
+			if f.IsInterrupt {
+				failureErr = "tool call interrupted"
+			} else {
+				failureErr = "tool call failed"
+			}
+		}
 	case "PreToolUse":
 		decision = "pending"
 	default:
@@ -61,6 +91,7 @@ func readClaudeCode(stdin []byte, env func(string) string) (emitter.Event, strin
 		Channel:       "claude-code",
 		Tool:          emitter.Tool{Name: f.ToolName},
 		Decision:      decision,
+		Error:         failureErr,
 		CorrelationID: f.ToolUseID,
 		AgentID:       f.AgentID,
 		AgentType:     f.AgentType,
