@@ -210,3 +210,15 @@ func TestExtractTargetDropsOversizeResource(t *testing.T) {
 		t.Errorf("oversize resource should yield no target; got (%q, len %d)", system, len(resource))
 	}
 }
+
+// An over-long server name must yield no target rather than a target the
+// emitter would reject — which would drop the whole receipt, not just the
+// target. serverName populates Tool.Server uncapped, so this guards the case
+// where it also flows into the capped Target.System.
+func TestExtractTargetDropsOversizeSystem(t *testing.T) {
+	longServer := strings.Repeat("s", maxSystemLen+1)
+	system, resource := ExtractTarget(longServer, "query", map[string]any{"table": "events"})
+	if system != "" || resource != "" {
+		t.Errorf("oversize system should yield no target; got (%q, %q)", system, resource)
+	}
+}

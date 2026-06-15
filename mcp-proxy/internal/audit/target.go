@@ -11,6 +11,14 @@ import (
 // receipt, so ExtractTarget omits the target instead of risking that.
 const maxResourceLen = 4096
 
+// maxSystemLen caps the byte length of the system (the MCP server name). It
+// mirrors the daemon/emitter identity-field cap (256 bytes) for the same reason
+// as maxResourceLen: the emitter rejects an oversized target_system and drops
+// the whole receipt, so ExtractTarget omits the target rather than cost the
+// audit record. serverName is uncapped where it populates Tool.Server, so a
+// value this long is unusual but not impossible.
+const maxSystemLen = 256
+
 // uriKeys hold a network/endpoint identifier (HTTP APIs, object stores, message
 // queues). Checked first because a URI is the most specific, most stable
 // resource an MCP tool can name.
@@ -46,9 +54,11 @@ var genericKeys = []string{"path", "key", "bucket", "object", "resource", "resou
 // the hook. Both return values are always set together or both empty, so the
 // emitter's all-or-nothing Target rule never trips. A resource longer than
 // maxResourceLen is dropped rather than truncated — a truncated identifier
-// would be a misleading contention key.
+// would be a misleading contention key. An over-long system (server name) is
+// dropped for the same reason: a half- or over-populated target would cost the
+// whole receipt at the emitter, and a best-effort target must never do that.
 func ExtractTarget(serverName, toolName string, args map[string]any) (system, resource string) {
-	if serverName == "" || len(args) == 0 {
+	if serverName == "" || len(serverName) > maxSystemLen || len(args) == 0 {
 		return "", ""
 	}
 
