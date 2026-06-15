@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,8 +11,39 @@ import (
 	"github.com/agent-receipts/ar/sdk/go/emitter"
 )
 
+// maxErrorTextLen bounds the failure message copied into the receipt. Claude
+// Code error strings are short, but the field is host-supplied and otherwise
+// uncapped before the emitter's whole-frame MaxFrameSize check. Truncating here
+// degrades an oversized message to a truncated receipt rather than dropping the
+// failure entirely (an oversized frame would fail Emit and exit the hook 1).
+const maxErrorTextLen = 16 << 10
+
+// failureErrorText extracts the human-readable failure message from a
+// PostToolUseFailure frame's `error` field. Claude Code sends a JSON string
+// today; the frame is treated as an external artifact, so a non-string value
+// (object/array/number) is kept as its raw JSON text rather than aborting the
+// whole-frame unmarshal — a schema variation degrades the message instead of
+// dropping the failure receipt. The result is trimmed and length-capped.
+func failureErrorText(raw json.RawMessage) string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(trimmed, &s); err != nil {
+		// Not a JSON string — keep the raw JSON text as the message.
+		s = string(trimmed)
+	}
+	s = strings.TrimSpace(s)
+	if len(s) > maxErrorTextLen {
+		// ToValidUTF8 drops a trailing partial rune left by the byte-slice cut.
+		s = strings.ToValidUTF8(s[:maxErrorTextLen], "") + "…(truncated)"
+	}
+	return s
+}
+
 // claudeCodeFrame is the JSON envelope Claude Code sends on stdin for
-// PostToolUse and PreToolUse hooks.
+// PostToolUse, PostToolUseFailure, and PreToolUse hooks.
 type claudeCodeFrame struct {
 	HookEventName  string          `json:"hook_event_name"`
 	SessionID      string          `json:"session_id"`
@@ -24,12 +56,14 @@ type claudeCodeFrame struct {
 	TranscriptPath string          `json:"transcript_path"`
 
 	// Error and IsInterrupt are carried only on PostToolUseFailure frames.
-	// Error is the human-readable failure message (Claude Code always sends a
-	// non-empty string here); IsInterrupt distinguishes a user/abort
-	// cancellation from a genuine execution error. A PostToolUseFailure frame
-	// carries no tool_response.
-	Error       string `json:"error"`
-	IsInterrupt bool   `json:"is_interrupt"`
+	// Error is the human-readable failure message. Claude Code sends a JSON
+	// string, but it is kept as RawMessage and decoded leniently (see
+	// failureErrorText) so a non-string value cannot abort the whole-frame
+	// unmarshal and drop the failure receipt. IsInterrupt distinguishes a
+	// user/abort cancellation from a genuine execution error. A
+	// PostToolUseFailure frame carries no tool_response.
+	Error       json.RawMessage `json:"error"`
+	IsInterrupt bool            `json:"is_interrupt"`
 }
 
 // readClaudeCode parses a Claude Code PostToolUse, PostToolUseFailure, or
@@ -70,7 +104,7 @@ func readClaudeCode(stdin []byte, env func(string) string) (emitter.Event, strin
 		// is never silently downgraded to success by that rule, even on the
 		// rare frame that carries no message.
 		decision = "allowed"
-		failureErr = strings.TrimSpace(f.Error)
+		failureErr = failureErrorText(f.Error)
 		if failureErr == "" {
 			if f.IsInterrupt {
 				failureErr = "tool call interrupted"

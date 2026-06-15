@@ -295,6 +295,50 @@ func TestReadClaudeCode_PostToolUseFailure(t *testing.T) {
 		}
 	})
 
+	t.Run("non-string error does not abort the frame parse", func(t *testing.T) {
+		// Claude Code sends `error` as a string today; a schema variation must
+		// not break parsing and drop the failure receipt entirely. The raw JSON
+		// is kept as the message text.
+		stdin := `{
+			"hook_event_name": "PostToolUseFailure",
+			"session_id": "s",
+			"tool_name": "Edit",
+			"tool_input": {"file_path":"/x.go"},
+			"error": {"message":"nested"}
+		}`
+		ev, _, err := readClaudeCode([]byte(stdin), noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode returned error on non-string error field: %v", err)
+		}
+		if ev.Decision != "allowed" {
+			t.Errorf("Decision = %q; want allowed", ev.Decision)
+		}
+		if ev.Error != `{"message":"nested"}` {
+			t.Errorf("Error = %q; want the raw JSON text of the error object", ev.Error)
+		}
+	})
+
+	t.Run("oversized error is truncated, not dropped", func(t *testing.T) {
+		big := strings.Repeat("x", maxErrorTextLen+500)
+		stdin, _ := json.Marshal(map[string]any{
+			"hook_event_name": "PostToolUseFailure",
+			"session_id":      "s",
+			"tool_name":       "Bash",
+			"tool_input":      map[string]string{"command": "false"},
+			"error":           big,
+		})
+		ev, _, err := readClaudeCode(stdin, noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode: %v", err)
+		}
+		if len(ev.Error) > maxErrorTextLen+len("…(truncated)") {
+			t.Errorf("Error length = %d; want capped near %d", len(ev.Error), maxErrorTextLen)
+		}
+		if !strings.HasSuffix(ev.Error, "…(truncated)") {
+			t.Errorf("Error = %q…; want a truncation marker suffix", ev.Error[:64])
+		}
+	})
+
 	t.Run("success frame carries no error", func(t *testing.T) {
 		stdin := `{
 			"hook_event_name": "PostToolUse",
