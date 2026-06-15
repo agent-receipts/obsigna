@@ -1,0 +1,10 @@
+schemaVersion: 2
+name: obsigna-demo
+description: |
+  Mixin that provisions the network allowance for the obsigna + sbx demo.
+  Allows the opencode agent to reach ollama on the host at port 11434.
+  AGENTRECEIPTS_SOCKET is injected at runtime via the sbx exec call in demo.sh
+  rather than here, because the socket path is machine-specific.
+kind: mixin
+network:
+  {}
