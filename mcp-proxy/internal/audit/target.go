@@ -102,11 +102,13 @@ func repoResource(args map[string]any) string {
 
 // canonicalURI reduces a URI to scheme://host/path, dropping query and fragment
 // so the same endpoint reached with different parameters resolves to one
-// resource. A value that does not parse as a URI with a host (relative paths,
-// opaque identifiers) is returned trimmed but otherwise untouched.
+// resource. A value that does not parse as a URI with both a scheme and a host
+// (relative paths, scheme-relative "//host/path", opaque identifiers) is
+// returned trimmed but otherwise untouched — reassembling it without a scheme
+// would yield a malformed "://host/path".
 func canonicalURI(raw string) string {
 	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
+	if err != nil || u.Scheme == "" || u.Host == "" {
 		return raw
 	}
 	host := strings.ToLower(u.Host)

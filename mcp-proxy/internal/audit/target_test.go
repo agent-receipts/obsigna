@@ -40,6 +40,14 @@ func TestExtractTarget(t *testing.T) {
 			wantResource: "s3://my-bucket/path/to/key",
 		},
 		{
+			name:         "scheme-relative url returned raw, not malformed",
+			server:       "fetch",
+			tool:         "get",
+			args:         map[string]any{"url": "//example.com/path"},
+			wantSystem:   "fetch",
+			wantResource: "//example.com/path",
+		},
+		{
 			name:         "opaque endpoint without host returned trimmed",
 			server:       "api",
 			tool:         "call",
