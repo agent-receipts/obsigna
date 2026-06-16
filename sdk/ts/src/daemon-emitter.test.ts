@@ -334,6 +334,18 @@ describe("DaemonEmitter — frame round-trip", () => {
 		expect(f).not.toHaveProperty("action_type");
 	});
 
+	it("returns an error for non-string actionType", async () => {
+		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
+		const err = await e.emit({
+			...GOOD_EVENT,
+			// @ts-expect-error testing runtime type-check for non-TS callers
+			actionType: 42,
+		});
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toMatch(/actionType must be a string/);
+		e.close();
+	});
+
 	it("input and output are forwarded as raw JSON values (not double-encoded)", async () => {
 		await emitter.emit({
 			...GOOD_EVENT,

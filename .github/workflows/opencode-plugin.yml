@@ -32,7 +32,7 @@ jobs:
             sdk/ts/pnpm-lock.yaml
             integrations/opencode-plugin/pnpm-lock.yaml
 
-      # The plugin depends on `@agnt-rcpt/sdk-ts` via a `file:../../sdk/ts`
+      # The plugin depends on `@obsigna/sdk-ts` via a `file:../../sdk/ts`
       # install, so the in-tree SDK's dist/ must be built before the plugin can
       # typecheck, build, or test against it. This also makes the job fail when
       # a same-PR sdk/ts change breaks the plugin (hence sdk/ts/** in paths).

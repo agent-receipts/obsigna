@@ -248,9 +248,9 @@ function buildOutput(result: ToolResult): Record<string, unknown> | undefined {
 /**
  * JSON.stringify that never throws and never yields invalid JSON: returns
  * undefined for `undefined` input and for values that cannot be serialised
- * (circular references, BigInt). The daemon rejects non-finite numbers, so a
- * frame carrying one still surfaces as an emit failure — handled by the caller
- * per the failure posture rather than crashing the hook.
+ * (circular references, BigInt). Non-finite numbers (NaN, Infinity) are
+ * serialised as null per JSON semantics — the frame is valid JSON and the
+ * daemon accepts it, so those values silently become null in the receipt.
  */
 function safeStringify(value: unknown): string | undefined {
 	if (value === undefined) {

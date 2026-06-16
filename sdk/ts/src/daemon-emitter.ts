@@ -90,6 +90,10 @@ export interface EmitEvent {
 	 * parameter-disclosure "high") effective. The daemon resolves risk itself
 	 * rather than trusting an emitter-supplied risk, so an emitter cannot
 	 * downgrade risk to evade disclosure by setting this field.
+	 *
+	 * Note: this field is currently TypeScript-only. The Go and Python emitters
+	 * do not yet expose an equivalent option; adding cross-SDK parity is a
+	 * follow-up.
 	 */
 	actionType?: string;
 	/**
@@ -389,6 +393,9 @@ export class DaemonEmitter {
 			return new Error(
 				`emitter: invalid decision "${ev.decision}" (want allowed|denied|pending)`,
 			);
+		}
+		if (ev.actionType !== undefined && typeof ev.actionType !== "string") {
+			return new Error("emitter: actionType must be a string");
 		}
 		if (ev.input !== undefined && !isValidJson(ev.input)) {
 			return new Error("emitter: input is not valid JSON");
