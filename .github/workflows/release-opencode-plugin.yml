@@ -17,10 +17,9 @@ jobs:
 
       - run: corepack enable && corepack prepare pnpm@10.33.0 --activate
 
-      # registry-url writes the `.npmrc` registry entry npm needs to attempt OIDC
-      # trusted publishing for npmjs.org. The token in that entry comes from
-      # `NODE_AUTH_TOKEN`, which is force-cleared on the publish step below so npm
-      # finds no token and falls through to OIDC (id-token: write above).
+      # registry-url sets up the `.npmrc` registry entry; with no token provided
+      # and id-token: write granted, npm publishes via OIDC trusted publishing
+      # (configured on the npm package). Mirrors release-sdk-ts.yml.
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
@@ -98,17 +97,10 @@ jobs:
             echo "tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
-      # npm OIDC trusted publishing requires npm >= 11.5.1. Node 24 bundles a
-      # new enough npm, but pin the floor explicitly so a runner image refresh
-      # can't silently drop below it.
-      - name: Ensure npm supports OIDC trusted publishing
-        run: npm install -g npm@latest
-
-      - name: Publish to npm (OIDC trusted publishing)
+      # Publishes via npm OIDC trusted publishing (configured on the npm
+      # package), same as release-sdk-ts.yml: id-token: write + setup-node's
+      # registry-url, no token. npm mints a short-lived credential from the
+      # GitHub OIDC identity and signs provenance from it.
+      - name: Publish to npm
         working-directory: integrations/opencode-plugin
-        # Force NODE_AUTH_TOKEN empty: a token-based `.npmrc` entry would take
-        # precedence over OIDC. Empty → npm mints a short-lived credential from
-        # the GitHub OIDC token against the configured trusted publisher.
-        env:
-          NODE_AUTH_TOKEN: ""
         run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.tag }}
