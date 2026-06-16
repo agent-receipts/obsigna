@@ -1,6 +1,6 @@
 # AGENTS.md
 
-OpenCode plugin (`@obsigna/opencode-plugin`) that emits one Agent Receipt per native OpenCode tool call. Hooks `tool.execute.before`/`tool.execute.after` from `@opencode-ai/plugin` and forwards each call to `agent-receipts-daemon` via the TS SDK `DaemonEmitter`. The OpenCode analog of the Go [`hook/`](../../hook/) Claude Code integration, for the native-tool channel.
+OpenCode plugin (`@obsigna/opencode-plugin`) that emits one Agent Receipt per native OpenCode tool call. Hooks `tool.execute.before`/`tool.execute.after` from `@opencode-ai/plugin` and forwards each call to `obsigna-daemon` via the TS SDK `DaemonEmitter`. The OpenCode analog of the Go [`hook/`](../../hook/) Claude Code integration, for the native-tool channel.
 
 ## Trust boundary (load-bearing)
 
@@ -48,7 +48,7 @@ src/
 ## Testing
 
 - Unit tests inject a capturing `ReceiptEmitter` fake (no socket) to assert mapping, filtering, intent/params bridging, per-session emitters, and the strict/default failure posture.
-- `roundtrip.test.ts` drives the real `DaemonEmitter` against a fake length-prefixed AF_UNIX server (mirrors sdk/ts `daemon-emitter.test.ts`) and asserts the wire-frame shape. Signed-chain verification is the daemon's job, covered by the docs `agent-receipts verify` walkthrough.
+- `roundtrip.test.ts` drives the real `DaemonEmitter` against a fake length-prefixed AF_UNIX server (mirrors sdk/ts `daemon-emitter.test.ts`) and asserts the wire-frame shape. Signed-chain verification is the daemon's job, covered by the docs `obsigna verify` walkthrough.
 
 ## CI / Release
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Docs**: refer to the current binary names in `README.md` and `AGENTS.md` — `obsigna-daemon` (was `agent-receipts-daemon`), `obsigna-hook` (was `agent-receipts-hook`), and `obsigna verify` (was `agent-receipts verify`). Documentation-only; no code or behaviour changes.
+
 ## [0.1.0] - 2026-06-16
 
 First stable release. Graduates `0.1.0-alpha.3` with no source changes — that alpha is the first OpenCode-loadable build. See the `0.1.0-alpha.3` entry for the loadability fixes (server entry, `@obsigna/sdk-ts/emitter` import, V1 default export) and the Obsigna export rename; the earlier `0.1.0-alpha.1`/`0.1.0-alpha.2` builds could not be loaded by OpenCode and are deprecated on npm.
