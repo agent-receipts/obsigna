@@ -1,4 +1,4 @@
-import type { EmitEvent } from "@obsigna/sdk-ts";
+import type { EmitEvent } from "@obsigna/sdk-ts/emitter";
 import { describe, expect, it, vi } from "vitest";
 import { type ResolvedConfig, resolveConfig } from "./config.js";
 import {

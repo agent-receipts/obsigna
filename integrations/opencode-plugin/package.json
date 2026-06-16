@@ -10,10 +10,15 @@
 		"directory": "integrations/opencode-plugin"
 	},
 	"type": "module",
+	"main": "./dist/server.js",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
 			"default": "./dist/index.js"
+		},
+		"./server": {
+			"types": "./dist/server.d.ts",
+			"default": "./dist/server.js"
 		}
 	},
 	"files": [
@@ -33,7 +38,7 @@
 	},
 	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
-		"@obsigna/sdk-ts": "^0.14.0"
+		"@obsigna/sdk-ts": "^0.14.1"
 	},
 	"peerDependencies": {
 		"@opencode-ai/plugin": ">=0.1.0"
