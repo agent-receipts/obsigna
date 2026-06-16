@@ -202,6 +202,48 @@ Exit codes are stable for scripting:
 | `1` | Chain failed verification (output lists per-receipt status) |
 | `2` | Usage error (bad flags, missing key file, unreadable DB) |
 
+### Checkpoint anchoring (truncation resistance)
+
+Chain verification does **not** detect tail truncation on its own (ADR-0008 §2):
+dropping the last N receipts leaves a chain that still verifies `VALID`, because
+the remaining receipts are internally consistent. The fix is an **out-of-band,
+additive checkpoint anchor** — the daemon signs the chain HEAD (`{chain_id,
+sequence, receipt_hash, timestamp}`, Ed25519, same RFC 8785 path as receipts)
+and writes it to one or more append-only sinks the agent UID cannot rewrite.
+Receipts stay a linear chain; the checkpoint is a separate artifact and never
+appears in the receipt (the anchoring freeze, ADR-0008).
+
+Enable it on the daemon:
+
+```sh
+obsigna-daemon \
+  --checkpoint-anchor 'git:/var/lib/agentreceipts/anchor,file:/var/log/agentreceipts/anchor.ndjson' \
+  --checkpoint-cadence 1
+```
+
+- `--checkpoint-anchor` is a comma-separated fan-out list. Each entry is
+  `git:<dir>` (commits to a repo the agent UID cannot write — the commit chain
+  is the tamper-evident structure), `file:<path>` (append-only NDJSON), or
+  `syslog:<tag>` (local/forwarded syslog, a different host/principal). A bare
+  path means `file:`. One checkpoint goes to **all** sinks.
+- `--checkpoint-cadence` is receipts-per-checkpoint (default `1`, every
+  receipt). A graceful shutdown always flushes a final checkpoint.
+- A sink **write** failure is logged and metered but never blocks or fails
+  receipt emission — receipts are the primary record, and a missing checkpoint
+  is caught later by `verify` gap detection. A sink that fails to **open** at
+  startup is fatal (you asked for an anchor that cannot be provided).
+
+Check a chain against its anchor (opt-in; default behaviour is unchanged):
+
+```sh
+obsigna receipt verify --against-anchor /var/log/agentreceipts/anchor.ndjson
+```
+
+This additionally verifies each checkpoint's signature, that the checkpoint log
+is strictly increasing, and that the latest checkpoint matches the store HEAD.
+A store HEAD *behind* the anchored HEAD is reported as `FAIL (truncation)`.
+Without `--against-anchor`, `verify` is byte-identical to today.
+
 ## Read interface: `obsigna receipt show <seq>`
 
 ```sh

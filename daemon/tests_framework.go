@@ -427,6 +427,21 @@ func (f *DaemonFixture) Trace() string {
 	return f.traceBuf.String()
 }
 
+// Stop triggers a graceful shutdown and waits for Run to return, so a test can
+// inspect on-disk state (store, anchor) after the daemon's deferred cleanup —
+// including the shutdown checkpoint flush — has run. Idempotent with the
+// t.Cleanup that also cancels: the second cancel is a no-op and done is already
+// closed.
+func (f *DaemonFixture) Stop(t *testing.T) {
+	t.Helper()
+	f.cancel()
+	select {
+	case <-f.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("daemon did not shut down within 3s")
+	}
+}
+
 // findSDKRoot locates the repo root by walking up from the current working
 // directory until it finds the repo-root go.work file. The monorepo always
 // has a committed go.work (see /AGENTS.md "Go workspace"), so falling back

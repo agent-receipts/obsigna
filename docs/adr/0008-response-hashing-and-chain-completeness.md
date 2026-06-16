@@ -55,6 +55,8 @@ The release that closes #153 and #171 ships four things together:
 
 Option C (in-chain length-commitment field) is rejected as security theatre — see Context §"Options considered". Transparency-log-style checkpointing remains deferred to a future ADR.
 
+> **Anchoring freeze (added by the checkpoint-anchor spike, #600).** Receipts MUST NOT carry an anchor reference; anchoring is out-of-band by design — same rationale as the issuer-DID and `/context/v1` freezes. The signed checkpoint that realises Option B's "out-of-band commitment" (see §3) is a separate, additive artifact emitted to a pluggable multi-sink anchor; it never touches the receipt schema, the hash chain, `@context`, or the issuer DID. If closing the truncation gap appears to require an in-receipt anchor field, the design is wrong — the freeze does not move.
+
 ### 1. Response hashing (from #153)
 
 Add an optional field `credentialSubject.outcome.response_hash` containing the SHA-256 hash of the RFC 8785 canonical JSON of the server's response, computed **after** secret redaction.

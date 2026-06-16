@@ -25,6 +25,11 @@ import (
 // EventTypeRotation is the event type for key_rotated anchor records.
 const EventTypeRotation = "rotation"
 
+// EventTypeCheckpoint is the event type for signed chain-HEAD checkpoint
+// records (the truncation anchor; ADR-0008 follow-through). A sink carries
+// both rotation and checkpoint events; readers filter on EventType.
+const EventTypeCheckpoint = "checkpoint"
+
 // Sink is an append-only external witness for daemon events.
 //
 // Implementations MUST be safe for concurrent use and MUST return an error
@@ -71,22 +76,32 @@ func OpenFileLog(path string) (*FileLog, error) {
 	return &FileLog{f: f, now: time.Now}, nil
 }
 
-// Write appends one JSON record terminated by a newline and fsyncs so the
-// record is durable before the caller proceeds to the local commit.
-func (l *FileLog) Write(eventType string, payload []byte) error {
+// recordLine marshals one newline-terminated anchor Record. anchoredAt is the
+// sink-stamped time, so the daemon never chooses the recorded time. Shared by
+// every Sink so all adapters emit byte-identical record envelopes.
+func recordLine(anchoredAt time.Time, eventType string, payload []byte) ([]byte, error) {
 	if !json.Valid(payload) {
-		return errors.New("anchor: payload is not valid JSON")
+		return nil, errors.New("anchor: payload is not valid JSON")
 	}
 	rec := Record{
-		AnchoredAt: l.now().UTC().Format(time.RFC3339Nano),
+		AnchoredAt: anchoredAt.UTC().Format(time.RFC3339Nano),
 		EventType:  eventType,
 		Payload:    json.RawMessage(payload),
 	}
 	line, err := json.Marshal(rec)
 	if err != nil {
-		return fmt.Errorf("anchor: marshal record: %w", err)
+		return nil, fmt.Errorf("anchor: marshal record: %w", err)
 	}
-	line = append(line, '\n')
+	return append(line, '\n'), nil
+}
+
+// Write appends one JSON record terminated by a newline and fsyncs so the
+// record is durable before the caller proceeds to the local commit.
+func (l *FileLog) Write(eventType string, payload []byte) error {
+	line, err := recordLine(l.now(), eventType, payload)
+	if err != nil {
+		return err
+	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()

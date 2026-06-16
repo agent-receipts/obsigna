@@ -75,6 +75,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	dbPath := fs.String("db", envOr("AGENTRECEIPTS_DB", daemon.DefaultDBPath()), "SQLite receipt-store path (env: AGENTRECEIPTS_DB)")
 	pubKeyPath := fs.String("public-key", defaultPubKey, "PEM-encoded SPKI public key path (env: AGENTRECEIPTS_PUBLIC_KEY)")
 	chainID := fs.String("chain-id", envOr("AGENTRECEIPTS_CHAIN_ID", time.Now().UTC().Format("2006-01-02")), "Chain id to verify (env: AGENTRECEIPTS_CHAIN_ID)")
+	againstAnchor := fs.String("against-anchor", envOr("AGENTRECEIPTS_AGAINST_ANCHOR", ""), "Path to an out-of-band checkpoint anchor log (ADR-0008). When set, verify additionally checks the chain HEAD against the latest signed checkpoint and fails on tail truncation. Default off: behaviour without this flag is unchanged. (env: AGENTRECEIPTS_AGAINST_ANCHOR)")
 	if err := fs.Parse(args); err != nil {
 		// `-h` / `--help` is intentional, not an error — flag.ContinueOnError
 		// surfaces it as flag.ErrHelp after writing the usage message. Exit 0
@@ -197,7 +198,31 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 			noun = "receipt"
 		}
 		fmt.Fprintf(stdout, "Chain %s: VALID (%d %s)\n", *chainID, result.Length, noun)
-		return ExitOK
+
+		// Out-of-band anchor check (ADR-0008), opt-in via --against-anchor. A
+		// tail-truncated chain still verifies as VALID above — its remaining
+		// receipts are internally consistent — so the anchor is the only thing
+		// that can catch a dropped tail. Default off: without the flag this
+		// returns here, byte-identical to before.
+		if *againstAnchor == "" {
+			return ExitOK
+		}
+		headSeq, headHash, headFound, terr := s.GetChainTail(*chainID)
+		if terr != nil {
+			fmt.Fprintf(stderr, "obsigna receipt verify: read chain tail for anchor check: %v\n", terr)
+			return ExitUsageError
+		}
+		ar := verifyAgainstAnchor(*againstAnchor, *chainID, string(pubPEM), headSeq, headHash, headFound)
+		if ar.OK {
+			fmt.Fprintf(stdout, "Anchor %s: PASS (%d checkpoint(s); head seq %d anchored)\n", *againstAnchor, ar.Checked, headSeq)
+			return ExitOK
+		}
+		label := "FAIL"
+		if ar.Truncated {
+			label = "FAIL (truncation)"
+		}
+		fmt.Fprintf(stdout, "Anchor %s: %s — %s\n", *againstAnchor, label, ar.Reason)
+		return ExitChainBad
 	}
 	fmt.Fprintf(stdout, "Chain %s: BROKEN at receipt %d\n", *chainID, result.BrokenAt)
 	if result.Error != "" {

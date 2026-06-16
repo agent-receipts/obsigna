@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/agent-receipts/ar/daemon/internal/chain"
+	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
 	"github.com/agent-receipts/ar/daemon/internal/keysource"
 	"github.com/agent-receipts/ar/daemon/internal/socket"
 	"github.com/agent-receipts/ar/sdk/go/receipt"
@@ -179,6 +180,23 @@ type Pipeline struct {
 	// parameters_hash / response_hash, so those hashes are always over the
 	// original emitter payload. Nil = no redaction.
 	Redactor *Redactor
+
+	// Checkpointer, when set, receives the chain HEAD after every committed
+	// receipt and emits an out-of-band signed checkpoint per its cadence
+	// (ADR-0008 follow-through, truncation anchor). Nil = checkpointing
+	// disabled, which is the default and keeps the commit path byte-identical
+	// to a build without the feature.
+	//
+	// FREEZE (ADR-0008, IRREVERSIBLE): the checkpoint is ADDITIVE and
+	// OUT-OF-BAND. It is emitted here, AFTER the receipt is committed, from the
+	// (sequence, hash) the chain already produced — it never reaches back into
+	// the receipt. Receipts MUST NOT carry an anchor reference; anchoring is
+	// out-of-band by design (same rationale as the issuer-DID and /context/v1
+	// freezes). Do NOT add an anchor field to the receipt schema, the hash
+	// chain, @context, or the issuer DID to "link" a receipt to its checkpoint.
+	// If closing the truncation gap appears to need that, the design is wrong —
+	// the freeze does not move.
+	Checkpointer *checkpoint.Emitter
 
 	// traceMu serialises writes to TraceLog. Process is invoked concurrently
 	// from the listener accept loop, so unguarded fmt.Fprintf calls would
@@ -400,6 +418,7 @@ func (p *Pipeline) processWithDrop(frame *EmitterFrame, peer socket.PeerCred) er
 	p.trace("receipt stored: seq=%d", liveAlloc.Sequence)
 
 	liveAlloc.Commit(liveHash)
+	p.checkpoint(chainID, liveAlloc.Sequence, liveHash)
 	return nil
 }
 
@@ -434,7 +453,19 @@ func (p *Pipeline) processLive(frame *EmitterFrame, peer socket.PeerCred) error 
 	p.trace("receipt stored: seq=%d", alloc.Sequence)
 
 	alloc.Commit(hash)
+	p.checkpoint(state.ChainID(), alloc.Sequence, hash)
 	return nil
+}
+
+// checkpoint hands the just-committed chain HEAD to the Checkpointer, if one is
+// configured. It runs AFTER Commit, so it can never block or undo receipt
+// emission — a sink failure is logged and metered inside the emitter, not
+// surfaced to the frame. No-op when checkpointing is disabled (the default).
+func (p *Pipeline) checkpoint(chainID string, seq int64, headHash string) {
+	if p.Checkpointer == nil {
+		return
+	}
+	p.Checkpointer.Observe(chainID, seq, headHash)
 }
 
 // logError calls ErrorLog if it is set. Used for non-fatal conditions where
@@ -968,6 +999,39 @@ func (p *Pipeline) EmitTerminator(ctx context.Context) error {
 		firstErr = err
 	}
 	return firstErr
+}
+
+// FlushCheckpoints forces a final checkpoint for every open chain (root and
+// per-agent) at its current store HEAD. Called once on graceful shutdown,
+// after EmitTerminator, so the anchored head reflects the terminal receipt —
+// closing the cadence-boundary gap where the last receipts since the previous
+// checkpoint would otherwise be unanchored. No-op when checkpointing is
+// disabled. Like the per-receipt path, sink failures are logged/metered inside
+// the emitter, never fatal.
+func (p *Pipeline) FlushCheckpoints() {
+	if p.Checkpointer == nil {
+		return
+	}
+	p.agentChainsMu.RLock()
+	states := make([]*chain.State, 0, len(p.agentChains)+1)
+	for _, s := range p.agentChains {
+		states = append(states, s)
+	}
+	p.agentChainsMu.RUnlock()
+	states = append(states, p.State)
+
+	for _, s := range states {
+		chainID := s.ChainID()
+		seq, hash, found, err := p.Store.GetChainTail(chainID)
+		if err != nil {
+			p.logError("checkpoint flush: read chain tail %s: %v", chainID, err)
+			continue
+		}
+		if !found {
+			continue
+		}
+		p.Checkpointer.Flush(chainID, seq, hash)
+	}
 }
 
 // emitTerminatorForChain emits an interrupted-chain terminal receipt for s if

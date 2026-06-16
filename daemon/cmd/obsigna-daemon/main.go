@@ -223,6 +223,8 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 	fs.BoolVar(&cfg.UnsafeSocketPath, "unsafe-socket-path", cfg.UnsafeSocketPath, "Permit a --socket/AGENTRECEIPTS_SOCKET path outside the per-platform safe set (logs a warning; does not override TCP rejection) (env: AGENTRECEIPTS_UNSAFE_SOCKET_PATH)")
 	fs.StringVar(&cfg.RedactPatternsPath, "redact-patterns", cfg.RedactPatternsPath, "Path to a YAML file of additional redaction patterns (merged with built-in defaults) (env: AGENTRECEIPTS_REDACT_PATTERNS)")
 	fs.DurationVar(&cfg.ShutdownDeadline, "shutdown-deadline", cfg.ShutdownDeadline, "Best-effort time budget for emitting interrupted-chain terminators on SIGTERM/SIGINT (cannot preempt in-progress SQLite I/O)")
+	checkpointAnchor := fs.String("checkpoint-anchor", strings.Join(cfg.CheckpointAnchors, ","), "Comma-separated out-of-band checkpoint anchor sinks (ADR-0008 truncation anchor): file:<path>, git:<dir>, syslog:<tag>, or a bare path (=file:). Empty disables checkpointing. (env: AGENTRECEIPTS_CHECKPOINT_ANCHOR)")
+	fs.IntVar(&cfg.CheckpointCadence, "checkpoint-cadence", cfg.CheckpointCadence, "Receipts between checkpoint emissions per chain; 0/1 = every receipt. A graceful shutdown always forces a final checkpoint. (env: AGENTRECEIPTS_CHECKPOINT_CADENCE)")
 
 	// scanConfigFlag (via loadConfigLayer) is the source of truth for --config:
 	// it has already consumed the value, so we never read *configPath. The flag
@@ -233,6 +235,11 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 	if err := fs.Parse(args); err != nil {
 		return resolved{}, err
 	}
+
+	// --checkpoint-anchor is a comma-separated string on the flag surface but a
+	// []string in Config; split after Parse so an explicit flag (or its env/
+	// default-derived value) lands as the resolved sink list.
+	cfg.CheckpointAnchors = splitAnchors(*checkpointAnchor)
 
 	return resolved{
 		cfg:             cfg,
@@ -368,6 +375,12 @@ func applyFileConfig(cfg *daemon.Config, fc *daemon.FileConfig) {
 	if fc.ShutdownDeadline != nil {
 		cfg.ShutdownDeadline = fc.ShutdownDeadline.Duration
 	}
+	if fc.CheckpointAnchor != nil {
+		cfg.CheckpointAnchors = splitAnchors(*fc.CheckpointAnchor)
+	}
+	if fc.CheckpointCadence != nil {
+		cfg.CheckpointCadence = *fc.CheckpointCadence
+	}
 }
 
 // envOverlay applies AGENTRECEIPTS_* environment variables over cfg. An unset
@@ -418,7 +431,29 @@ func envOverlay(cfg *daemon.Config, getenv func(string) string) error {
 	if v := getenv("AGENTRECEIPTS_REDACT_PATTERNS"); v != "" {
 		cfg.RedactPatternsPath = v
 	}
+	if v := getenv("AGENTRECEIPTS_CHECKPOINT_ANCHOR"); v != "" {
+		cfg.CheckpointAnchors = splitAnchors(v)
+	}
+	if v := getenv("AGENTRECEIPTS_CHECKPOINT_CADENCE"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("invalid AGENTRECEIPTS_CHECKPOINT_CADENCE %q: want an integer", v)
+		}
+		cfg.CheckpointCadence = n
+	}
 	return nil
+}
+
+// splitAnchors parses a comma-separated checkpoint-anchor list into trimmed,
+// non-empty backend specs. "" yields nil (checkpointing disabled).
+func splitAnchors(v string) []string {
+	var specs []string
+	for _, part := range strings.Split(v, ",") {
+		if s := strings.TrimSpace(part); s != "" {
+			specs = append(specs, s)
+		}
+	}
+	return specs
 }
 
 // printConfig writes the resolved config in TOML-ish key=value form, mirroring
@@ -438,4 +473,6 @@ func printConfig(w io.Writer, cfg daemon.Config) {
 	fmt.Fprintf(w, "redact_patterns = %q\n", cfg.RedactPatternsPath)
 	fmt.Fprintf(w, "unsafe_socket_path = %t\n", cfg.UnsafeSocketPath)
 	fmt.Fprintf(w, "shutdown_deadline = %q\n", cfg.ShutdownDeadline.String())
+	fmt.Fprintf(w, "checkpoint_anchor = %q\n", strings.Join(cfg.CheckpointAnchors, ","))
+	fmt.Fprintf(w, "checkpoint_cadence = %d\n", cfg.CheckpointCadence)
 }
