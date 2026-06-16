@@ -1,6 +1,6 @@
 {
 	"name": "@obsigna/sdk-ts",
-	"version": "0.14.0",
+	"version": "0.14.1",
 	"description": "TypeScript SDK for the Agent Receipts protocol",
 	"license": "Apache-2.0",
 	"author": "Otto Jongerius",
@@ -14,6 +14,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"default": "./dist/index.js"
+		},
+		"./emitter": {
+			"types": "./dist/daemon-emitter.d.ts",
+			"default": "./dist/daemon-emitter.js"
 		},
 		"./receipt": {
 			"types": "./dist/receipt/index.d.ts",

@@ -12,6 +12,12 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-06-16
+
+### Added
+
+- **`@obsigna/sdk-ts/emitter` subpath export** — exposes `DaemonEmitter` and its frame types (`EmitEvent`, `EmitTool`, `DaemonEmitterOptions`, `EmitTransportError`, `defaultSocketPath`, …) from `daemon-emitter.js` directly, without pulling in the package barrel. The barrel re-exports the SQLite-backed store (`node:sqlite`) and the HTTP/WAL emitters (`undici`); importing it forces those into a consumer's bundle even when only the daemon emitter is used. Emitter-only consumers that bundle for restricted runtimes — notably the OpenCode plugin, whose loader could not resolve `node:sqlite` — should import from `@obsigna/sdk-ts/emitter`. Additive; the main entry point is unchanged.
+
 ## [0.14.0] - 2026-06-16
 
 ### Added
