@@ -1,7 +1,7 @@
 {
 	"name": "@obsigna/opencode-plugin",
-	"version": "0.1.0-alpha.1",
-	"description": "OpenCode plugin that emits Agent Receipts for native tool calls via the agent-receipts daemon",
+	"version": "0.1.0-alpha.2",
+	"description": "OpenCode plugin that emits Agent Receipts for native tool calls via the Obsigna daemon",
 	"license": "Apache-2.0",
 	"author": "Otto Jongerius",
 	"repository": {
