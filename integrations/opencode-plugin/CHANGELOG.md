@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-06-16
+
+### Changed
+
+- **Package description** now refers to the **Obsigna daemon** rather than "the agent-receipts daemon", matching the brand split (Agent Receipts = the protocol, Obsigna = the toolset). Metadata-only; no code changes. Supersedes `0.1.0-alpha.1`.
+
 ## [0.1.0-alpha.1] - 2026-06-16
 
 ### Added
