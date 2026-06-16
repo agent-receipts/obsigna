@@ -98,14 +98,9 @@ jobs:
           fi
 
       # Publishes via npm OIDC trusted publishing (configured on the npm
-      # package): id-token: write + setup-node's registry-url for OIDC context.
-      # This repo injects a runner-level NODE_AUTH_TOKEN (used by sdk-ts, which it
-      # has access to). That token does NOT cover @obsigna/opencode-plugin, and a
-      # non-empty token in `.npmrc` takes precedence over OIDC — so it is cleared
-      # here, forcing npm to mint a short-lived credential from the GitHub OIDC
-      # identity and sign provenance from it.
+      # package): id-token: write + setup-node's registry-url, no token. npm
+      # attempts OIDC first and mints a short-lived credential, signing
+      # provenance from it. Same as release-sdk-ts.yml.
       - name: Publish to npm
         working-directory: integrations/opencode-plugin
-        env:
-          NODE_AUTH_TOKEN: ""
         run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.tag }}
