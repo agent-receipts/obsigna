@@ -9,14 +9,14 @@ The plugin runs **inside** the OpenCode process → **emitter only**. It MUST em
 ## Getting started
 
 ```sh
-pnpm install        # @obsigna/sdk-ts is file:-linked from ../../sdk/ts (build it first)
+pnpm install        # installs @obsigna/sdk-ts from npm (versioned dependency)
 pnpm build          # tsc → dist/
 pnpm test           # vitest (unit + round-trip against a fake daemon socket)
 pnpm typecheck      # tsc --noEmit
 pnpm lint           # biome check
 ```
 
-`@obsigna/sdk-ts` resolves from a `file:../../sdk/ts` install, so run `pnpm build` in `sdk/ts` before installing/testing here.
+`@obsigna/sdk-ts` is a versioned dependency resolved from npm, so the SDK does not need to be built locally first. To develop against unreleased SDK changes, publish a pre-release or temporarily `pnpm link` the in-tree `sdk/ts`.
 
 ## Project structure
 
@@ -52,6 +52,6 @@ src/
 
 ## CI / Release
 
-CI runs via `.github/workflows/opencode-plugin.yml` (path-filtered on `integrations/opencode-plugin/**` and `sdk/ts/**`): it builds the in-tree `sdk/ts` first, then runs typecheck, lint, build, and test. The published `package.json` declares a versioned `@obsigna/sdk-ts` range; a `pnpm.overrides` entry pins it back to `file:../../sdk/ts` for in-tree dev and CI, so a same-PR `sdk/ts` change still fails the plugin build.
+CI runs via `.github/workflows/opencode-plugin.yml` (path-filtered on `integrations/opencode-plugin/**`): it installs deps (including the published `@obsigna/sdk-ts`) and runs typecheck, lint, build, and test. The plugin depends on a versioned `@obsigna/sdk-ts` range, so it is tested against exactly what consumers install — a breaking SDK change is opted into by bumping the range, not surfaced automatically.
 
 Releases run via `.github/workflows/release-opencode-plugin.yml` on a `opencode-plugin-v*` tag: it verifies the tag matches `package.json`, runs the check suite, creates a GitHub release (pre-release for `-` versions), and publishes to npm with provenance under a dist-tag derived from the pre-release label (`alpha` for `-alpha.N`, `latest` for stable). The tag must match `package.json` version exactly.

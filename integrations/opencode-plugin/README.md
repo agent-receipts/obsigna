@@ -45,7 +45,7 @@ Default is catch-and-warn: a tool call is **never** aborted because the daemon i
 ## Development
 
 ```sh
-pnpm install   # installs deps; @obsigna/sdk-ts is linked from ../../sdk/ts
+pnpm install   # installs deps, including @obsigna/sdk-ts from npm
 pnpm build     # tsc → dist/
 pnpm test      # vitest
 pnpm typecheck # tsc --noEmit

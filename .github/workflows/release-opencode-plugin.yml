@@ -26,9 +26,7 @@ jobs:
         with:
           node-version: "24"
           cache: "pnpm"
-          cache-dependency-path: |
-            sdk/ts/pnpm-lock.yaml
-            integrations/opencode-plugin/pnpm-lock.yaml
+          cache-dependency-path: integrations/opencode-plugin/pnpm-lock.yaml
           registry-url: "https://registry.npmjs.org"
 
       - name: Prepare version
@@ -44,13 +42,6 @@ jobs:
             echo "::error::Release tag opencode-plugin-v${PLUGIN_VERSION} does not match package.json version ${PKG_VERSION}"
             exit 1
           fi
-
-      # The plugin's package.json declares a versioned @obsigna/sdk-ts range, but
-      # a pnpm.overrides entry pins it to file:../../sdk/ts for in-tree builds, so
-      # the SDK's dist/ must exist before the plugin can install/typecheck/test.
-      - name: Build in-tree TypeScript SDK
-        working-directory: sdk/ts
-        run: pnpm install --frozen-lockfile && pnpm run build
 
       - name: Install plugin deps
         working-directory: integrations/opencode-plugin

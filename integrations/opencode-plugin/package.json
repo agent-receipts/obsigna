@@ -35,11 +35,6 @@
 	"dependencies": {
 		"@obsigna/sdk-ts": "^0.14.0"
 	},
-	"pnpm": {
-		"overrides": {
-			"@obsigna/sdk-ts": "file:../../sdk/ts"
-		}
-	},
 	"peerDependencies": {
 		"@opencode-ai/plugin": ">=0.1.0"
 	},
