@@ -12,6 +12,8 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-16
+
 ### Added
 
 - **`EmitEvent.actionType`** — new optional field on the `DaemonEmitter` frame, forwarded to the daemon as `action_type`. When set, the daemon uses it verbatim as `action.type` and resolves `risk_level` from the taxonomy, rather than falling back to the synthetic `"<channel>.<tool>"` type (which defaults risk to medium). Lets emitters that already know the taxonomic action type — such as the OpenCode plugin — make risk-based controls effective. The daemon already accepted this frame field; this exposes it through the TS emitter. Additive and backwards-compatible: omitting it preserves the previous behaviour.
