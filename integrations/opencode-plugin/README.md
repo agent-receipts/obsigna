@@ -1,4 +1,4 @@
-# @agent-receipts/opencode-plugin
+# @obsigna/opencode-plugin
 
 [OpenCode](https://opencode.ai) plugin for [Agent Receipts](https://github.com/agent-receipts/obsigna). Emits one cryptographically signed receipt per **native** tool call (`bash`, `edit`, `write`, `webfetch`, …) by forwarding each call to `agent-receipts-daemon` over a Unix-domain socket. The daemon — not this plugin — holds the key, canonicalises, signs, and chains the receipt.
 
@@ -11,14 +11,14 @@ The plugin runs **inside** the OpenCode process, so it is an **emitter only** �
 ## Install
 
 ```sh
-npm install @agent-receipts/opencode-plugin
+npm install @obsigna/opencode-plugin
 ```
 
 Register it as an OpenCode plugin in `opencode.json`:
 
 ```json
 {
-  "plugin": ["@agent-receipts/opencode-plugin"]
+  "plugin": ["@obsigna/opencode-plugin"]
 }
 ```
 

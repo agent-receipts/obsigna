@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@obsigna/sdk-ts': file:../../sdk/ts
+
 importers:
 
   .:

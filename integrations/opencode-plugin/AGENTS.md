@@ -1,6 +1,6 @@
 # AGENTS.md
 
-OpenCode plugin (`@agent-receipts/opencode-plugin`) that emits one Agent Receipt per native OpenCode tool call. Hooks `tool.execute.before`/`tool.execute.after` from `@opencode-ai/plugin` and forwards each call to `agent-receipts-daemon` via the TS SDK `DaemonEmitter`. The OpenCode analog of the Go [`hook/`](../../hook/) Claude Code integration, for the native-tool channel.
+OpenCode plugin (`@obsigna/opencode-plugin`) that emits one Agent Receipt per native OpenCode tool call. Hooks `tool.execute.before`/`tool.execute.after` from `@opencode-ai/plugin` and forwards each call to `agent-receipts-daemon` via the TS SDK `DaemonEmitter`. The OpenCode analog of the Go [`hook/`](../../hook/) Claude Code integration, for the native-tool channel.
 
 ## Trust boundary (load-bearing)
 
@@ -52,4 +52,6 @@ src/
 
 ## CI / Release
 
-CI runs via `.github/workflows/opencode-plugin.yml` (path-filtered on `integrations/opencode-plugin/**` and `sdk/ts/**`): it builds the in-tree `sdk/ts` first (the `file:` dependency), then runs typecheck, lint, build, and test. No release/publish workflow ships yet — publishing (swapping the `file:` link to a versioned `@obsigna/sdk-ts` release) is a follow-up.
+CI runs via `.github/workflows/opencode-plugin.yml` (path-filtered on `integrations/opencode-plugin/**` and `sdk/ts/**`): it builds the in-tree `sdk/ts` first, then runs typecheck, lint, build, and test. The published `package.json` declares a versioned `@obsigna/sdk-ts` range; a `pnpm.overrides` entry pins it back to `file:../../sdk/ts` for in-tree dev and CI, so a same-PR `sdk/ts` change still fails the plugin build.
+
+Releases run via `.github/workflows/release-opencode-plugin.yml` on a `opencode-plugin-v*` tag: it verifies the tag matches `package.json`, runs the check suite, creates a GitHub release (pre-release for `-` versions), and publishes to npm with provenance under a dist-tag derived from the pre-release label (`alpha` for `-alpha.N`, `latest` for stable). The tag must match `package.json` version exactly.

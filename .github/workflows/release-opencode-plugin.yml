@@ -1,0 +1,113 @@
+name: "Release: opencode-plugin"
+
+on:
+  push:
+    tags:
+      - "opencode-plugin-v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Deployment environment lets you attach protection rules (required
+    # reviewers, wait timer, branch restrictions) to gate who can trigger
+    # a release. Configure at:
+    # https://github.com/agent-receipts/obsigna/settings/environments
+    environment: release-opencode-plugin
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: |
+            sdk/ts/pnpm-lock.yaml
+            integrations/opencode-plugin/pnpm-lock.yaml
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Prepare version
+        run: |
+          VERSION="${GITHUB_REF_NAME#opencode-plugin-v}"
+          echo "PLUGIN_VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Verify release tag matches package.json version
+        working-directory: integrations/opencode-plugin
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
+            echo "::error::Release tag opencode-plugin-v${PLUGIN_VERSION} does not match package.json version ${PKG_VERSION}"
+            exit 1
+          fi
+
+      # The plugin's package.json declares a versioned @obsigna/sdk-ts range, but
+      # a pnpm.overrides entry pins it to file:../../sdk/ts for in-tree builds, so
+      # the SDK's dist/ must exist before the plugin can install/typecheck/test.
+      - name: Build in-tree TypeScript SDK
+        working-directory: sdk/ts
+        run: pnpm install --frozen-lockfile && pnpm run build
+
+      - name: Install plugin deps
+        working-directory: integrations/opencode-plugin
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: integrations/opencode-plugin
+        run: pnpm run typecheck
+
+      - name: Lint
+        working-directory: integrations/opencode-plugin
+        run: pnpm run lint
+
+      - name: Build
+        working-directory: integrations/opencode-plugin
+        run: pnpm run build
+
+      - name: Test
+        working-directory: integrations/opencode-plugin
+        run: pnpm run test
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Mark pre-release tags (e.g. v0.1.0-alpha.1) so they don't show up as
+          # "latest" on the GitHub Releases page. Skip creation if the release
+          # already exists so reruns after a failed publish step don't abort
+          # before reaching npm.
+          PRERELEASE_ARG=()
+          if [[ "${PLUGIN_VERSION}" == *-* ]]; then
+            PRERELEASE_ARG+=(--prerelease)
+          fi
+          if ! gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "opencode-plugin ${PLUGIN_VERSION}" \
+              --generate-notes \
+              "${PRERELEASE_ARG[@]}"
+          fi
+
+      - name: Determine npm dist-tag
+        id: dist_tag
+        shell: bash
+        run: |
+          CORE="${PLUGIN_VERSION%%+*}"
+          if [[ "$CORE" == *-* ]]; then
+            PRE="${CORE#*-}"
+            if [[ "$PRE" =~ ^([A-Za-z]+) ]]; then
+              TAG_NAME="${BASH_REMATCH[1],,}"
+            else
+              TAG_NAME="prerelease"
+            fi
+            echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        working-directory: integrations/opencode-plugin
+        run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.tag }}
