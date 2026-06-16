@@ -16,11 +16,8 @@
 package verifycli
 
 import (
-	"crypto/ed25519"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +28,7 @@ import (
 	"time"
 
 	"github.com/agent-receipts/ar/daemon"
+	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
 	"github.com/agent-receipts/ar/sdk/go/receipt"
 	"github.com/agent-receipts/ar/sdk/go/store"
 )
@@ -75,6 +73,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	dbPath := fs.String("db", envOr("AGENTRECEIPTS_DB", daemon.DefaultDBPath()), "SQLite receipt-store path (env: AGENTRECEIPTS_DB)")
 	pubKeyPath := fs.String("public-key", defaultPubKey, "PEM-encoded SPKI public key path (env: AGENTRECEIPTS_PUBLIC_KEY)")
 	chainID := fs.String("chain-id", envOr("AGENTRECEIPTS_CHAIN_ID", time.Now().UTC().Format("2006-01-02")), "Chain id to verify (env: AGENTRECEIPTS_CHAIN_ID)")
+	againstAnchor := fs.String("against-anchor", envOr("AGENTRECEIPTS_AGAINST_ANCHOR", ""), "Path to an out-of-band checkpoint anchor log (ADR-0008). When set, verify additionally checks the chain HEAD against the latest signed checkpoint and fails on tail truncation. Default off: behaviour without this flag is unchanged. (env: AGENTRECEIPTS_AGAINST_ANCHOR)")
 	if err := fs.Parse(args); err != nil {
 		// `-h` / `--help` is intentional, not an error — flag.ContinueOnError
 		// surfaces it as flag.ErrHelp after writing the usage message. Exit 0
@@ -197,7 +196,31 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 			noun = "receipt"
 		}
 		fmt.Fprintf(stdout, "Chain %s: VALID (%d %s)\n", *chainID, result.Length, noun)
-		return ExitOK
+
+		// Out-of-band anchor check (ADR-0008), opt-in via --against-anchor. A
+		// tail-truncated chain still verifies as VALID above — its remaining
+		// receipts are internally consistent — so the anchor is the only thing
+		// that can catch a dropped tail. Default off: without the flag this
+		// returns here, byte-identical to before.
+		if *againstAnchor == "" {
+			return ExitOK
+		}
+		headSeq, headHash, headFound, terr := s.GetChainTail(*chainID)
+		if terr != nil {
+			fmt.Fprintf(stderr, "obsigna receipt verify: read chain tail for anchor check: %v\n", terr)
+			return ExitUsageError
+		}
+		ar := verifyAgainstAnchor(*againstAnchor, *chainID, string(pubPEM), headSeq, headHash, headFound)
+		if ar.OK {
+			fmt.Fprintf(stdout, "Anchor %s: PASS (%d checkpoint(s); head seq %d anchored)\n", *againstAnchor, ar.Checked, headSeq)
+			return ExitOK
+		}
+		label := "FAIL"
+		if ar.Truncated {
+			label = "FAIL (truncation)"
+		}
+		fmt.Fprintf(stdout, "Anchor %s: %s — %s\n", *againstAnchor, label, ar.Reason)
+		return ExitChainBad
 	}
 	fmt.Fprintf(stdout, "Chain %s: BROKEN at receipt %d\n", *chainID, result.BrokenAt)
 	if result.Error != "" {
@@ -227,30 +250,8 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 // malformed key would surface as a "BROKEN" chain — falsely implicating the
 // receipts.
 func validatePublicKeyPEM(pubPEM []byte) error {
-	_, err := ed25519PublicFromPEM(pubPEM)
+	_, err := checkpoint.PublicKeyFromPEM(pubPEM)
 	return err
-}
-
-// ed25519PublicFromPEM decodes PEM/SPKI bytes into an Ed25519 public key,
-// rejecting any other key type or malformed input. It is the single parse behind
-// both validatePublicKeyPEM and publicKeyFingerprint so the two cannot diverge.
-func ed25519PublicFromPEM(pubPEM []byte) (ed25519.PublicKey, error) {
-	block, _ := pem.Decode(pubPEM)
-	if block == nil {
-		return nil, errors.New("PEM decode failed (no PUBLIC KEY block)")
-	}
-	if block.Type != "PUBLIC KEY" {
-		return nil, fmt.Errorf("PEM block type is %q, want PUBLIC KEY", block.Type)
-	}
-	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse SPKI public key: %w", err)
-	}
-	pub, ok := parsed.(ed25519.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("public key is %T, want ed25519.PublicKey", parsed)
-	}
-	return pub, nil
 }
 
 // publicKeyFingerprint returns the ADR-0015 fingerprint of a PEM/SPKI Ed25519
@@ -258,7 +259,7 @@ func ed25519PublicFromPEM(pubPEM []byte) (ed25519.PublicKey, error) {
 // matches the construction the rotation writer and the SDK use, so it compares
 // directly against a key_rotated receipt's new_key_fingerprint.
 func publicKeyFingerprint(pubPEM []byte) (string, error) {
-	pub, err := ed25519PublicFromPEM(pubPEM)
+	pub, err := checkpoint.PublicKeyFromPEM(pubPEM)
 	if err != nil {
 		return "", err
 	}

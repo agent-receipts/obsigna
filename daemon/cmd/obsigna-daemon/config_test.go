@@ -50,6 +50,71 @@ shutdown_deadline = "750ms"
 	}
 }
 
+// TestResolveConfig_CheckpointAnchor covers the checkpoint anchor sink list and
+// cadence across all three layers, including the comma-split into a []string.
+func TestResolveConfig_CheckpointAnchor(t *testing.T) {
+	t.Run("file", func(t *testing.T) {
+		path := writeConfig(t, `
+checkpoint_anchor = "git:/var/anchor, file:/var/a.ndjson"
+checkpoint_cadence = 5
+`)
+		r, err := resolveConfig([]string{"--config", path}, noEnv, io.Discard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"git:/var/anchor", "file:/var/a.ndjson"}
+		if len(r.cfg.CheckpointAnchors) != len(want) {
+			t.Fatalf("anchors = %v, want %v", r.cfg.CheckpointAnchors, want)
+		}
+		for i := range want {
+			if r.cfg.CheckpointAnchors[i] != want[i] {
+				t.Errorf("anchor[%d] = %q, want %q", i, r.cfg.CheckpointAnchors[i], want[i])
+			}
+		}
+		if r.cfg.CheckpointCadence != 5 {
+			t.Errorf("cadence = %d, want 5", r.cfg.CheckpointCadence)
+		}
+	})
+	t.Run("env overrides file", func(t *testing.T) {
+		path := writeConfig(t, "checkpoint_anchor = \"file:/from-file\"\n")
+		env := envMap(map[string]string{"AGENTRECEIPTS_CHECKPOINT_ANCHOR": "git:/from-env"})
+		r, err := resolveConfig([]string{"--config", path}, env, io.Discard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(r.cfg.CheckpointAnchors) != 1 || r.cfg.CheckpointAnchors[0] != "git:/from-env" {
+			t.Errorf("anchors = %v, want env to override file", r.cfg.CheckpointAnchors)
+		}
+	})
+	t.Run("flag overrides env and file", func(t *testing.T) {
+		path := writeConfig(t, "checkpoint_anchor = \"file:/from-file\"\n")
+		env := envMap(map[string]string{"AGENTRECEIPTS_CHECKPOINT_ANCHOR": "git:/from-env"})
+		r, err := resolveConfig([]string{"--config", path, "--checkpoint-anchor", "syslog:tag"}, env, io.Discard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(r.cfg.CheckpointAnchors) != 1 || r.cfg.CheckpointAnchors[0] != "syslog:tag" {
+			t.Errorf("anchors = %v, want flag to win", r.cfg.CheckpointAnchors)
+		}
+	})
+	t.Run("absent means disabled", func(t *testing.T) {
+		path := writeConfig(t, "chain_id = \"x\"\n")
+		r, err := resolveConfig([]string{"--config", path}, noEnv, io.Discard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(r.cfg.CheckpointAnchors) != 0 {
+			t.Errorf("anchors = %v, want empty (checkpointing off by default)", r.cfg.CheckpointAnchors)
+		}
+	})
+	t.Run("bad env cadence is rejected", func(t *testing.T) {
+		env := envMap(map[string]string{"AGENTRECEIPTS_CHECKPOINT_CADENCE": "soon"})
+		if _, err := resolveConfig(nil, env, io.Discard); err == nil {
+			t.Fatal("expected error for non-integer AGENTRECEIPTS_CHECKPOINT_CADENCE")
+		}
+	})
+}
+
 // TestResolveConfig_EnvOverridesFile: an env var beats a file value (file is
 // the lowest-priority layer).
 func TestResolveConfig_EnvOverridesFile(t *testing.T) {

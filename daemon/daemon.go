@@ -19,7 +19,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agent-receipts/ar/daemon/internal/anchor"
 	"github.com/agent-receipts/ar/daemon/internal/chain"
+	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
 	"github.com/agent-receipts/ar/daemon/internal/keysource"
 	"github.com/agent-receipts/ar/daemon/internal/pipeline"
 	"github.com/agent-receipts/ar/daemon/internal/socket"
@@ -107,6 +109,24 @@ type Config struct {
 	// ShutdownDeadline is the total time budget for emitting interrupted-chain
 	// terminators on SIGTERM/SIGINT. Defaults to 200ms when zero.
 	ShutdownDeadline time.Duration
+
+	// CheckpointAnchors is the fan-out list of out-of-band sinks the daemon
+	// writes signed chain-HEAD checkpoints to (ADR-0008 follow-through, the
+	// truncation anchor). Each entry is a backend spec — "file:<path>",
+	// "git:<dir>", or "syslog:<tag>" (a bare path means file). Empty disables
+	// checkpointing entirely: the daemon's behaviour is then byte-identical to
+	// a build without this feature, and `verify` without --against-anchor is
+	// unaffected. Set from --checkpoint-anchor (env: AGENTRECEIPTS_CHECKPOINT_ANCHOR,
+	// comma-separated).
+	CheckpointAnchors []string
+
+	// CheckpointCadence is how many committed receipts pass between checkpoint
+	// emissions on a chain. Defaults to 1 (every receipt) when zero — chosen for
+	// spike testability; production tuning is deferred. A graceful shutdown
+	// always forces a final checkpoint regardless of cadence. Only consulted when
+	// CheckpointAnchors is non-empty. Set from --checkpoint-cadence
+	// (env: AGENTRECEIPTS_CHECKPOINT_CADENCE).
+	CheckpointCadence int
 }
 
 // DefaultSocketPath returns the per-OS default socket path. Phase 1 resolves
@@ -553,6 +573,31 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	pp.Redactor = pipeline.NewRedactor(customPatterns)
 
+	// Wire the out-of-band checkpoint anchor (ADR-0008 follow-through) when one
+	// or more sinks are configured. Empty CheckpointAnchors leaves pp.Checkpointer
+	// nil, so the commit path and shutdown are byte-identical to a build without
+	// the feature. A sink that fails to OPEN is fatal (the operator asked for an
+	// anchor that cannot be provided); a sink that fails to WRITE later is
+	// logged + metered but never blocks receipt emission.
+	if len(cfg.CheckpointAnchors) > 0 {
+		sinks, err := anchor.OpenSinks(cfg.CheckpointAnchors)
+		if err != nil {
+			return fmt.Errorf("open checkpoint anchor: %w", err)
+		}
+		emitter := checkpoint.NewEmitter(sinks, ks, cfg.CheckpointCadence, cfg.Logger.Printf)
+		defer func() {
+			if err := emitter.Close(); err != nil {
+				cfg.Logger.Printf("level=warn checkpoint anchor close: %v", err)
+			}
+		}()
+		pp.Checkpointer = emitter
+		cadence := cfg.CheckpointCadence
+		if cadence < 1 {
+			cadence = 1
+		}
+		cfg.Logger.Printf("checkpoint anchor ACTIVE: %d sink(s), cadence=every %d receipt(s)", len(sinks), cadence)
+	}
+
 	ln, err := socket.Listen(socket.Options{
 		Path:     cfg.SocketPath,
 		Handler:  func(ctx context.Context, f socket.Frame) error { return pp.Process(f) },
@@ -582,6 +627,11 @@ func Run(ctx context.Context, cfg Config) error {
 			return fmt.Errorf("emit terminator: %w", err)
 		}
 	}
+
+	// Anchor the final HEAD of every open chain (including the terminal receipt
+	// just emitted) before the deferred st.Close() commits the WAL. No-op when
+	// checkpointing is disabled.
+	pp.FlushCheckpoints()
 
 	cfg.Logger.Printf("obsigna-daemon shutdown complete")
 	return nil

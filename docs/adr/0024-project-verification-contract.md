@@ -50,6 +50,7 @@ The following gates are committed to as the initial set, each tracked by its own
 | 8 | **Daemon ↔ SDK protocol compatibility** | An SDK release declares a daemon-protocol version range and the gate verifies the released daemon at the same time speaks a compatible range | #655 |
 | 9 | **Spec source-of-truth integrity** | At most one canonical spec source file exists at a time; every spec version's `@context` URL exists in the repo at `spec/context/v<N>/context.jsonld` | #597 follow-through |
 | 10 | **Documented dependencies match installed dependencies** | The dependencies the README claims match an SBOM produced at release time; unexplained eager dependencies fail the build | #656 |
+| 11 | **No tail truncation (checkpoint anchor)** | A chain with an out-of-band checkpoint anchor cannot have its receipt-store tail truncated undetected: `verify --against-anchor` fails when the anchored HEAD is ahead of the store HEAD | #600 |
 
 ### D5. Gate exemptions are explicit
 

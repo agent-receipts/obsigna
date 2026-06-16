@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0-alpha.1] - 2026-06-16
+
+### Added
+
+- **Out-of-band checkpoint anchor for tail-truncation resistance (ADR-0008 §2, spike #600).** The daemon can emit an additive, Ed25519-signed checkpoint of each chain HEAD — `{chain_id, sequence, receipt_hash, timestamp}`, canonicalised through the existing RFC 8785 path — to one or more append-only sinks the agent UID cannot rewrite. Enable with `--checkpoint-anchor`, a comma-separated fan-out list of `file:<path>`, `git:<dir>`, or `syslog:<tag>` specs (env `AGENTRECEIPTS_CHECKPOINT_ANCHOR`, TOML `checkpoint_anchor`), and `--checkpoint-cadence` (receipts per checkpoint; default every receipt). A checkpoint is signed once and fanned out to every sink; the git sink commits each record so its commit chain is a tamper-evident log. Sink write failures are logged and metered but never block or undo receipt emission — receipts are the primary record. `obsigna receipt verify --against-anchor <log>` additionally verifies each checkpoint signature, asserts the log is strictly increasing in file order, and fails on tail truncation (a checkpoint ahead of the store HEAD). Receipts stay a linear verifiable-credential chain — this touches neither the receipt schema, hash chain, `@context`, nor the issuer DID (the anchoring freeze, ADR-0008). **Off by default:** with no `--checkpoint-anchor` configured, the daemon and `verify` are byte-identical to before. **Alpha — opt-in and experimental:** checkpoint emission is synchronous on the commit path, and durability/retry plus production-grade sinks (object-lock storage, TPM, transparency log) are not yet built.
+
 ## [0.26.0] - 2026-06-14
 
 ### Changed

@@ -19,19 +19,24 @@ import (
 // zero value" (e.g. unsafe_socket_path = false) — the config file is the
 // lowest-priority layer, so an absent key must never clobber env or flags.
 type FileConfig struct {
-	Socket              *string `toml:"socket"`
-	DB                  *string `toml:"db"`
-	Key                 *string `toml:"key"`
-	PublicKey           *string `toml:"public_key"`
-	ForensicPublicKey   *string `toml:"forensic_public_key"`
-	ChainID             *string `toml:"chain_id"`
-	IssuerID            *string `toml:"issuer_id"`
-	VerificationMethod  *string `toml:"verification_method"`
+	Socket              *string           `toml:"socket"`
+	DB                  *string           `toml:"db"`
+	Key                 *string           `toml:"key"`
+	PublicKey           *string           `toml:"public_key"`
+	ForensicPublicKey   *string           `toml:"forensic_public_key"`
+	ChainID             *string           `toml:"chain_id"`
+	IssuerID            *string           `toml:"issuer_id"`
+	VerificationMethod  *string           `toml:"verification_method"`
 	ParameterDisclosure *DisclosureConfig `toml:"parameter_disclosure"`
 	RedactPatterns      *string           `toml:"redact_patterns"`
 	UnsafeSocketPath    *bool             `toml:"unsafe_socket_path"`
 	// ShutdownDeadline accepts a Go duration string, e.g. "200ms" or "1s".
 	ShutdownDeadline *Duration `toml:"shutdown_deadline"`
+	// CheckpointAnchor mirrors --checkpoint-anchor: a comma-separated list of
+	// out-of-band checkpoint sink specs (file:/git:/syslog:). CheckpointCadence
+	// mirrors --checkpoint-cadence.
+	CheckpointAnchor  *string `toml:"checkpoint_anchor"`
+	CheckpointCadence *int    `toml:"checkpoint_cadence"`
 }
 
 // DisclosureConfig is the parsed `parameter_disclosure` config-file value. It
