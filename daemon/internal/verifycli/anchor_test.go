@@ -173,3 +173,19 @@ func TestAnchorRejectsNonMonotonicLog(t *testing.T) {
 		t.Errorf("reason %q does not flag the ordering problem", got.Reason)
 	}
 }
+
+func TestAnchorRejectsOutOfOrderLog(t *testing.T) {
+	signer, pub := newAnchorSigner(t)
+	// seq 2 written before seq 1: the monotonic check runs in anchor FILE ORDER,
+	// so this must fail. Sorting first would launder it into 1,2 and pass, hiding
+	// a reordered/tampered log — guards against re-introducing a sort.
+	path := writeAnchor(t, signer, cp("c", 2, "sha256:2"), cp("c", 1, "sha256:1"))
+
+	got := verifyAgainstAnchor(path, "c", pub, 2, "sha256:2", true)
+	if got.OK {
+		t.Fatal("expected FAIL for an out-of-order checkpoint log")
+	}
+	if !strings.Contains(got.Reason, "increasing") {
+		t.Errorf("reason %q does not flag the ordering problem", got.Reason)
+	}
+}

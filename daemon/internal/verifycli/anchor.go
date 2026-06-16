@@ -2,7 +2,6 @@ package verifycli
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
 )
@@ -43,7 +42,13 @@ func verifyAgainstAnchor(anchorPath, chainID, pubPEM string, headSeq int64, head
 		return anchorResult{Reason: fmt.Sprintf("no verified checkpoint found for chain %s in anchor %s", chainID, anchorPath)}
 	}
 
-	sort.Slice(cps, func(i, j int) bool { return cps[i].Sequence < cps[j].Sequence })
+	// Validate strict monotonicity in ANCHOR FILE ORDER, never after a re-sort.
+	// The daemon appends a chain's checkpoints in strictly increasing sequence by
+	// construction (the emitter only writes a head past the highest it already
+	// anchored), so an out-of-order or duplicate record in the file is itself the
+	// tamper/corruption signal. Sorting first would launder "seq 2 then seq 1"
+	// into "1, 2" and pass — so the last record in file order is also the genuine
+	// latest head, not a max() that hides reordering.
 	for i := 1; i < len(cps); i++ {
 		if cps[i].Sequence <= cps[i-1].Sequence {
 			return anchorResult{

@@ -93,9 +93,17 @@ func Sign(cp Checkpoint, signer Signer) (Signed, error) {
 
 // Verify checks s's signature against the PEM/SPKI Ed25519 public key. It
 // re-canonicalises the embedded Checkpoint body (the wrapper fields are never
-// signed) and validates the detached signature. A malformed signature, wrong
-// key type, or mismatch returns (false, err) — checkpoint verification failure
-// is surfaced, never swallowed.
+// signed) and validates the detached signature.
+//
+// The two failure modes are distinct, so callers can tell a malformed artifact
+// from a genuine forgery:
+//   - (false, err): the signature, key, or canonical body could not even be
+//     evaluated (bad multibase prefix, wrong length, unparseable key, etc.).
+//   - (false, nil): everything parsed but the signature does not match the body
+//     (a real verification failure / forgery).
+//
+// Only (true, nil) means the checkpoint is authentic. Either failure must be
+// treated as a hard rejection — never swallowed.
 func Verify(s Signed, publicKeyPEM string) (bool, error) {
 	if len(s.Signature) < 2 {
 		return false, errors.New("checkpoint signature too short")

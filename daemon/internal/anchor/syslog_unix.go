@@ -3,6 +3,7 @@
 package anchor
 
 import (
+	"bytes"
 	"fmt"
 	"log/syslog"
 	"sync"
@@ -37,13 +38,18 @@ func OpenSyslog(tag string) (*SyslogLog, error) {
 	return &SyslogLog{w: w, now: time.Now}, nil
 }
 
-// Write emits one record line to syslog. A write error means the record was
-// not accepted.
+// Write emits one record as a single syslog message. recordLine produces a
+// newline-terminated NDJSON line for file/git sinks; syslog frames each call as
+// its own message, so the trailing newline is stripped — leaving it in can make
+// some syslog backends split one record into multiple log entries. The record
+// JSON is itself single-line (no interior newlines), so trimming the final byte
+// is sufficient to keep one checkpoint == one syslog event.
 func (s *SyslogLog) Write(eventType string, payload []byte) error {
 	line, err := recordLine(s.now(), eventType, payload)
 	if err != nil {
 		return err
 	}
+	line = bytes.TrimRight(line, "\n")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, err := s.w.Write(line); err != nil {
