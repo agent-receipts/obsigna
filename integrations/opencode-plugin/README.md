@@ -1,8 +1,8 @@
 # @obsigna/opencode-plugin
 
-[OpenCode](https://opencode.ai) plugin for [Agent Receipts](https://github.com/agent-receipts/obsigna). Emits one cryptographically signed receipt per **native** tool call (`bash`, `edit`, `write`, `webfetch`, …) by forwarding each call to `agent-receipts-daemon` over a Unix-domain socket. The daemon — not this plugin — holds the key, canonicalises, signs, and chains the receipt.
+[OpenCode](https://opencode.ai) plugin for [Agent Receipts](https://github.com/agent-receipts/obsigna). Emits one cryptographically signed receipt per **native** tool call (`bash`, `edit`, `write`, `webfetch`, …) by forwarding each call to `obsigna-daemon` over a Unix-domain socket. The daemon — not this plugin — holds the key, canonicalises, signs, and chains the receipt.
 
-This is the OpenCode analog of the [`agent-receipts-hook`](../../hook/) Claude Code integration, covering the native-tool channel. MCP tool calls are covered separately by [`mcp-proxy`](../../mcp-proxy/).
+This is the OpenCode analog of the [`obsigna-hook`](../../hook/) Claude Code integration, covering the native-tool channel. MCP tool calls are covered separately by [`mcp-proxy`](../../mcp-proxy/).
 
 ## Trust boundary
 
@@ -22,7 +22,7 @@ Register it as an OpenCode plugin in `opencode.json`:
 }
 ```
 
-Requires `agent-receipts-daemon` to be running. See the [OpenCode docs](https://obsigna.dev/opencode/overview/) for the full Tier A + Tier B walkthrough and an end-to-end `agent-receipts verify` example.
+Requires `obsigna-daemon` to be running. See the [OpenCode docs](https://obsigna.dev/opencode/overview/) for the full Tier A + Tier B walkthrough and an end-to-end `obsigna verify` example.
 
 ## Configuration
 

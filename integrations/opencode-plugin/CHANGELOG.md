@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Docs**: refer to the current binary names in `README.md` and `AGENTS.md` — `obsigna-daemon` (was `agent-receipts-daemon`), `obsigna-hook` (was `agent-receipts-hook`), and `obsigna verify` (was `agent-receipts verify`). Documentation-only; no code or behaviour changes.
+
 ## [0.1.0-alpha.3] - 2026-06-16
 
 ### Changed
