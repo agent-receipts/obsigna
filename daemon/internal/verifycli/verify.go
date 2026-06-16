@@ -16,11 +16,8 @@
 package verifycli
 
 import (
-	"crypto/ed25519"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +28,7 @@ import (
 	"time"
 
 	"github.com/agent-receipts/ar/daemon"
+	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
 	"github.com/agent-receipts/ar/sdk/go/receipt"
 	"github.com/agent-receipts/ar/sdk/go/store"
 )
@@ -252,30 +250,8 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 // malformed key would surface as a "BROKEN" chain — falsely implicating the
 // receipts.
 func validatePublicKeyPEM(pubPEM []byte) error {
-	_, err := ed25519PublicFromPEM(pubPEM)
+	_, err := checkpoint.PublicKeyFromPEM(pubPEM)
 	return err
-}
-
-// ed25519PublicFromPEM decodes PEM/SPKI bytes into an Ed25519 public key,
-// rejecting any other key type or malformed input. It is the single parse behind
-// both validatePublicKeyPEM and publicKeyFingerprint so the two cannot diverge.
-func ed25519PublicFromPEM(pubPEM []byte) (ed25519.PublicKey, error) {
-	block, _ := pem.Decode(pubPEM)
-	if block == nil {
-		return nil, errors.New("PEM decode failed (no PUBLIC KEY block)")
-	}
-	if block.Type != "PUBLIC KEY" {
-		return nil, fmt.Errorf("PEM block type is %q, want PUBLIC KEY", block.Type)
-	}
-	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse SPKI public key: %w", err)
-	}
-	pub, ok := parsed.(ed25519.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("public key is %T, want ed25519.PublicKey", parsed)
-	}
-	return pub, nil
 }
 
 // publicKeyFingerprint returns the ADR-0015 fingerprint of a PEM/SPKI Ed25519
@@ -283,7 +259,7 @@ func ed25519PublicFromPEM(pubPEM []byte) (ed25519.PublicKey, error) {
 // matches the construction the rotation writer and the SDK use, so it compares
 // directly against a key_rotated receipt's new_key_fingerprint.
 func publicKeyFingerprint(pubPEM []byte) (string, error) {
-	pub, err := ed25519PublicFromPEM(pubPEM)
+	pub, err := checkpoint.PublicKeyFromPEM(pubPEM)
 	if err != nil {
 		return "", err
 	}

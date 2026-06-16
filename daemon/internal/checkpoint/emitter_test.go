@@ -68,19 +68,21 @@ func TestEmitterCadence(t *testing.T) {
 	sink := &recordingSink{okWrite: true}
 	e := NewEmitter([]anchor.Sink{sink}, signer, 3, nil)
 
-	// Cadence 3: only the 3rd and 6th observations emit.
-	for seq := int64(1); seq <= 6; seq++ {
+	// Cadence 3 over 5 receipts: only the 3rd observation emits (seqs 4,5 leave
+	// the counter at 2, below the cadence).
+	for seq := int64(1); seq <= 5; seq++ {
 		e.Observe("chain-1", seq, "sha256:h")
 	}
-	if got := sink.count(); got != 2 {
-		t.Fatalf("with cadence 3 over 6 receipts, got %d checkpoints, want 2", got)
+	if got := sink.count(); got != 1 {
+		t.Fatalf("with cadence 3 over 5 receipts, got %d checkpoints, want 1", got)
 	}
 
-	// Flush forces a final emission regardless of the counter (the graceful-
-	// shutdown path), so the last head is anchored even off a cadence boundary.
-	e.Flush("chain-1", 6, "sha256:head")
-	if got := sink.count(); got != 3 {
-		t.Fatalf("after Flush, got %d checkpoints, want 3", got)
+	// Flush forces a final emission of the current head (seq 5) even though it
+	// fell off a cadence boundary and was not yet anchored (the graceful-shutdown
+	// path). seq 5 > the last-anchored seq 3, so it emits.
+	e.Flush("chain-1", 5, "sha256:head")
+	if got := sink.count(); got != 2 {
+		t.Fatalf("after Flush of an unanchored head, got %d checkpoints, want 2", got)
 	}
 }
 
@@ -110,6 +112,34 @@ func TestEmitterFailVisibleNotSilent(t *testing.T) {
 	// At least one sink accepted it, so it counts as emitted.
 	if got := e.Emitted(); got != 1 {
 		t.Errorf("Emitted = %d, want 1", got)
+	}
+}
+
+func TestEmitterFlushDoesNotReEmitAlreadyAnchoredHead(t *testing.T) {
+	signer, _ := newTestSigner(t)
+	sink := &recordingSink{okWrite: true}
+	e := NewEmitter([]anchor.Sink{sink}, signer, 1, nil)
+
+	// Per-receipt Observe anchors head seq 3 (cadence 1).
+	e.Observe("c", 3, "sha256:h3")
+	if sink.count() != 1 {
+		t.Fatalf("after Observe(3): got %d checkpoints, want 1", sink.count())
+	}
+
+	// Graceful shutdown re-flushes the SAME head (e.g. the terminator was skipped
+	// on a tight deadline, so the tail is still seq 3). This must NOT write a
+	// second checkpoint at seq 3 — a duplicate makes verify read the anchor log
+	// as non-strictly-increasing and fail a healthy chain (the bug this guards).
+	e.Flush("c", 3, "sha256:h3")
+	if sink.count() != 1 {
+		t.Fatalf("Flush re-anchored an already-anchored head: got %d checkpoints, want 1", sink.count())
+	}
+
+	// A flush at a genuinely new head (the terminator advanced the chain to 4)
+	// still anchors.
+	e.Flush("c", 4, "sha256:h4")
+	if sink.count() != 2 {
+		t.Fatalf("Flush at a new head did not anchor: got %d checkpoints, want 2", sink.count())
 	}
 }
 

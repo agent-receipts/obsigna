@@ -3,14 +3,10 @@
 package daemon
 
 import (
-	"bufio"
-	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
 	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
 	"github.com/agent-receipts/ar/sdk/go/store"
 )
@@ -43,7 +39,10 @@ func TestCheckpointAnchorEndToEnd(t *testing.T) {
 	// the sinks.
 	fix.Stop(t)
 
-	cps := readVerifiedCheckpoints(t, anchorPath, cfg.ChainID, pubPEM)
+	cps, err := checkpoint.ReadVerifiedCheckpoints(anchorPath, cfg.ChainID, pubPEM)
+	if err != nil {
+		t.Fatalf("read anchor: %v", err)
+	}
 	if len(cps) == 0 {
 		t.Fatal("no verified checkpoints in the anchor — the daemon did not anchor anything")
 	}
@@ -71,43 +70,37 @@ func TestCheckpointAnchorEndToEnd(t *testing.T) {
 	}
 }
 
-// readVerifiedCheckpoints reads the anchor file and returns the checkpoints for
-// chainID whose signatures verify against pubPEM, in file order. A signature
-// that does not verify fails the test — the daemon must sign with its own key.
-func readVerifiedCheckpoints(t *testing.T, path, chainID, pubPEM string) []checkpoint.Checkpoint {
-	t.Helper()
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("open anchor: %v", err)
-	}
-	defer func() { _ = f.Close() }()
+// TestCheckpointAnchorAbruptShutdownNoDuplicate is the regression for the
+// shutdown-flush double-emit bug. With a 1ns shutdown deadline the
+// interrupted-chain terminator is skipped, so the chain tail stays at the last
+// live receipt — the head the per-receipt Observe already anchored. The
+// shutdown FlushCheckpoints must NOT re-anchor that head: a duplicate checkpoint
+// at the same sequence makes `verify --against-anchor` read the log as
+// non-strictly-increasing and fail a perfectly healthy chain.
+func TestCheckpointAnchorAbruptShutdownNoDuplicate(t *testing.T) {
+	cfg, pubPEM := newDaemonConfig(t, time.Nanosecond) // crash-grade deadline → terminator skipped
+	anchorPath := filepath.Join(t.TempDir(), "anchor.ndjson")
+	cfg.CheckpointAnchors = []string{"file:" + anchorPath}
+	cfg.CheckpointCadence = 1
 
-	var out []checkpoint.Checkpoint
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for sc.Scan() {
-		var rec anchor.Record
-		if err := json.Unmarshal(sc.Bytes(), &rec); err != nil {
-			t.Fatalf("anchor line not a Record: %v", err)
+	fix := StartDaemonFromConfig(t, cfg, pubPEM)
+	const n = 3
+	for i := 0; i < n; i++ {
+		if err := fix.EmitGoFrame(t, "sess-cp", "mcp_proxy", "list_repos", "github", "allowed"); err != nil {
+			t.Fatalf("emit %d: %v", i, err)
 		}
-		if rec.EventType != anchor.EventTypeCheckpoint {
-			continue
-		}
-		var signed checkpoint.Signed
-		if err := json.Unmarshal(rec.Payload, &signed); err != nil {
-			t.Fatalf("checkpoint payload: %v", err)
-		}
-		if signed.ChainID != chainID {
-			continue
-		}
-		ok, err := checkpoint.Verify(signed, pubPEM)
-		if err != nil || !ok {
-			t.Fatalf("checkpoint (seq %d) failed verification: ok=%v err=%v", signed.Sequence, ok, err)
-		}
-		out = append(out, signed.Checkpoint)
 	}
-	if err := sc.Err(); err != nil {
-		t.Fatalf("scan anchor: %v", err)
+	fix.WaitForReceiptCount(t, n, 2*time.Second)
+	fix.Stop(t)
+
+	cps, err := checkpoint.ReadVerifiedCheckpoints(anchorPath, cfg.ChainID, pubPEM)
+	if err != nil {
+		t.Fatalf("read anchor: %v", err)
 	}
-	return out
+	for i := 1; i < len(cps); i++ {
+		if cps[i].Sequence <= cps[i-1].Sequence {
+			t.Fatalf("duplicate/out-of-order checkpoint after abrupt shutdown: seq %d follows seq %d (all: %+v)",
+				cps[i].Sequence, cps[i-1].Sequence, cps)
+		}
+	}
 }

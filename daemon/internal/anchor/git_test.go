@@ -68,6 +68,39 @@ func TestOpenGitLogRequiresDir(t *testing.T) {
 	}
 }
 
+// TestGitLogConfiguresPreExistingRepo guards the fix for the case where an
+// operator points --checkpoint-anchor at a repo they created themselves: the
+// repo lacks the daemon's local identity and commit.gpgsign=false, so without
+// applying config on every open, the first commit would fail on a host that
+// enforces signed commits. OpenGitLog must configure an existing repo too.
+func TestGitLogConfiguresPreExistingRepo(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	dir := filepath.Join(t.TempDir(), "preexisting")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Pre-create the repo WITHOUT the daemon's config (mirrors an operator's
+	// `git init`). On a host enforcing commit signing globally this repo cannot
+	// commit until commit.gpgsign=false is set locally.
+	preInit := exec.Command("git", "init", "--quiet")
+	preInit.Dir = dir
+	if err := preInit.Run(); err != nil {
+		t.Fatalf("pre-init: %v", err)
+	}
+
+	g, err := OpenGitLog(dir)
+	if err != nil {
+		t.Fatalf("OpenGitLog on existing repo: %v", err)
+	}
+	defer func() { _ = g.Close() }()
+
+	if err := g.Write(EventTypeCheckpoint, []byte(`{"seq":1}`)); err != nil {
+		t.Fatalf("write to pre-existing repo failed (config not applied?): %v", err)
+	}
+}
+
 func TestGitLogRejectsInvalidJSON(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

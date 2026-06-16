@@ -110,7 +110,7 @@ func Verify(s Signed, publicKeyPEM string) (bool, error) {
 	if len(sig) != ed25519.SignatureSize {
 		return false, fmt.Errorf("invalid checkpoint signature length: got %d, want %d", len(sig), ed25519.SignatureSize)
 	}
-	pub, err := ed25519PublicFromPEM(publicKeyPEM)
+	pub, err := PublicKeyFromPEM([]byte(publicKeyPEM))
 	if err != nil {
 		return false, err
 	}
@@ -121,10 +121,11 @@ func Verify(s Signed, publicKeyPEM string) (bool, error) {
 	return ed25519.Verify(pub, []byte(canonical), sig), nil
 }
 
-// ed25519PublicFromPEM decodes PEM/SPKI bytes into an Ed25519 public key,
-// rejecting any other key type or malformed input.
-func ed25519PublicFromPEM(publicKeyPEM string) (ed25519.PublicKey, error) {
-	block, _ := pem.Decode([]byte(publicKeyPEM))
+// PublicKeyFromPEM decodes PEM/SPKI bytes into an Ed25519 public key, rejecting
+// any other key type or malformed input. Shared by Verify and the verify CLI's
+// anchor check so the daemon has a single Ed25519 public-key parser.
+func PublicKeyFromPEM(publicKeyPEM []byte) (ed25519.PublicKey, error) {
+	block, _ := pem.Decode(publicKeyPEM)
 	if block == nil {
 		return nil, errors.New("PEM decode failed (no PUBLIC KEY block)")
 	}

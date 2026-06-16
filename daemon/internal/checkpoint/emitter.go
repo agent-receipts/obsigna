@@ -33,8 +33,9 @@ type Emitter struct {
 	now     func() time.Time
 	logf    func(string, ...any)
 
-	mu     sync.Mutex
-	counts map[string]int // observed receipts since last emit, per chain
+	mu      sync.Mutex
+	counts  map[string]int   // observed receipts since last emit, per chain
+	lastSeq map[string]int64 // highest sequence already anchored, per chain
 
 	emitted  atomic.Int64
 	failures atomic.Int64
@@ -54,6 +55,7 @@ func NewEmitter(sinks []anchor.Sink, signer Signer, cadence int, logf func(strin
 		now:     func() time.Time { return time.Now().UTC() },
 		logf:    logf,
 		counts:  make(map[string]int),
+		lastSeq: make(map[string]int64),
 	}
 }
 
@@ -64,13 +66,14 @@ func NewEmitter(sinks []anchor.Sink, signer Signer, cadence int, logf func(strin
 func (e *Emitter) Observe(chainID string, seq int64, headHash string) {
 	e.mu.Lock()
 	e.counts[chainID]++
-	due := e.counts[chainID] >= e.cadence
-	if due {
+	emit := false
+	if e.counts[chainID] >= e.cadence {
 		e.counts[chainID] = 0
+		emit = e.markEmitLocked(chainID, seq)
 	}
 	e.mu.Unlock()
 
-	if due {
+	if emit {
 		e.emit(chainID, seq, headHash)
 	}
 }
@@ -82,8 +85,27 @@ func (e *Emitter) Observe(chainID string, seq int64, headHash string) {
 func (e *Emitter) Flush(chainID string, seq int64, headHash string) {
 	e.mu.Lock()
 	e.counts[chainID] = 0
+	emit := e.markEmitLocked(chainID, seq)
 	e.mu.Unlock()
-	e.emit(chainID, seq, headHash)
+	if emit {
+		e.emit(chainID, seq, headHash)
+	}
+}
+
+// markEmitLocked reports whether a checkpoint at seq should be emitted for
+// chainID, and records it as anchored when so. It gates on the highest sequence
+// already anchored: a head at or below it has been anchored already, so
+// re-emitting would write a duplicate (or out-of-order) checkpoint that
+// verify reads as a non-strictly-increasing — i.e. corrupt — log. This is what
+// makes Flush idempotent against the per-receipt Observe path: a graceful
+// shutdown whose terminator was skipped (deadline) re-flushes the last head,
+// and without this guard that head would be anchored twice. Caller holds e.mu.
+func (e *Emitter) markEmitLocked(chainID string, seq int64) bool {
+	if seq <= e.lastSeq[chainID] {
+		return false
+	}
+	e.lastSeq[chainID] = seq
+	return true
 }
 
 // Emitted reports the number of checkpoints written to at least one sink.

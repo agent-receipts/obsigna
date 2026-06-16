@@ -58,21 +58,28 @@ func OpenGitLog(dir string) (*GitLog, error) {
 		if err := g.run("init", "--quiet"); err != nil {
 			return nil, fmt.Errorf("anchor: git init %s: %w", dir, err)
 		}
-		// Pin a deterministic committer so commits never fail for want of a
-		// global git identity, and never leak the host's configured one.
-		if err := g.run("config", "user.email", "daemon@agent-receipts.local"); err != nil {
-			return nil, fmt.Errorf("anchor: git config user.email: %w", err)
-		}
-		if err := g.run("config", "user.name", "obsigna-daemon"); err != nil {
-			return nil, fmt.Errorf("anchor: git config user.name: %w", err)
-		}
-		// Disable commit signing for the anchor repo. Tamper-evidence comes from
-		// the commit chain and the Ed25519-signed checkpoint payload itself, not
-		// from a git commit signature — so the anchor must not fail (or stall on a
-		// passphrase/signing server) just because the host enforces signed commits
-		// globally.
-		if err := g.run("config", "commit.gpgsign", "false"); err != nil {
-			return nil, fmt.Errorf("anchor: git config commit.gpgsign: %w", err)
+	}
+	// Apply the anchor repo's local config on every open, not only on fresh
+	// init: an operator may point --checkpoint-anchor at a repo they created
+	// themselves (which would otherwise lack these settings), and the settings
+	// are idempotent. Running them unconditionally also turns an existing but
+	// invalid .git (a stray file, a corrupt repo) into a loud failure here at
+	// startup — "sink fails to open is fatal" — instead of a silent per-write
+	// failure on every checkpoint.
+	//
+	// user.name/email pin a deterministic committer so commits never fail for
+	// want of a global identity (and never leak the host's). commit.gpgsign
+	// false is load-bearing: tamper-evidence comes from the commit chain and the
+	// Ed25519-signed checkpoint payload, not a git signature, so the anchor must
+	// not fail or stall on a passphrase/signing server when the host enforces
+	// signed commits globally.
+	for _, kv := range [][2]string{
+		{"user.email", "daemon@agent-receipts.local"},
+		{"user.name", "obsigna-daemon"},
+		{"commit.gpgsign", "false"},
+	} {
+		if err := g.run("config", kv[0], kv[1]); err != nil {
+			return nil, fmt.Errorf("anchor: git config %s in %s: %w", kv[0], dir, err)
 		}
 	}
 	return g, nil
