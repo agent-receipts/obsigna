@@ -36,7 +36,7 @@ Configure via environment variables (read at plugin load):
 | `AGENT_RECEIPTS_ALLOW` | — | Comma-separated tool allow-list |
 | `AGENT_RECEIPTS_DENY` | — | Comma-separated tool deny-list |
 
-For programmatic configuration (allow/deny, action-type overrides, custom logger), build the plugin with `createAgentReceiptsPlugin(config)` and export it from your own `.opencode/plugin/` file.
+For programmatic configuration (allow/deny, action-type overrides, custom logger), build the plugin with `createObsignaPlugin(config)` and export it from your own `.opencode/plugin/` file.
 
 ## Failure posture (ADR-0025)
 

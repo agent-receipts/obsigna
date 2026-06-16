@@ -9,17 +9,17 @@
  */
 
 import type { Plugin } from "@opencode-ai/plugin";
-import { type AgentReceiptsPluginConfig, resolveConfig } from "./config.js";
+import { type ObsignaPluginConfig, resolveConfig } from "./config.js";
 import { ReceiptRecorder } from "./recorder.js";
 
 /**
  * Build an OpenCode {@link Plugin} that emits an Agent Receipt for every native
  * tool call. `userConfig` is layered over environment variables and defaults
  * (see {@link resolveConfig}). Use this when you want to configure the plugin
- * programmatically; most installs use the pre-built {@link AgentReceiptsPlugin}.
+ * programmatically; most installs use the pre-built {@link ObsignaPlugin}.
  */
-export function createAgentReceiptsPlugin(
-	userConfig: AgentReceiptsPluginConfig = {},
+export function createObsignaPlugin(
+	userConfig: ObsignaPluginConfig = {},
 ): Plugin {
 	return async () => {
 		const config = resolveConfig(userConfig);
@@ -70,4 +70,4 @@ export function createAgentReceiptsPlugin(
  * Pre-built plugin configured from environment variables and defaults. This is
  * the export OpenCode loads from `.opencode/plugin/`.
  */
-export const AgentReceiptsPlugin: Plugin = createAgentReceiptsPlugin();
+export const ObsignaPlugin: Plugin = createObsignaPlugin();
