@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.3] - 2026-06-16
+
+### Changed
+
+- **Renamed the plugin exports to the Obsigna brand**, matching the `@obsigna` package scope: `createAgentReceiptsPlugin` → `createObsignaPlugin`, the prebuilt `AgentReceiptsPlugin` → `ObsignaPlugin`, and the `AgentReceiptsPluginConfig` type → `ObsignaPluginConfig`. Breaking for the named exports only; the `AGENT_RECEIPTS_*` / `AGENTRECEIPTS_SOCKET` environment variables are unchanged. Update imports from `@obsigna/opencode-plugin`.
+
 ## [0.1.0-alpha.2] - 2026-06-16
 
 ### Changed

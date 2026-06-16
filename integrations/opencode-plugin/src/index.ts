@@ -1,11 +1,11 @@
 export { DEFAULT_ACTION_MAP, resolveActionType } from "./actions.js";
 export {
-	type AgentReceiptsPluginConfig,
+	type ObsignaPluginConfig,
 	type ResolvedConfig,
 	resolveConfig,
 	shouldEmit,
 } from "./config.js";
-export { AgentReceiptsPlugin, createAgentReceiptsPlugin } from "./plugin.js";
+export { createObsignaPlugin, ObsignaPlugin } from "./plugin.js";
 export {
 	type EmitterFactory,
 	type ReceiptEmitter,

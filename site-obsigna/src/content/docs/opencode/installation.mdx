@@ -41,9 +41,9 @@ OpenCode also loads plugins from `.opencode/plugin/`. To configure the plugin pr
 {/* snippet-check: no-run */}
 ```ts
 // .opencode/plugin/agent-receipts.ts
-import { createAgentReceiptsPlugin } from "@obsigna/opencode-plugin";
+import { createObsignaPlugin } from "@obsigna/opencode-plugin";
 
-export const AgentReceiptsPlugin = createAgentReceiptsPlugin({
+export const ObsignaPlugin = createObsignaPlugin({
   strict: false,
   deny: ["read", "glob", "grep", "list"], // skip read-only noise
 });
@@ -61,7 +61,7 @@ Configure via environment variables (read when the plugin loads):
 | `AGENT_RECEIPTS_ALLOW` | — | Comma-separated tool allow-list (only these emit) |
 | `AGENT_RECEIPTS_DENY` | — | Comma-separated tool deny-list (these never emit) |
 
-`createAgentReceiptsPlugin(config)` accepts the same options plus `actionMap` (per-tool action-type overrides) and `debugLog` (a custom log sink). Explicit config wins over environment variables.
+`createObsignaPlugin(config)` accepts the same options plus `actionMap` (per-tool action-type overrides) and `debugLog` (a custom log sink). Explicit config wins over environment variables.
 
 ## Failure posture
 

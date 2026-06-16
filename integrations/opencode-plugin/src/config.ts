@@ -4,19 +4,19 @@
  * object, environment variables, then built-in defaults.
  *
  * Environment variables (read by {@link resolveConfig}):
- *   - `AGENT_RECEIPTS_CHANNEL`  → {@link AgentReceiptsPluginConfig.channel}
- *   - `AGENT_RECEIPTS_STRICT`   → {@link AgentReceiptsPluginConfig.strict}
+ *   - `AGENT_RECEIPTS_CHANNEL`  → {@link ObsignaPluginConfig.channel}
+ *   - `AGENT_RECEIPTS_STRICT`   → {@link ObsignaPluginConfig.strict}
  *     (truthy: "1", "true", "yes", case-insensitive)
- *   - `AGENT_RECEIPTS_ALLOW`    → {@link AgentReceiptsPluginConfig.allow}
+ *   - `AGENT_RECEIPTS_ALLOW`    → {@link ObsignaPluginConfig.allow}
  *     (comma-separated tool names)
- *   - `AGENT_RECEIPTS_DENY`     → {@link AgentReceiptsPluginConfig.deny}
+ *   - `AGENT_RECEIPTS_DENY`     → {@link ObsignaPluginConfig.deny}
  *     (comma-separated tool names)
  *
  * The daemon socket path is NOT read here: when `socketPath` is unset the
  * underlying `DaemonEmitter` resolves it from `AGENTRECEIPTS_SOCKET` and the
  * per-OS default, keeping a single source of truth across SDKs.
  */
-export interface AgentReceiptsPluginConfig {
+export interface ObsignaPluginConfig {
 	/** Receipt channel label. Defaults to `"opencode"`. */
 	channel?: string;
 	/**
@@ -86,7 +86,7 @@ function defaultDebugLog(message: string, attrs: Record<string, string>): void {
  * callers omit it and `process.env` is used.
  */
 export function resolveConfig(
-	config: AgentReceiptsPluginConfig = {},
+	config: ObsignaPluginConfig = {},
 	env: NodeJS.ProcessEnv = process.env,
 ): ResolvedConfig {
 	const channel = config.channel ?? env.AGENT_RECEIPTS_CHANNEL ?? "opencode";
