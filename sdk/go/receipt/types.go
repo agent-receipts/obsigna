@@ -58,6 +58,14 @@ const (
 	StatusPending OutcomeStatus = "pending"
 )
 
+// ActionTypePTYOpen and ActionTypePTYClose are the action.type values for PTY
+// lifecycle events (ADR-0027 §/pty). Defined here so chain.go can reference
+// them without importing the taxonomy package (which imports receipt).
+const (
+	ActionTypePTYOpen  = "system.pty.open"
+	ActionTypePTYClose = "system.pty.close"
+)
+
 // Operator identifies the AI model executing actions.
 type Operator struct {
 	ID   string `json:"id"`
@@ -80,7 +88,11 @@ type Issuer struct {
 // fields below are documented members, but the JSON-LD context types it @json
 // and the schema does not close it, so additional runtime keys (e.g. future
 // trace-context identifiers) may be added without a protocol-version bump.
-// Absent for the root agent.
+//
+// Runtime is present whenever any member is set. The agent-identity members
+// (AgentID/AgentType) appear only on sub-agent receipts, but the observability
+// members (Model/Usage/CaptureMethod) also appear on root-agent receipts — so
+// consumers MUST NOT assume Issuer.Runtime is nil on a root-chain receipt.
 //
 // Unlike the rest of the receipt struct (whose unknown fields are dropped on a
 // round-trip — see HashRawReceipt), Runtime PRESERVES unknown keys via Extra so
@@ -93,6 +105,21 @@ type Runtime struct {
 	AgentID string
 	// AgentType is the runtime-reported agent type label (e.g. "general-purpose").
 	AgentType string
+	// Model is the model the runtime observed producing this action (e.g. a
+	// transcript-derived "claude-opus-4-8"). It is observability-oriented
+	// (ADR-0026 D5) and distinct from the identity-bearing top-level
+	// issuer.model: runtime.model records what an auditor can *correlate* the
+	// call with, not what they verify identity against. Absent when unknown.
+	Model string
+	// Usage is the token-usage object exactly as the agent runtime reported it
+	// (input/output/cache tokens). It is stored verbatim and never recomputed,
+	// so field names and shape track the runtime's own report across versions.
+	// Absent when unknown.
+	Usage json.RawMessage
+	// CaptureMethod records how Model/Usage were captured (e.g. "transcript"),
+	// so transcript-derived receipts can be distinguished from receipts enriched
+	// by other ingesters (OTLP, daemon). Absent when unknown.
+	CaptureMethod string
 	// Extra holds runtime keys this SDK version does not model as typed fields,
 	// preserved verbatim so they survive a round-trip and hash identically.
 	Extra map[string]json.RawMessage
@@ -102,7 +129,10 @@ type Runtime struct {
 // key, so unknown runtime members round-trip. Key ordering is irrelevant:
 // Canonicalize re-sorts per RFC 8785.
 func (r Runtime) MarshalJSON() ([]byte, error) {
-	m := make(map[string]json.RawMessage, len(r.Extra)+2)
+	// +5 reserves space for every typed member emitted below (agent_id,
+	// agent_type, model, usage, capture_method) so a fully-populated runtime
+	// does not reallocate the map.
+	m := make(map[string]json.RawMessage, len(r.Extra)+5)
 	for k, v := range r.Extra {
 		m[k] = v
 	}
@@ -119,6 +149,26 @@ func (r Runtime) MarshalJSON() ([]byte, error) {
 			return nil, fmt.Errorf("marshal runtime.agent_type: %w", err)
 		}
 		m["agent_type"] = b
+	}
+	if r.Model != "" {
+		b, err := json.Marshal(r.Model)
+		if err != nil {
+			return nil, fmt.Errorf("marshal runtime.model: %w", err)
+		}
+		m["model"] = b
+	}
+	if len(r.Usage) > 0 {
+		// Stored verbatim — the runtime's own token-usage object, never
+		// recomputed. Canonicalize re-serialises it deterministically at hash
+		// time, so the byte form here need not be pre-canonicalised.
+		m["usage"] = r.Usage
+	}
+	if r.CaptureMethod != "" {
+		b, err := json.Marshal(r.CaptureMethod)
+		if err != nil {
+			return nil, fmt.Errorf("marshal runtime.capture_method: %w", err)
+		}
+		m["capture_method"] = b
 	}
 	b, err := json.Marshal(m)
 	if err != nil {
@@ -146,6 +196,24 @@ func (r *Runtime) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("runtime.agent_type: %w", err)
 		}
 		delete(m, "agent_type")
+	}
+	if v, ok := m["model"]; ok {
+		if err := json.Unmarshal(v, &r.Model); err != nil {
+			return fmt.Errorf("runtime.model: %w", err)
+		}
+		delete(m, "model")
+	}
+	if v, ok := m["usage"]; ok {
+		// Keep the verbatim bytes so the token-usage object round-trips and
+		// hashes identically — it is the runtime's report, not ours to reshape.
+		r.Usage = v
+		delete(m, "usage")
+	}
+	if v, ok := m["capture_method"]; ok {
+		if err := json.Unmarshal(v, &r.CaptureMethod); err != nil {
+			return fmt.Errorf("runtime.capture_method: %w", err)
+		}
+		delete(m, "capture_method")
 	}
 	if len(m) > 0 {
 		r.Extra = m
@@ -234,6 +302,7 @@ type Outcome struct {
 	Reversible            *bool         `json:"reversible,omitempty"`
 	ReversalMethod        string        `json:"reversal_method,omitempty"`
 	ReversalWindowSeconds *int          `json:"reversal_window_seconds,omitempty"`
+	ReversalOf            string        `json:"reversal_of,omitempty"`
 	StateChange           *StateChange  `json:"state_change,omitempty"`
 	ResponseHash          string        `json:"response_hash,omitempty"`
 }
@@ -303,6 +372,33 @@ type Delegation struct {
 	Delegator       Delegator `json:"delegator"`
 }
 
+// KeyRotation records a key-rotation event (ADR-0015). It is present only on a
+// key_rotated receipt and absent on every other receipt. The receipt carrying
+// it is signed with the OUTGOING key (SignedWith == "old"); NewPublicKey holds
+// the incoming key inline so verifiers chain through the rotation without an
+// external key registry. All seven fields are required when the object is
+// present. See spec §7.3.7 for verifier traversal.
+type KeyRotation struct {
+	// EventType is the constant "key_rotated".
+	EventType string `json:"event_type"`
+	// NewPublicKey is the incoming public key inline: raw key bytes per the
+	// algorithm's canonical encoding (Ed25519: 32 bytes, RFC 8032 §5.1.5),
+	// multibase-encoded with the "u" base64url prefix.
+	NewPublicKey string `json:"new_public_key"`
+	// OldKeyFingerprint is sha256:<hex> of the outgoing public key's raw bytes.
+	OldKeyFingerprint string `json:"old_key_fingerprint"`
+	// NewKeyFingerprint is sha256:<hex> of the incoming public key's raw bytes;
+	// it MUST equal the SHA-256 of the bytes decoded from NewPublicKey.
+	NewKeyFingerprint string `json:"new_key_fingerprint"`
+	// OldAlgorithm is the algorithm tag of the outgoing key (e.g. "ed25519").
+	OldAlgorithm string `json:"old_algorithm"`
+	// NewAlgorithm is the algorithm tag of the incoming key.
+	NewAlgorithm string `json:"new_algorithm"`
+	// SignedWith is the constant "old": the rotation event is signed with the
+	// outgoing key.
+	SignedWith string `json:"signed_with"`
+}
+
 // CredentialSubject contains the core receipt payload.
 type CredentialSubject struct {
 	Principal     Principal      `json:"principal"`
@@ -311,6 +407,9 @@ type CredentialSubject struct {
 	Outcome       Outcome        `json:"outcome"`
 	Authorization *Authorization `json:"authorization,omitempty"`
 	Chain         Chain          `json:"chain"`
+	// KeyRotation is present only on a key_rotated receipt (ADR-0015); absent on
+	// all other receipts.
+	KeyRotation *KeyRotation `json:"keyRotation,omitempty"`
 	// CorrelationID links related receipts for the same logical tool invocation
 	// (e.g. hook pre-check to MCP proxy post-action). Populated from the
 	// runtime's tool-use correlation token; absent when not available.

@@ -580,6 +580,45 @@
       "expectedHash": "sha256:6982fe89187303748a003e6ec001f13d598b6956d4d328d29c780863c1e6d9b6"
     },
     {
+      "name": "receipt_reversal_of_field",
+      "rule": "canonicalization_hash",
+      "description": "reversal_of, when set, appears in canonical output and is included in the hash. Verifies the field is not silently dropped during canonicalization.",
+      "receipt": {
+        "@context": ["https://www.w3.org/2018/credentials/v1", "https://agent-receipts.github.io/ar/contexts/v1"],
+        "id": "urn:receipt:00000000-0000-0000-0000-000000000005",
+        "type": ["VerifiableCredential", "AgentReceipt"],
+        "version": "0.3.0",
+        "issuer": { "id": "did:agent:test", "name": "test-agent" },
+        "issuanceDate": "2026-04-22T00:00:00Z",
+        "credentialSubject": {
+          "principal": { "id": "did:user:test", "type": "HumanPrincipal" },
+          "action": {
+            "id": "act_00000000-0000-0000-0000-000000000005",
+            "type": "filesystem.file.write",
+            "tool_name": "Write",
+            "risk_level": "medium",
+            "target": { "system": "local", "resource": "/tmp/y.txt" },
+            "parameters_hash": "sha256:43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777",
+            "timestamp": "2026-04-22T00:00:00Z"
+          },
+          "outcome": {
+            "status": "success",
+            "reversible": true,
+            "reversal_method": "fs:snapshot",
+            "reversal_window_seconds": 3600,
+            "reversal_of": "urn:receipt:00000000-0000-0000-0000-000000000004"
+          },
+          "chain": {
+            "sequence": 3,
+            "previous_receipt_hash": "sha256:9e43a72dab99b0104bfdd05cebe473281fdc84153a30841d2ea044ab991c1e29",
+            "chain_id": "chain_test"
+          }
+        }
+      },
+      "mustContainSubstring": "\"reversal_of\"",
+      "expectedHash": "sha256:9a39036982a7bcc99be602deeddd777d94980ee777cd8989145dc840d2fdb32a"
+    },
+    {
       "name": "receipt_signature_preservation_legacy_0_2_0",
       "rule": "signature_preservation",
       "description": "The three-receipt terminalChain from cross-sdk-tests/v020_vectors.json was signed under the pre-sweep (0.2.0) canonicaliser. Running the post-sweep canonicaliser on the same unsigned bytes MUST produce identical canonical output, and the existing proof.proofValue MUST still verify. This is the signature-preservation invariant from ADR-0009 §4. Implementation: this vector reuses the v020 fixtures by reference; the test harness loads both files and asserts round-trip equality.",

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agent_receipts.emitters import (
+from obsigna.emitters import (
     EmitError,
     FileWal,
     MemoryWal,
@@ -25,7 +25,7 @@ from tests.conftest import make_receipt
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from agent_receipts.receipt.types import AgentReceipt
+    from obsigna.receipt.types import AgentReceipt
 
 
 def receipt(id: str, sequence: int = 1) -> AgentReceipt:

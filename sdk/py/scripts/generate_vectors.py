@@ -24,9 +24,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agent_receipts.receipt.hash import canonicalize, hash_receipt, sha256
-from agent_receipts.receipt.signing import sign_receipt
-from agent_receipts.receipt.types import UnsignedAgentReceipt
+from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
+from obsigna.receipt.signing import sign_receipt
+from obsigna.receipt.types import UnsignedAgentReceipt
 
 FIXED_PROOF_CREATED = "2026-04-22T00:00:00Z"
 

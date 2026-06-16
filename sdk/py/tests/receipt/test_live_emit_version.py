@@ -16,12 +16,12 @@ Parallel files:
 
 from __future__ import annotations
 
-from agent_receipts.receipt.create import (
+from obsigna.receipt.create import (
     ActionInput,
     CreateReceiptInput,
     create_receipt,
 )
-from agent_receipts.receipt.types import (
+from obsigna.receipt.types import (
     VERSION,
     Chain,
     Issuer,

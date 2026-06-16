@@ -27,7 +27,7 @@ import socket
 
 import pytest
 
-from agent_receipts import (
+from obsigna import (
     ActionInput,
     Chain,
     CreateReceiptInput,
@@ -119,7 +119,7 @@ def test_daemon_emitter_roundtrip_against_live_daemon():
     Confirming the receipt landed needs `agent-receipts verify`/`show` against
     the daemon DB (out of band).
     """
-    from agent_receipts import DaemonEmitter
+    from obsigna import DaemonEmitter
 
     socket_path = os.environ["AGENTRECEIPTS_SOCKET"]
     with DaemonEmitter(socket_path=socket_path, session_id="contracts-e2e") as e:
@@ -141,7 +141,7 @@ def test_daemon_emitter_no_daemon_surfaces_transport_error(tmp_path):
     rather than drop silently. best_effort=True opts back into the old
     loss-tolerant behaviour for callers that knowingly accept dropped events.
     """
-    from agent_receipts import DaemonEmitter, EmitTransportError
+    from obsigna import DaemonEmitter, EmitTransportError
 
     dead_socket = str(tmp_path / "nope.sock")
     with DaemonEmitter(socket_path=dead_socket, session_id="contracts-drop") as e:
@@ -158,14 +158,14 @@ def test_daemon_emitter_no_daemon_surfaces_transport_error(tmp_path):
 
 
 def test_top_level_emitter_is_now_a_protocol():
-    """v0.10.0 breaking rename: `agent_receipts.Emitter` cannot be instantiated.
+    """v0.10.0 breaking rename: `obsigna.Emitter` cannot be instantiated.
 
     0.9.0 code `Emitter(socket_path=...)` now raises TypeError because Emitter
     is a Protocol. Asserts the behavioural contract — that instantiation
     raises — without pinning private `typing` internals or exact error
     messages, both of which can drift across Python versions.
     """
-    from agent_receipts import Emitter
+    from obsigna import Emitter
 
     with pytest.raises(TypeError):
         Emitter(socket_path="/tmp/whatever.sock")  # type: ignore[call-arg]
@@ -182,7 +182,7 @@ def test_wal_emitter_retains_on_failure_and_replays(tmp_path):
     A failed delivery is retained in the WAL and replayed once the collector
     recovers — no silent loss on the remote path.
     """
-    from agent_receipts.emitters import FileWal, InMemoryEmitter, WalEmitter
+    from obsigna.emitters import FileWal, InMemoryEmitter, WalEmitter
 
     class _FailingEmitter:
         def emit(self, receipt):  # noqa: ANN001
@@ -212,8 +212,8 @@ def test_wal_emitter_cannot_wrap_daemon_emitter(tmp_path):
     fix lands, replace this with a positive assertion that WalEmitter wrapped
     around DaemonEmitter composes correctly.
     """
-    from agent_receipts import DaemonEmitter
-    from agent_receipts.emitters import Emitter, FileWal, WalEmitter
+    from obsigna import DaemonEmitter
+    from obsigna.emitters import Emitter, FileWal, WalEmitter
 
     d = DaemonEmitter(socket_path=str(tmp_path / "x.sock"))
     assert isinstance(d, Emitter) is True

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from agent_receipts.taxonomy.classify import classify_tool_call
-from agent_receipts.taxonomy.types import TaxonomyMapping
+from obsigna.taxonomy.classify import classify_tool_call
+from obsigna.taxonomy.types import TaxonomyMapping
 
 
 class TestClassifyToolCall:

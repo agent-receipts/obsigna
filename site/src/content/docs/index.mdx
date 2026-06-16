@@ -1,149 +1,28 @@
 ---
-title: "An audit trail your agent can't tamper with"
-description: A separate daemon signs and stores a tamper-evident receipt for every tool call your agent makes. The signing keys and the receipt store live outside the agent process.
+title: "Agent Receipts — cryptographic audit trails for AI agents"
+description: A protocol for tamper-evident, cryptographically signed records of every action an AI agent takes. Built on Ed25519, SHA-256, and W3C Verifiable Credentials.
 ---
 
 An agent runs overnight. By morning, a customer's production data is gone — the agent called a cleanup tool with the wrong scope and deleted records it was never meant to touch. The first question everyone asks is the simplest one: what exactly did it do, on whose authority, and with what inputs? You open the logs and find a single line — "maintenance task completed." Nothing about the destructive call. Nothing about who approved it. And no way to prove the log itself wasn't edited afterward.
 
-This is the gap. Agents are taking real actions — deleting files, moving money, changing records — and the trail they leave is whatever they happened to write, in a place anyone with access can rewrite. When something goes wrong, "the agent did it" is not an answer your security team, your auditor, or your customer will accept.
+**Agent Receipts** closes that gap. A separate daemon records a tamper-evident receipt for every tool call your agent makes. The signing keys and the receipt store live outside the agent process, so the audit trail holds up even if the agent is compromised.
 
-Agent Receipts closes that gap. A separate daemon records a tamper-evident receipt for every tool call your agent makes. The signing keys and the receipt store live outside the agent process, so the audit trail holds up even if the agent is compromised.
+## Use it today
 
-Built for platform and security teams approving agentic deployments.
+This isn't just a spec — there's working tooling at **[obsigna.dev](https://obsigna.dev)** you can drop in right now:
 
-## Start with a real agent workflow
+- **[Hook](https://obsigna.dev/hook/overview/)** — the fastest path: capture native tool calls in Claude Code and other runtimes.
+- **[MCP proxy](https://obsigna.dev/mcp-proxy/overview/)** — sit it in front of any MCP server and sign a receipt for every tool call, with no code changes.
+- **SDKs for [Go](https://obsigna.dev/sdk-go/overview/), [TypeScript](https://obsigna.dev/sdk-ts/overview/), and [Python](https://obsigna.dev/sdk-py/overview/)** — emit receipts directly from your own code.
+- **[Dashboard](https://obsigna.dev/dashboard/overview/)** — browse and verify the receipt chain.
 
-If you want to try Agent Receipts in minutes, start with the MCP Proxy.
+→ **[Get started in minutes](https://obsigna.dev/getting-started/quick-start/)**
 
-It sits in front of an MCP server you already use and gives you:
-
-- Signed receipts for every tool call
-- A tamper-evident audit chain
-- Risk scoring and cryptographic receipts, without modifying the client or server
-
-### Best first paths
-
-- [Claude Desktop + GitHub MCP](/mcp-proxy/claude-desktop/)
-- [Claude Code + GitHub MCP](/mcp-proxy/claude-code/)
-- [Codex + GitHub MCP](/mcp-proxy/codex/)
-- [MCP Proxy overview](/mcp-proxy/overview/)
-
-### What you will do
-
-1. Install the daemon and `mcp-proxy`
-2. Wrap one MCP server
-3. Make a few tool calls from your agent
-4. Inspect and verify the signed receipts
-
-<div style="background: #f5f6fa; border: 1px solid #d0d4e0; border-radius: 6px; padding: 1.25rem 1rem 1rem; margin-bottom: 0.5rem; overflow-x: auto;">
-<svg viewBox="0 0 720 190" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; min-width: 600px;">
-  <defs>
-    <marker id="flow-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-auto">
-      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#5b6abf" />
-    </marker>
-    <marker id="chain-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-auto">
-      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#2e7d46" />
-    </marker>
-  </defs>
-
-  {/* Stage 1: Principal */}
-  <rect x="10" y="30" width="120" height="100" rx="6" fill="#ffffff" stroke="#5b6abf" stroke-width="1.5"/>
-  {/* Person silhouette */}
-  <circle cx="70" cy="60" r="12" fill="none" stroke="#5b6abf" stroke-width="1.5"/>
-  <path d="M 48 95 Q 48 78 70 78 Q 92 78 92 95" fill="none" stroke="#5b6abf" stroke-width="1.5"/>
-  <text x="70" y="120" text-anchor="middle" fill="#1a1a2e" font-family="'SF Mono', monospace" font-size="10">Principal</text>
-  <text x="70" y="20" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">1. AUTHORIZE</text>
-
-  {/* Arrow 1→2 */}
-  <line x1="130" y1="80" x2="155" y2="80" stroke="#5b6abf" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
-
-  {/* Stage 2: Agent acts */}
-  <rect x="163" y="30" width="120" height="100" rx="6" fill="#ffffff" stroke="#5b6abf" stroke-width="1.5"/>
-  {/* Robot/agent icon */}
-  <rect x="200" y="50" width="26" height="20" rx="4" fill="none" stroke="#b8860b" stroke-width="1.5"/>
-  <circle cx="209" cy="59" r="3" fill="#b8860b"/>
-  <circle cx="219" cy="59" r="3" fill="#b8860b"/>
-  <line x1="213" y1="70" x2="213" y2="78" stroke="#b8860b" stroke-width="1.5"/>
-  <line x1="203" y1="78" x2="223" y2="78" stroke="#b8860b" stroke-width="1.5"/>
-  <text x="223" y="98" text-anchor="middle" fill="#b8860b" font-family="'SF Mono', monospace" font-size="9">file.delete</text>
-  <text x="223" y="120" text-anchor="middle" fill="#1a1a2e" font-family="'SF Mono', monospace" font-size="10">Agent</text>
-  <text x="223" y="20" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">2. ACT</text>
-
-  {/* Arrow 2→3 */}
-  <line x1="283" y1="80" x2="308" y2="80" stroke="#5b6abf" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
-
-  {/* Stage 3: Receipt created */}
-  <rect x="316" y="30" width="120" height="100" rx="6" fill="#ffffff" stroke="#2e7d46" stroke-width="1.5"/>
-  <text x="376" y="52" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">action: file.delete</text>
-  <text x="376" y="66" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">outcome: success</text>
-  <text x="376" y="80" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">risk: high</text>
-  <text x="376" y="94" text-anchor="middle" fill="#2e7d46" font-family="'SF Mono', monospace" font-size="8">proof: Ed25519 ✓</text>
-  <text x="376" y="120" text-anchor="middle" fill="#1a1a2e" font-family="'SF Mono', monospace" font-size="10">Receipt</text>
-  <text x="376" y="20" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">3. SIGN</text>
-
-  {/* Arrow 3→4 */}
-  <line x1="436" y1="80" x2="461" y2="80" stroke="#2e7d46" stroke-width="1.5" marker-end="url(#chain-arrow)"/>
-
-  {/* Stage 4: Chain */}
-  <rect x="469" y="30" width="120" height="100" rx="6" fill="#ffffff" stroke="#2e7d46" stroke-width="1.5"/>
-  {/* Mini chain boxes */}
-  <rect x="484" y="52" width="28" height="20" rx="3" fill="#f5f6fa" stroke="#5b6abf" stroke-width="1"/>
-  <text x="498" y="65" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="7">#1</text>
-  <line x1="512" y1="62" x2="521" y2="62" stroke="#2e7d46" stroke-width="1" marker-end="url(#chain-arrow)"/>
-  <rect x="523" y="52" width="28" height="20" rx="3" fill="#f5f6fa" stroke="#5b6abf" stroke-width="1"/>
-  <text x="537" y="65" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="7">#2</text>
-  <line x1="551" y1="62" x2="560" y2="62" stroke="#2e7d46" stroke-width="1" marker-end="url(#chain-arrow)"/>
-  <rect x="562" y="52" width="22" height="20" rx="3" fill="#f5f6fa" stroke="#b8860b" stroke-width="1.5"/>
-  <text x="573" y="65" text-anchor="middle" fill="#b8860b" font-family="'SF Mono', monospace" font-size="7">#3</text>
-  <text x="529" y="92" text-anchor="middle" fill="#2e7d46" font-family="'SF Mono', monospace" font-size="8">sha256 linked</text>
-  <text x="529" y="120" text-anchor="middle" fill="#1a1a2e" font-family="'SF Mono', monospace" font-size="10">Chain</text>
-  <text x="529" y="20" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">4. LINK</text>
-
-  {/* Arrow 4→5 */}
-  <line x1="589" y1="80" x2="614" y2="80" stroke="#2e7d46" stroke-width="1.5" marker-end="url(#chain-arrow)"/>
-
-  {/* Stage 5: Verifiable */}
-  <rect x="622" y="30" width="88" height="100" rx="6" fill="#ffffff" stroke="#2e7d46" stroke-width="1.5"/>
-  {/* Checkmark */}
-  <circle cx="666" cy="62" r="14" fill="none" stroke="#2e7d46" stroke-width="1.5"/>
-  <path d="M 656 62 L 663 69 L 677 55" fill="none" stroke="#2e7d46" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="666" y="92" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="7">tamper-evident</text>
-  <text x="666" y="120" text-anchor="middle" fill="#1a1a2e" font-family="'SF Mono', monospace" font-size="10">Verify</text>
-  <text x="666" y="20" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="8">5. AUDIT</text>
-
-  {/* Bottom label */}
-  <text x="360" y="158" text-anchor="middle" fill="#6b7280" font-family="'SF Mono', monospace" font-size="9">Human authorizes → Agent acts → Receipt signed → Chain linked → Independently verifiable</text>
-  <text x="360" y="175" text-anchor="middle" fill="#5b6abf" font-family="'SF Mono', monospace" font-size="8">Every step is cryptographically bound. Breaking any link is detectable.</text>
-</svg>
-</div>
-
-*Conceptual overview. Signing and storage happen inside the `agent-receipts` daemon — the agent process sends events over a Unix socket and never touches the keys.*
-
-AI agents are increasingly acting on behalf of humans — sending emails, modifying documents, making purchases, managing files. Agent Receipts produces a tamper-evident record of those actions using the same Ed25519 and SHA-256 primitives the space already converged on, wrapped in the W3C Verifiable Credentials envelope — reusing standards, not authoring a new one. The EU AI Act mandates traceability for high-risk AI systems (Article 12); Agent Receipts produces a record that meets that bar. For how this fits alongside observability platforms, policy engines, and the other approaches teams are weighing, see the [agent security tooling landscape](/ecosystem/landscape/).
-
-```mermaid
-graph LR
-  subgraph ap["Emitter process"]
-    A["Agent / plugin / proxy"]
-  end
-  A -- "Unix socket" --> D
-  subgraph dp["agent-receipts-daemon"]
-    D[daemon]
-    D --> K[(Ed25519 key)]
-    D --> DB[(receipts.db)]
-  end
-  V["agent-receipts verify"] -- "read-only" --> DB
-```
-
-## What is an Agent Receipt?
+## The protocol
 
 An **Agent Receipt** is a cryptographically signed record of a single action taken by an AI agent on behalf of a human. Each receipt is structured as a [W3C Verifiable Credential](https://www.w3.org/TR/vc-data-model-2.0/) with type `AgentReceipt`, signed with Ed25519, and hash-chained into a tamper-evident log.
 
-Think of it as **C2PA Content Credentials, but for agent actions instead of media assets**. Where C2PA provides signed provenance manifests for photos, videos, and documents, Agent Receipts provide signed provenance records for things agents *do*.
-
-## What a receipt records
-
-Every Agent Receipt captures:
+Every receipt captures:
 
 - **Who** — the agent that acted and the human who authorized it
 - **What** — the action type (from a standardized taxonomy) and its risk level
@@ -151,22 +30,38 @@ Every Agent Receipt captures:
 - **Outcome** — success, failure, or pending — and whether the action is reversible
 - **Chain position** — a hash link to the previous receipt, forming a tamper-evident sequence
 
-Parameters are hashed, not stored in plaintext. The operator controls what is disclosed. Sensitive data never appears in receipts.
+Parameters are hashed, not stored in plaintext. The operator controls what is disclosed.
 
-## Why the daemon matters
-
-The signing keys and receipt store live in the `agent-receipts` daemon — a separate process that is the sole writer to the chain. The agent sends events over a Unix socket; keys and database handles never enter the agent process.
-
-The daemon records caller peer credentials (pid, uid, executable path) at connect time — captured by the OS, not self-reported by the agent.
-
-For the strongest tamper-evidence guarantee, deploy the daemon as a dedicated OS user so the key file is inaccessible to the agent's account. See [Daemon Setup](/getting-started/daemon-setup/).
+```mermaid
+graph LR
+  subgraph ap["Emitter process"]
+    A["Agent / plugin / proxy"]
+  end
+  A -- "Unix socket" --> D
+  subgraph dp["obsigna-daemon"]
+    D[daemon]
+    D --> K[(Ed25519 key)]
+    D --> DB[(receipts.db)]
+  end
+  V["obsigna receipt verify"] -- "read-only" --> DB
+```
 
 ## Design principles
 
-The protocol is privacy-preserving by default, built on existing standards (W3C VCs, Ed25519, SHA-256, RFC 3161), agent-agnostic, and minimal by default with room for domain-specific extensions. See the [Specification Overview](/specification/overview/) for the full set of design principles.
+The protocol is privacy-preserving by default, built on existing standards (W3C VCs, Ed25519, SHA-256, RFC 3161), agent-agnostic, and minimal by default with room for domain-specific extensions. The EU AI Act mandates traceability for high-risk AI systems (Article 12); Agent Receipts is designed to produce records suited to that requirement.
 
-## Choose your next step
+See the [Specification Overview](/specification/overview/) for the full design.
 
-- Want the fastest hands-on experience? Start with the [MCP Proxy overview](/mcp-proxy/overview/).
-- Want to create receipts directly in your app? Use the [TypeScript SDK](/sdk-ts/overview/), [Python SDK](/sdk-py/overview/), or [Go SDK](/sdk-go/overview/).
-- Want the protocol details first? Read the [Specification Overview](/specification/overview/).
+## Explore the spec
+
+- [How It Works](/specification/how-it-works/) — architecture and flow
+- [Trust Model](/specification/trust-model/) — threat model and guarantees
+- [Agent Receipt Schema](/specification/agent-receipt-schema/) — the full receipt structure
+- [Action Taxonomy](/specification/action-taxonomy/) — standardized action types and risk levels
+- [Receipt Chain Verification](/specification/receipt-chain-verification/) — tamper-evidence guarantees
+- [Parameter Disclosure](/specification/parameter-disclosure/) — privacy-preserving payload handling
+- [Spec (full text)](/spec/) — versioned canonical specification
+
+## Ecosystem
+
+For the agent security tooling landscape — how Agent Receipts fits alongside observability platforms, policy engines, and other approaches — see the [Ecosystem](/ecosystem/).

@@ -1,10 +1,10 @@
 <div align="center">
 
-# @agnt-rcpt/sdk-ts
+# @obsigna/sdk-ts
 
 ### TypeScript SDK for the Agent Receipts protocol
 
-[![npm](https://img.shields.io/npm/v/@agnt-rcpt/sdk-ts)](https://www.npmjs.com/package/@agnt-rcpt/sdk-ts)
+[![npm](https://img.shields.io/npm/v/@obsigna/sdk-ts)](https://www.npmjs.com/package/@obsigna/sdk-ts)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ESM-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-22+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -15,7 +15,7 @@ Create, sign, hash-chain, store, and verify cryptographically signed audit trail
 
 Minimal runtime dependencies — `zod` for schema validation, `node:crypto` and `node:sqlite` for cryptography and storage. The HPKE disclosure envelope (RFC 9180) is implemented directly on `node:crypto`, with no third-party crypto dependency.
 
-[Spec](https://github.com/agent-receipts/spec) &bull; [Reference Implementation](https://github.com/ojongerius/attest) &bull; [npm](https://www.npmjs.com/package/@agnt-rcpt/sdk-ts)
+[Spec](https://github.com/agent-receipts/spec) &bull; [Reference Implementation](https://github.com/ojongerius/attest) &bull; [npm](https://www.npmjs.com/package/@obsigna/sdk-ts)
 
 </div>
 
@@ -35,12 +35,12 @@ AI agents that read files, run commands, and browse the web are powerful — but
 
 ### Beyond local storage
 
-Today, this SDK stores receipts locally in SQLite — fully under your control. The [Agent Receipts protocol](https://github.com/agent-receipts/ar/tree/main/spec) is designed for receipts to travel further when you choose: publishing to a shared ledger, forwarding to a compliance system, or exchanging between agents as proof of prior actions. The receipts are portable W3C Verifiable Credentials, but where they go is always your decision.
+Today, this SDK stores receipts locally in SQLite — fully under your control. The [Agent Receipts protocol](https://github.com/agent-receipts/obsigna/tree/main/spec) is designed for receipts to travel further when you choose: publishing to a shared ledger, forwarding to a compliance system, or exchanging between agents as proof of prior actions. The receipts are portable W3C Verifiable Credentials, but where they go is always your decision.
 
 ## Install
 
 ```sh
-npm install @agnt-rcpt/sdk-ts
+npm install @obsigna/sdk-ts
 ```
 
 ## Quick start
@@ -59,7 +59,7 @@ import {
   generateKeyPair,
   hashReceipt,
   signReceipt,
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 
 // Generate an Ed25519 key pair
 const keys = generateKeyPair();
@@ -90,7 +90,7 @@ const hash = hashReceipt(receipt);
 
 <!-- snippet-check: continues -->
 ```typescript
-import { openStore } from "@agnt-rcpt/sdk-ts";
+import { openStore } from "@obsigna/sdk-ts";
 
 const store = openStore("receipts.db");
 store.insert(receipt, hash);
@@ -111,7 +111,7 @@ store.close();
 
 <!-- snippet-check: skip -->
 ```typescript
-import { verifyChain, verifyStoredChain } from "@agnt-rcpt/sdk-ts";
+import { verifyChain, verifyStoredChain } from "@obsigna/sdk-ts";
 
 // Verify an array of receipts
 const result = verifyChain(receipts, publicKey);
@@ -125,7 +125,7 @@ const storeResult = verifyStoredChain(store, "chain_session-1", publicKey);
 ### Classify tool calls
 
 ```typescript
-import { classifyToolCall, loadTaxonomyConfig } from "@agnt-rcpt/sdk-ts";
+import { classifyToolCall, loadTaxonomyConfig } from "@obsigna/sdk-ts";
 
 // Built-in classification
 const result = classifyToolCall("read_file");
@@ -159,7 +159,7 @@ import {
   InMemoryEmitter,
   ReceiptChain,
   generateKeyPair,
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 
 const keys = generateKeyPair();
 
@@ -217,7 +217,7 @@ import {
   generateKeyPair,     // Ed25519 key pair (PEM-encoded)
   signReceipt,         // Sign with Ed25519Signature2020 proof
   verifyReceipt,       // Verify a single receipt's signature
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 ```
 
 ### Hashing and canonicalization
@@ -227,7 +227,7 @@ import {
   canonicalize,        // RFC 8785 JSON canonicalization
   hashReceipt,         // Hash receipt (excluding proof) → "sha256:<hex>"
   sha256,              // Hash arbitrary data → "sha256:<hex>"
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 ```
 
 ### Chain verification
@@ -235,7 +235,7 @@ import {
 ```typescript
 import {
   verifyChain,         // Verify signatures, hash links, and sequence numbering
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 ```
 
 ### Storage (SQLite)
@@ -245,7 +245,7 @@ import {
   openStore,           // Open or create a receipt store
   ReceiptStore,        // Insert, query, get by ID, get chain, stats
   verifyStoredChain,   // Load a chain from store and verify integrity
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 ```
 
 ### Taxonomy
@@ -256,7 +256,7 @@ import {
   loadTaxonomyConfig,  // Load tool→action mappings from a JSON config file
   ALL_ACTIONS,         // All 15 built-in action types
   resolveActionType,   // Look up action type with fallback to "unknown"
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 ```
 
 ### Subpath imports
@@ -264,9 +264,9 @@ import {
 For more targeted imports:
 
 ```typescript
-import { createReceipt, signReceipt } from "@agnt-rcpt/sdk-ts/receipt";
-import { openStore } from "@agnt-rcpt/sdk-ts/store";
-import { classifyToolCall } from "@agnt-rcpt/sdk-ts/taxonomy";
+import { createReceipt, signReceipt } from "@obsigna/sdk-ts/receipt";
+import { openStore } from "@obsigna/sdk-ts/store";
+import { classifyToolCall } from "@obsigna/sdk-ts/taxonomy";
 ```
 
 ## Project structure
@@ -299,9 +299,9 @@ pnpm run build         # compile to dist/
 | Repository | Description |
 |:---|:---|
 | [agent-receipts/spec](https://github.com/agent-receipts/spec) | Protocol specification, JSON Schemas, canonical taxonomy |
-| **@agnt-rcpt/sdk-ts** (this package) | TypeScript SDK |
+| **@obsigna/sdk-ts** (this package) | TypeScript SDK |
 | [ojongerius/attest](https://github.com/ojongerius/attest) | MCP proxy + CLI (reference implementation, consumes this SDK) |
-| [agent-receipts/sdk-py](https://github.com/agent-receipts/ar/tree/main/sdk/py) | Python SDK ([PyPI](https://pypi.org/project/agent-receipts/)) |
+| [agent-receipts/sdk-py](https://github.com/agent-receipts/obsigna/tree/main/sdk/py) | Python SDK ([PyPI](https://pypi.org/project/obsigna/)) |
 
 ## License
 

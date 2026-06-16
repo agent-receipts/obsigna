@@ -8,7 +8,7 @@ Tracked by default (edit the `*_PACKAGES` / `GITHUB_REPOS` constants in
 
 | Project | Channel(s) |
 |---------|-----------|
-| `agent-receipts` monorepo (`agent-receipts/ar`) | npm `@agnt-rcpt/sdk-ts`, `@agnt-rcpt/sdk-ts-aws`; PyPI `agent-receipts`; Go `sdk/go`; Homebrew/release binaries (daemon, hook, mcp-proxy, collector) |
+| `agent-receipts` monorepo (`agent-receipts/obsigna`) | npm `@obsigna/sdk-ts`, `@obsigna/sdk-ts-aws`; PyPI `obsigna`; Go `sdk/go`; Homebrew/release binaries (daemon, hook, mcp-proxy, collector) |
 | `openclaw` | npm `@agnt-rcpt/openclaw` |
 | `dashboard` (`agent-receipts/dashboard`) | Homebrew tap / release binaries |
 
@@ -36,7 +36,7 @@ it is skipped silently otherwise.
 python3 scripts/usage_signal/test_check.py        # unit tests (no network)
 python3 scripts/usage_signal/check.py             # all repo packages, live
 python3 scripts/usage_signal/check.py --json      # machine-readable
-python3 scripts/usage_signal/check.py --npm @agnt-rcpt/sdk-ts --no-pypi --go-off
+python3 scripts/usage_signal/check.py --npm @obsigna/sdk-ts --no-pypi --go-off
 ```
 
 Live mode needs egress to `api.npmjs.org`, `pypistats.org`, `pkg.go.dev`, and

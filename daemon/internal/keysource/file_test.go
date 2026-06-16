@@ -4,7 +4,6 @@ import (
 	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,17 +88,6 @@ func TestFile_MissingPathErrors(t *testing.T) {
 	ks := NewFile("/nonexistent/path/to/key.pem", "did:test#k1")
 	if err := ks.Init(); err == nil {
 		t.Error("expected Init to fail for missing key file")
-	}
-}
-
-func TestFile_RotateNotImplemented(t *testing.T) {
-	path := writeTestKey(t, 0o600)
-	ks := NewFile(path, "did:test#k1")
-	if err := ks.Init(); err != nil {
-		t.Fatal(err)
-	}
-	if err := ks.Rotate(); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("Rotate err = %v, want ErrNotImplemented", err)
 	}
 }
 

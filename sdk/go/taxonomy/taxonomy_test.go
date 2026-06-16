@@ -61,9 +61,51 @@ func TestGetActionType(t *testing.T) {
 
 func TestAllActions(t *testing.T) {
 	all := AllActions()
-	// 7 filesystem + 7 system + 3 data + 1 diagnostic + 1 unknown = 19
-	if len(all) != 19 {
-		t.Errorf("expected 19 action types, got %d", len(all))
+	// 8 filesystem + 10 system + 3 data + 1 network + 1 diagnostic + 1 unknown = 24
+	if len(all) != 24 {
+		t.Errorf("expected 24 action types, got %d", len(all))
+	}
+}
+
+func TestOpenSandboxActionTypes(t *testing.T) {
+	cases := []struct {
+		actionType string
+		risk       receipt.RiskLevel
+	}{
+		{"filesystem.directory.list", receipt.RiskLow},
+		{"system.code.execute", receipt.RiskHigh},
+		{receipt.ActionTypePTYOpen, receipt.RiskCritical},
+		{receipt.ActionTypePTYClose, receipt.RiskHigh},
+		{"network.egress.observed", receipt.RiskMedium},
+	}
+	for _, tc := range cases {
+		e := GetActionType(tc.actionType)
+		if e == nil {
+			t.Errorf("GetActionType(%q) returned nil", tc.actionType)
+			continue
+		}
+		if e.RiskLevel != tc.risk {
+			t.Errorf("%s: expected risk %s, got %s", tc.actionType, tc.risk, e.RiskLevel)
+		}
+		// ResolveActionType must not fall back to unknown
+		r := ResolveActionType(tc.actionType)
+		if r.Type == "unknown" {
+			t.Errorf("ResolveActionType(%q) fell back to unknown", tc.actionType)
+		}
+	}
+}
+
+func TestNetworkActionsRegistered(t *testing.T) {
+	all := AllActions()
+	found := false
+	for _, e := range all {
+		if e.Type == "network.egress.observed" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("network.egress.observed not found in AllActions()")
 	}
 }
 

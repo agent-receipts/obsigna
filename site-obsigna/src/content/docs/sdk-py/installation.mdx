@@ -1,0 +1,44 @@
+---
+title: Installation
+description: Install and configure the Python SDK.
+---
+
+## Install
+
+```bash
+pip install obsigna
+```
+
+Or with uv:
+
+```bash
+uv add obsigna
+```
+
+## Requirements
+
+- Python 3.11+
+
+## You also need the daemon
+
+`pip install obsigna` installs the library only. Receipts are signed by a
+separate `obsigna-daemon` process, which also ships the `agent-receipts`
+CLI (`list`, `show`, `verify`). Install it on macOS or Linux — Windows is not
+supported yet:
+
+```bash
+# macOS (Homebrew)
+brew install agent-receipts/tap/obsigna
+
+# Linux / from source (requires Go 1.26.1+) — builds the daemon and the obsigna CLI
+go install github.com/agent-receipts/ar/daemon/cmd/obsigna-daemon@latest
+go install github.com/agent-receipts/ar/daemon/cmd/obsigna@latest
+```
+
+See [Daemon Setup](/getting-started/daemon-setup/) for other install methods,
+socket paths, and running the daemon as a service.
+
+## Next steps
+
+- [Quick Start](/getting-started/quick-start/) — start the daemon, emit your first receipt, and verify it
+- [API Reference](/sdk-py/api-reference/) for the full API surface

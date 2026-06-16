@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from agent_receipts.receipt.hash import hash_receipt
-from agent_receipts.receipt.signing import sign_receipt
-from agent_receipts.store.store import open_store
-from agent_receipts.store.verify import verify_stored_chain
+from obsigna.receipt.hash import hash_receipt
+from obsigna.receipt.signing import sign_receipt
+from obsigna.store.store import open_store
+from obsigna.store.verify import verify_stored_chain
 from tests.conftest import TEST_PRIVATE_KEY, TEST_PUBLIC_KEY, make_unsigned
 
 
@@ -48,7 +48,7 @@ def test_verify_stored_chain_wrong_key() -> None:
     r1 = sign_receipt(u1, TEST_PRIVATE_KEY, "did:agent:test#key-1")
     store.insert(r1, hash_receipt(r1))
 
-    from agent_receipts.receipt.signing import generate_key_pair
+    from obsigna.receipt.signing import generate_key_pair
 
     other_keys = generate_key_pair()
 

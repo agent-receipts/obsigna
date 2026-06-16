@@ -58,11 +58,11 @@ import paths is sufficient.
 
 ## Where to go
 
-- **Canonical Go SDK:** https://github.com/agent-receipts/ar/tree/main/sdk/go
+- **Canonical Go SDK:** https://github.com/agent-receipts/obsigna/tree/main/sdk/go
 - **Protocol spec:** https://github.com/agent-receipts/spec
-- **Monorepo:** https://github.com/agent-receipts/ar
+- **Monorepo:** https://github.com/agent-receipts/obsigna
 
 ## Why
 
-See [ADR-0023: Canonical Go Module Path](https://github.com/agent-receipts/ar/blob/main/docs/adr/0023-canonical-go-module-path.md)
+See [ADR-0023: Canonical Go Module Path](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0023-canonical-go-module-path.md)
 for the full rationale.

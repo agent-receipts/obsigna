@@ -48,7 +48,7 @@ gate.
   (so a block with no `func main` still builds; unused funcs are allowed, unused
   imports/locals are not). Bare statement snippets are wrapped automatically.
 - **TypeScript** — `tsc --noEmit --strict` against the installed package.
-- **Python** — `mypy` against the installed package (`agent-receipts` ships
+- **Python** — `mypy` against the installed package (`obsigna` ships
   `py.typed`). Type-check only; snippets are never executed.
 
 ## Authoring snippets

@@ -1,0 +1,61 @@
+---
+import config from "virtual:starlight/user-config";
+import { Icon } from "@astrojs/starlight/components";
+
+const links = config.social ?? [];
+---
+
+{
+  links.length > 0 && (
+    <>
+      {links.map(({ href, icon, label }) =>
+        icon === "github" ? (
+          <a {href} rel="me" class="sl-flex github-org-link">
+            <Icon name={icon} />
+            <span class="sr-only sm-visible">{href.replace(/^https?:\/\//, "")}</span>
+          </a>
+        ) : (
+          <a {href} rel="me" class="sl-flex">
+            <span class="sr-only">{label}</span>
+            <Icon name={icon} />
+          </a>
+        )
+      )}
+    </>
+  )
+}
+
+<style>
+  a {
+    color: var(--sl-color-text-accent);
+    padding: 0.5em;
+    margin: -0.5em;
+  }
+  a:hover {
+    color: var(--sl-color-white);
+  }
+  .github-org-link {
+    align-items: center;
+    gap: 0.4rem;
+    text-decoration: none;
+  }
+  .sr-only {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+  @media (min-width: 50em) {
+    .sm-visible {
+      clip-path: none;
+      height: auto;
+      overflow: visible;
+      position: static;
+      white-space: normal;
+      width: auto;
+      font-size: var(--sl-text-sm);
+    }
+  }
+</style>

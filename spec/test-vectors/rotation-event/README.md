@@ -4,9 +4,12 @@ A worked example of a `credentialSubject.keyRotation` receipt, pinning the
 canonical wire form proposed in the
 [ADR-0015 amendment](../../../docs/adr/0015-key-rotation-byok-anchoring.md#amendments).
 
-The vector is intended for human review — runnable cross-SDK
-verification (alongside `cross-sdk-tests/v020_vectors.json` and friends) is a
-follow-up that depends on SDK implementations of `credentialSubject.keyRotation`.
+The vector is consumed directly by each SDK's rotation tests
+(`sdk/go/receipt/rotation_test.go`, `sdk/ts/src/receipt/rotation.test.ts`,
+`sdk/py/tests/receipt/test_rotation.py`), which load it, verify it under the
+outgoing key, and cross-check its canonical-body hash — so all three SDKs agree
+on the wire form. The schema validates it via
+`cross-sdk-tests/spec_schema_test.go`.
 
 ## What this vector demonstrates
 
@@ -62,17 +65,10 @@ wire-format pin.
 
 ## Out of scope
 
-- No JSON Schema integration. The current `spec/schema/agent-receipt.schema.json`
-  does **not** set `additionalProperties: false` on `credentialSubject`, so the
-  vector is already structurally accepted; tightening the schema with a
-  `keyRotation` `$ref` is a follow-up gated on the placement decision being
-  accepted.
-- No cross-SDK runner. The proposed `keyRotation` namespace is not yet
-  implemented in any SDK; once it is, this vector can be promoted into the
-  `cross-sdk-tests/` harness.
+- No daemon emission. This fixture exercises the verifier (read) side only; it
+  does not cover how a daemon *produces* a `key_rotated` receipt. Offline
+  emission is daemon-orchestrated via `agent-receipts-daemon --rotate` (there is
+  no `KeySource.Rotate()`); this vector is silent on that path.
 - No rotation event anchored to an external sink. ADR-0015 specifies that
   rotation events MUST be anchored before the local chain commits — this
   fixture is a *wire-format* vector and is silent on the anchor write contract.
-- No CI schema-validation coverage. The existing `cross-sdk-tests/spec_schema_test.go`
-  only validates `spec/examples/*.json`; extending the glob to include
-  `spec/test-vectors/**/*.json` is a follow-up.

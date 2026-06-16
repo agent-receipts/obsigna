@@ -1,0 +1,45 @@
+---
+title: Dashboard
+description: Local web UI for browsing and verifying Agent Receipt databases.
+---
+
+The Agent Receipts Dashboard is a lightweight, read-only web UI for browsing receipt databases produced by any Agent Receipts SDK or the MCP proxy. It ships as a single Go binary with no external runtime dependencies.
+
+![Dashboard overview showing stats, risk distribution, and recent receipts](/images/dashboard-overview.png)
+
+**Repository:** [agent-receipts/dashboard](https://github.com/agent-receipts/dashboard) — the [README](https://github.com/agent-receipts/dashboard#readme) is the canonical reference for the full feature set, CLI flags, and HTTP API. This page is a conceptual overview.
+
+## What you can do
+
+- **Browse & filter** receipts from any Agent Receipts SQLite database — by action type, risk level, status, time range, chain, server/tool, session, or free-text search.
+- **Verify chains** — hash linkage and sequence ordering, plus Ed25519 signatures when you supply a public key (see below).
+- **Decrypt parameter previews** — when a forensic key is available, the dashboard decrypts HPKE-encrypted disclosures inline so you can see the real tool inputs/outputs (see below).
+- **See multi-agent attribution** — for sessions with sub-agents, a delegation graph with cross-agent file dependencies, blast-radius, and risk rings.
+- **Read analytics** — activity timeline, error-rate and throughput trends, top actions by failure rate, and per-server/tool breakdowns.
+- **Inspect & export** — full raw JSON for any receipt, with one-click JSON export of a receipt or a whole chain.
+
+## What "verify" checks
+
+Clicking **Verify** on a chain runs one of two modes depending on whether a public key is supplied:
+
+**Without a public key — structural verification only**
+Checks hash linkage and sequence ordering. A green "valid" means the receipts link and are correctly ordered; signatures are not checked.
+
+**With a public key — full cryptographic verification**
+Enter your Ed25519 public key in PEM format in the textarea beside the **Verify** button. The dashboard passes the key to `/api/chains/:id/verify`, which performs the structural checks and additionally validates each receipt's Ed25519 signature. Each receipt in the response carries a `signature_valid` field.
+
+Verification recomputes each receipt's canonical hash from the verbatim bytes stored in the database, so a chain that [`obsigna receipt verify`](/reference/cli-commands/) accepts verifies in the dashboard too.
+
+## Forensic decryption
+
+If your receipts carry HPKE-encrypted parameter disclosures (the daemon's parameter-disclosure mode), the dashboard can decrypt them inline to preview the real tool inputs and outputs — the private key never leaves the machine.
+
+When the dashboard is bound to a loopback address and a key exists at the default path `~/.local/share/agent-receipts/forensic.key`, it loads automatically and previews decrypt on the fly. You can also load a key manually from the UI. Because this is the one feature that touches key material, the forensic endpoints are **loopback-only** and guarded against DNS-rebinding and cross-origin requests.
+
+See the dashboard [README](https://github.com/agent-receipts/dashboard#forensic-decryption) for accepted key formats and the full security model.
+
+## How it works
+
+The dashboard opens your SQLite receipt database in **read-only** mode and serves a web UI at localhost. It never modifies your data. All three SDKs and the MCP proxy use an identical SQLite schema, so the dashboard reads from any of them.
+
+See [Installation](/dashboard/installation/) to get started.

@@ -1,0 +1,39 @@
+name: "CI: legacy name guard"
+
+# Anti-regression guard for the SDK rename to the Obsigna brand
+# (npm @obsigna/*, PyPI obsigna). Fails if a legacy distribution / install /
+# import name reappears in a package manifest, lockfile, or install doc.
+# Logic and the gated file set live in scripts/legacy_name_guard/check.py.
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "sdk/ts/package.json"
+      - "sdk/ts-aws/package.json"
+      - "sdk/py/pyproject.toml"
+      - "sdk/ts/pnpm-lock.yaml"
+      - "sdk/ts-aws/pnpm-lock.yaml"
+      - "sdk/py/uv.lock"
+      - "README.md"
+      - "sdk/ts/README.md"
+      - "sdk/ts-aws/README.md"
+      - "sdk/py/README.md"
+      - "scripts/legacy_name_guard/**"
+      - ".github/workflows/legacy-name-guard.yml"
+  pull_request:
+    branches: [main]
+    paths: *paths
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Self-test the guard
+        run: python3 scripts/legacy_name_guard/test_check.py
+      - name: Scan manifests, lockfiles, and install docs
+        run: python3 scripts/legacy_name_guard/check.py

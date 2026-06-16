@@ -15,7 +15,7 @@ Both sides declare an inclusive integer range of emitter-frame schema versions
 
 | Side | Declaration | Read by the gate via |
 |------|-------------|----------------------|
-| Daemon (spoken range) | `pipeline.SpokenFrameVersionMin`/`Max` | `agent-receipts-daemon --protocol-version` → `{"frame_version":{"min":N,"max":M}}` |
+| Daemon (spoken range) | `pipeline.SpokenFrameVersionMin`/`Max` | `obsigna-daemon --protocol-version` → `{"frame_version":{"min":N,"max":M}}` |
 | Go SDK (declared range) | `emitter.DaemonProtocolMin`/`Max` | the SDK driver's `range` mode → `{"min":N,"max":M}` |
 | TS SDK | `DAEMON_PROTOCOL_RANGE` | same |
 | Python SDK | `DAEMON_PROTOCOL_RANGE` | same |

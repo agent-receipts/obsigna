@@ -7,8 +7,8 @@ Monorepo for the Agent Receipts protocol — cryptographically signed audit trai
 ```
 spec/          # Protocol specification and JSON schemas
 sdk/go/        # Go SDK (receipt, store, taxonomy)
-sdk/ts/        # TypeScript SDK (@agnt-rcpt/sdk-ts)
-sdk/py/        # Python SDK (agent-receipts)
+sdk/ts/        # TypeScript SDK (@obsigna/sdk-ts)
+sdk/py/        # Python SDK (obsigna)
 mcp-proxy/     # MCP STDIO proxy with audit, policy, and receipts (Go)
 hook/          # PostToolUse hook binary for Claude Code and other runtimes (Go)
 integrations/  # Per-agent-runtime adapters (e.g. opencode-plugin; hook to migrate here)
@@ -25,8 +25,8 @@ Each subdirectory has its own AGENTS.md with project-specific details.
 | sdk/go | Go | `go test ./...` | `go build ./...` |
 | sdk/ts | TypeScript | `pnpm test` | `pnpm build` |
 | sdk/py | Python | `uv run pytest` | `uv build` |
-| mcp-proxy | Go | `go test ./...` | `go build ./cmd/mcp-proxy` |
-| hook | Go | `go test ./...` | `go build ./cmd/agent-receipts-hook` |
+| mcp-proxy | Go | `go test ./...` | `go build ./cmd/...` (obsigna-mcp + mcp-proxy shim) |
+| hook | Go | `go test ./...` | `go build ./cmd/...` (obsigna-hook + agent-receipts-hook shim) |
 | site | TypeScript | — | `pnpm build` |
 | spec | — | — | JSON schema validation |
 
@@ -74,7 +74,7 @@ After cloning, no extra setup is required: `go build`, `go test`, and `go vet` f
 - Never store plaintext secrets in receipts — parameters must be hashed before inclusion.
 - Ed25519 is the only supported signing algorithm. Do not introduce alternative or weaker schemes.
 - Validate all inputs at trust boundaries (function parameters, environment variables, stored data). Crypto code must reject invalid inputs explicitly, not silently degrade.
-- Report vulnerabilities via [GitHub Security Advisories](https://github.com/agent-receipts/ar/security/advisories/new), not public issues. See [SECURITY.md](SECURITY.md).
+- Report vulnerabilities via [GitHub Security Advisories](https://github.com/agent-receipts/obsigna/security/advisories/new), not public issues. See [SECURITY.md](SECURITY.md).
 
 ## Mindset
 
@@ -129,5 +129,5 @@ When working in this repo as an AI coding agent, these rules apply in addition t
 - **Always run the full test suite** for any SDK you change before proposing a PR
 - **Cross-SDK changes require cross-language test verification** — if you change receipt format in one SDK, verify the cross-language tests still pass
 - **Write tests first** — new functions must have test coverage before pushing; writing tests first forces you to think about edge cases (nil inputs, corruption, concurrency)
-- **Use git worktrees** for new work — do not edit directly on main or shared branches, to avoid conflicts with other agents or in-progress work
+- **Use git worktrees** for new work — do not edit directly on main or shared branches, to avoid conflicts with other agents or in-progress work. Once the worktree exists, switch your session's working directory *into* it (Claude Code: the `EnterWorktree` tool, or `EnterWorktree` with the worktree `path`) and run commands from there. Do **not** prefix every shell command with `cd <worktree> && …`: the shell resets to the session's primary directory between calls, so a per-command `cd` re-triggers a permission prompt on every single invocation.
 - **Self-review before committing** — follow the Completing work checklist above

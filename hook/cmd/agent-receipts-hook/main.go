@@ -1,144 +1,105 @@
-// Command agent-receipts-hook is a short-lived hook binary invoked by agent
-// runtimes (Claude Code, Codex, …) on PostToolUse and PreToolUse events. It
-// reads a JSON frame from stdin, maps it to an emitter.Event, and forwards it
-// to the agent-receipts-daemon over a Unix-domain socket.
+// Command agent-receipts-hook is the deprecation shim for the renamed
+// obsigna-hook binary (ADR-0036). The hook is now its own primary binary,
+// obsigna-hook. This shim preserves the old agent-receipts-hook entrypoint —
+// every flag is identical — by replacing its own process image with obsigna-hook
+// via syscall.Exec, forwarding argv and the environment unchanged.
 //
-// Exit behaviour:
-//   - stdin unreadable or runtime not recognised → silent exit 0 (not our concern)
-//   - runtime identified, any subsequent failure → exit 1 + message to stderr
+// The shim is load-bearing, not cosmetic: agent runtimes (Claude Code and
+// others) invoke the hook by path from their settings (e.g. a PostToolUse
+// "command": "agent-receipts-hook"), so the shim is what keeps every existing
+// configuration working through the rename until users repoint at obsigna-hook.
 //
-// The strict-error exit-1 behaviour is intentional: once we know which runtime
-// is calling us, a failure to record the receipt is a signal worth surfacing.
+// syscall.Exec (not exec.Command) keeps the shim transparent: the hook is a
+// short-lived process that reads stdin and forwards one event. Replacing the
+// image preserves the inherited stdin/stdout/stderr and the exit status of
+// obsigna-hook, so the runtime sees exactly what it would have seen invoking
+// obsigna-hook directly — and avoids forking a second process per tool call. The
+// trade-off is a platform restriction to where syscall.Exec exists (darwin,
+// linux) — the only release targets. The exec adds a transitional per-event exec
+// on the old path; users drop it by pointing their config at obsigna-hook.
+//
+// This file must remain a thin shim: it deliberately does not import the hook's
+// emitter wiring or re-implement its surface. The entrypoint-guard test in
+// cmd/obsigna-hook asserts that, so agent-receipts-hook can never be
+// reintroduced as a primary entrypoint.
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
-	"runtime/debug"
-
-	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"os/exec"
+	"path/filepath"
+	"syscall"
 )
 
-// version is set at build time via -ldflags "-X main.version=vX.Y.Z".
-// Falls back to the module version from Go's build info (set automatically
-// for binaries installed with `go install`), then to "dev". Mirrors the
-// resolveVersion pattern in mcp-proxy/cmd/mcp-proxy/main.go and
-// daemon/cmd/agent-receipts-daemon/main.go so operators see a useful string
-// from `--version` in any install scenario.
-var version string
+// deprecationShimMarker identifies this entrypoint as the agent-receipts-hook →
+// obsigna-hook deprecation shim. The entrypoint-guard test (cmd/obsigna-hook)
+// greps for it to prove cmd/agent-receipts-hook is only ever the shim.
+const deprecationShimMarker = "agent-receipts-hook-deprecation-shim"
 
-func resolveVersion() string {
-	if version != "" {
-		return version
-	}
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
-	}
-	return "dev"
-}
+// targetBinary is the binary the shim forwards to. Releases target darwin and
+// linux only, so no platform-specific extension is needed.
+const targetBinary = "obsigna-hook"
 
-// reader maps a raw stdin payload and an env-lookup function to an
-// emitter.Event. The sessionID return value is the host-supplied session
-// identifier (empty string when not present in the payload).
-type reader func(stdin []byte, env func(string) string) (ev emitter.Event, sessionID string, err error)
-
-var formats = map[string]reader{
-	"claude-code": readClaudeCode,
-}
-
-// detect returns the format name inferred from the stdin payload and
-// environment. An empty string means no format could be auto-detected; the
-// caller should fall back to the --format flag or exit silently.
-//
-// Claude Code does not set CLAUDE_SESSION_ID as an environment variable; it
-// passes hook_event_name in the stdin JSON payload instead. We check both
-// signals so the binary works with runtimes that take either approach.
-// Both "PostToolUse" and "PreToolUse" are accepted from stdin.
-func detect(stdin []byte, env func(string) string) string {
-	if env("CLAUDE_SESSION_ID") != "" {
-		return "claude-code"
-	}
-	var probe struct {
-		HookEventName string `json:"hook_event_name"`
-	}
-	if json.Unmarshal(stdin, &probe) == nil {
-		switch probe.HookEventName {
-		case "PostToolUse", "PreToolUse":
-			return "claude-code"
-		}
-	}
-	return ""
-}
+// execImage replaces the current process image with the named binary, the way
+// execve(2) does. It is a package var so tests can stub it and assert it
+// defaults to syscall.Exec. This MUST be syscall.Exec, never exec.Command:
+// forking would add a second process per tool call and could decouple the hook's
+// exit status from what the runtime observes, whereas replacing the image keeps
+// the shim indistinguishable from a direct obsigna-hook invocation.
+var execImage = syscall.Exec
 
 func main() {
-	formatFlag := flag.String("format", "", "Force a specific input format (e.g. claude-code). Auto-detected when unset.")
-	showVersion := flag.Bool("version", false, "Print version and exit")
-	flag.Parse()
+	os.Exit(run(os.Args[1:], os.Stderr))
+}
 
-	if *showVersion {
-		fmt.Printf("agent-receipts-hook %s\n", resolveVersion())
-		return
-	}
+// run prints the deprecation notice, resolves obsigna-hook, and replaces this
+// process with it, forwarding args and the current environment. On success it
+// does not return — the image is gone. A return means the exec never happened
+// (binary missing or not executable); that is the only error path, reported with
+// a non-zero exit code.
+func run(args []string, stderr io.Writer) int {
+	fmt.Fprintf(stderr,
+		"agent-receipts-hook is deprecated; point your hook config at 'obsigna-hook'. Forwarding…\n")
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	// Cap stdin at MaxFrameSize+overhead: the emitter rejects larger payloads
-	// anyway, and a hard limit here prevents unbounded buffering in the
-	// short-lived hook process when stdin is not the expected JSON frame.
-	stdin, err := io.ReadAll(io.LimitReader(os.Stdin, emitter.MaxFrameSize+4096))
+	bin, err := resolveSibling(targetBinary)
 	if err != nil {
-		// stdin unreadable — drop silently, exit 0.
-		os.Exit(0)
+		fmt.Fprintf(stderr, "agent-receipts-hook: %v\n", err)
+		return 1
 	}
+	// argv[0] is the resolved binary path so ps/`/proc/self/cmdline` show
+	// obsigna-hook, not agent-receipts-hook. The target parses os.Args[1:]
+	// exactly as if invoked directly — the hook's flag surface is identical.
+	argv := append([]string{bin}, args...)
+	if err := execImage(bin, argv, os.Environ()); err != nil {
+		fmt.Fprintf(stderr, "agent-receipts-hook: exec %s: %v\n", bin, err)
+		return 1
+	}
+	return 0 // unreachable with the real syscall.Exec; the image is replaced
+}
 
-	env := os.Getenv
+// resolveSibling returns the path to a binary named name, preferring one
+// installed beside the current executable and falling back to $PATH. Resolving
+// beside the current binary first avoids picking up an unrelated binary of the
+// same name earlier on $PATH. Mirrors the mcp-proxy shim's resolver.
+func resolveSibling(name string) (string, error) {
+	if self, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(self), name)
+		if isExecutableFile(candidate) {
+			return candidate, nil
+		}
+	}
+	if p, err := exec.LookPath(name); err == nil {
+		return p, nil
+	}
+	return "", fmt.Errorf("cannot locate the %q binary (expected beside the current binary or on $PATH)", name)
+}
 
-	format := *formatFlag
-	if format == "" {
-		format = detect(stdin, env)
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
 	}
-	if format == "" {
-		// Unknown runtime — nothing to record.
-		os.Exit(0)
-	}
-
-	// Runtime identified. From this point, failures exit 1 with a message so
-	// the agent runtime can surface the problem.
-
-	read, ok := formats[format]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "agent-receipts-hook: unsupported format %q\n", format)
-		os.Exit(1)
-	}
-
-	ev, sessionID, err := read(stdin, env)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "agent-receipts-hook: cannot parse %s payload: %v\n", format, err)
-		os.Exit(1)
-	}
-
-	opts := []emitter.Option{
-		emitter.WithLogger(logger),
-	}
-	if sessionID != "" {
-		opts = append(opts, emitter.WithSessionID(sessionID))
-	}
-
-	em, err := emitter.NewDaemon(opts...)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "agent-receipts-hook: cannot create emitter: %v\n", err)
-		os.Exit(1)
-	}
-	defer em.Close()
-
-	if err := em.Emit(context.Background(), ev); err != nil {
-		fmt.Fprintf(os.Stderr, "agent-receipts-hook: emit failed: %v\n", err)
-		os.Exit(1)
-	}
-	os.Exit(0)
+	return info.Mode().Perm()&0o111 != 0
 }

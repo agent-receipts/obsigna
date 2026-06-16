@@ -23,11 +23,11 @@ A second limitation came from running more than one MCP proxy at once — the us
 
 ## The decision
 
-[ADR-0010](https://github.com/agent-receipts/ar/blob/main/docs/adr/0010-daemon-process-separation.md) split every integration into two roles.
+[ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md) split every integration into two roles.
 
 **Thin emitter** — the plugin, proxy, or SDK serialises the tool call, writes it to a local Unix socket, and moves on. Signing, storage, and chaining are the daemon's concern; the agent is never blocked waiting for the audit layer. If the daemon is running but backpressured, the emitter increments a local drop counter and flushes it on the next successful send, so the daemon can record the gap as an `events_dropped` receipt in the chain. If the daemon isn't running at all, events drop without trace — that case is detectable from outside the chain, via service-manager status and the absence of fresh receipts.
 
-**agent-receipts-daemon** — a separate process running as its own OS user, sole owner of the signing keys and the SQLite database. Receives events, captures peer credentials at the kernel level, canonicalises inputs (RFC 8785), hash-chains, signs (Ed25519), and persists.
+**obsigna-daemon** — a separate process running as its own OS user, sole owner of the signing keys and the SQLite database. Receives events, captures peer credentials at the kernel level, canonicalises inputs (RFC 8785), hash-chains, signs (Ed25519), and persists.
 
 ```mermaid
 graph LR
@@ -35,7 +35,7 @@ graph LR
         MP[mcp-proxy]
         Hook[agent-receipts-hook]
     end
-    subgraph daemon["agent-receipts-daemon"]
+    subgraph daemon["obsigna-daemon"]
         PC[peer credential capture]
         CH[hash chain]
         KS[signing key]
@@ -79,8 +79,8 @@ That's the cost of an audit boundary that means something. In-process signing is
 Homebrew handles most of it:
 
 ```sh
-brew install agent-receipts/tap/agent-receipts-daemon
-brew services start agent-receipts-daemon
+brew install agent-receipts/tap/obsigna
+brew services start obsigna-daemon
 ```
 
 ---

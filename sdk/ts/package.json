@@ -1,12 +1,12 @@
 {
-	"name": "@agnt-rcpt/sdk-ts",
-	"version": "0.12.0",
+	"name": "@obsigna/sdk-ts",
+	"version": "0.13.0",
 	"description": "TypeScript SDK for the Agent Receipts protocol",
 	"license": "Apache-2.0",
 	"author": "Otto Jongerius",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/agent-receipts/ar.git",
+		"url": "git+https://github.com/agent-receipts/obsigna.git",
 		"directory": "sdk/ts"
 	},
 	"type": "module",

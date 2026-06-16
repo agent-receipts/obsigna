@@ -5,12 +5,12 @@
 
 This directory is the **staged content for the final deprecation release** of the
 standalone module `github.com/agent-receipts/sdk-go`, per
-[ADR-0023 D2](https://github.com/agent-receipts/ar/blob/main/docs/adr/0023-canonical-go-module-path.md)
-(tracked by agent-receipts/ar#637).
+[ADR-0023 D2](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0023-canonical-go-module-path.md)
+(tracked by agent-receipts/obsigna#637).
 
 ## What this is
 
-The standalone `sdk-go` repository is separate from the `agent-receipts/ar`
+The standalone `sdk-go` repository is separate from the `agent-receipts/obsigna`
 monorepo and is not checked out in the environment where this was prepared. This
 directory holds the files to copy into the root of the `sdk-go` repository for its
 final release.

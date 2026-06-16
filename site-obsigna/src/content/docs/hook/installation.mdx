@@ -1,0 +1,58 @@
+---
+title: Hook Installation
+description: Install the obsigna-hook binary and verify it is on your PATH.
+---
+
+`obsigna-hook` ships in the umbrella `obsigna` Homebrew formula and release train (ADR-0034), and has its own Go module path.
+
+:::note[Renamed from `agent-receipts-hook`]
+The hook binary is now `obsigna-hook` (ADR-0036). The old `agent-receipts-hook` binary still ships alongside it as a thin deprecation shim that forwards to `obsigna-hook`, so existing hook configs keep working — point new configs at `obsigna-hook`. The umbrella `obsigna` Homebrew formula installs both `obsigna-hook` and the `agent-receipts-hook` shim.
+:::
+
+## Prerequisites
+
+- `obsigna-daemon` running (see [Daemon Setup](/getting-started/daemon-setup/))
+
+## Install
+
+### Homebrew (macOS, Linux)
+
+```bash
+brew install agent-receipts/tap/obsigna
+```
+
+### Prebuilt binaries
+
+Download the `obsigna_<version>_<os>_<arch>` tarball for your platform (darwin/linux, amd64/arm64) from the [releases page](https://github.com/agent-receipts/obsigna/releases?q=obsigna) and move `obsigna-hook` (and the `agent-receipts-hook` shim, if you still rely on the old name) onto your `$PATH`.
+
+### From source
+
+```bash
+go install github.com/agent-receipts/ar/hook/cmd/obsigna-hook@latest
+```
+
+Requires Go 1.26+.
+
+## Verify installation
+
+```bash
+obsigna-hook --help
+```
+
+If the binary is not found after `go install`, the Go bin directory is not on your `$PATH`. Add it:
+
+```bash
+# bash / zsh
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+```fish
+# fish
+fish_add_path (go env GOPATH)/bin
+```
+
+## Connecting to the daemon
+
+`obsigna-hook` uses the same socket-path resolution as the emitter SDK: it reads `AGENTRECEIPTS_SOCKET` if set, then falls back to the platform default (`$TMPDIR/agentreceipts/events.sock` on macOS, `$XDG_RUNTIME_DIR/agentreceipts/events.sock` on Linux). No extra configuration is needed when the daemon is running at the default path.
+
+Start the daemon before wiring up the hook — events emitted before the daemon is running are dropped silently.

@@ -91,6 +91,18 @@ func TestSpecExamplesValidateAgainstSchema(t *testing.T) {
 	}
 }
 
+// TestRotationVectorValidatesAgainstSchema pins the ADR-0015 rotation-event
+// wire-format vector against the schema, so the credentialSubject.keyRotation
+// $def cannot silently drift from the worked example the SDKs verify against.
+func TestRotationVectorValidatesAgainstSchema(t *testing.T) {
+	schema := loadSchema(t)
+	path := filepath.Join("..", "spec", "test-vectors", "rotation-event", "example.json")
+	doc := decodeJSON(t, path)
+	if err := schema.Validate(doc); err != nil {
+		t.Errorf("rotation-event vector does not validate against schema:\n%v", err)
+	}
+}
+
 // TestSpecSchemaRejectsMissingRequiredField confirms the schema actually
 // enforces required fields. This guards against accidentally weakening the
 // schema (e.g. demoting `proof` to optional).

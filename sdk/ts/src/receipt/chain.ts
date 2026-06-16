@@ -1,4 +1,5 @@
 import { canonicalize, hashReceipt, sha256 } from "./hash.js";
+import { verifyRotationEvent } from "./rotation.js";
 import { verifyReceipt } from "./signing.js";
 import type { AgentReceipt } from "./types.js";
 
@@ -229,8 +230,15 @@ export function verifyChain(
 	let previous: AgentReceipt | undefined;
 	let signatureError: string | undefined;
 	let signatureErrorAt = -1;
+	let rotationError: string | undefined;
+	let rotationErrorAt = -1;
 	let hashComputeError: string | undefined;
 	let hashComputeErrorAt = -1;
+
+	// activeKey is the public key the current receipt must verify against. It
+	// starts as the caller-supplied genesis key and is replaced by the incoming
+	// key after each verified key_rotated receipt (spec §7.3.7).
+	let activeKey = publicKey;
 
 	for (let i = 0; i < receipts.length; i++) {
 		const receipt = receipts[i];
@@ -239,7 +247,7 @@ export function verifyChain(
 
 		let signatureValid: boolean;
 		try {
-			signatureValid = verifyReceipt(receipt, publicKey);
+			signatureValid = verifyReceipt(receipt, activeKey);
 		} catch (e) {
 			signatureValid = false;
 			if (signatureError === undefined) {
@@ -299,6 +307,29 @@ export function verifyChain(
 			brokenAt = i;
 		}
 
+		// Key-rotation traversal (ADR-0015 / spec §7.3.7). A key_rotated receipt
+		// is signed with the OUTGOING (currently active) key; once that signature
+		// and the rotation-event fields check out, the incoming key carried inline
+		// takes over for every subsequent receipt until the next rotation.
+		const kr = receipt.credentialSubject.keyRotation;
+		if (kr !== undefined) {
+			const rot = verifyRotationEvent(activeKey, kr);
+			if (!rot.ok) {
+				if (rotationError === undefined) {
+					rotationError = `key rotation invalid at index ${i}: ${rot.error}`;
+					rotationErrorAt = i;
+				}
+				if (brokenAt === -1) {
+					brokenAt = i;
+				}
+			} else if (signatureValid) {
+				// Only adopt the incoming key when the rotation receipt itself
+				// verified under the outgoing key; otherwise the binding of
+				// new_public_key to the prior chain segment is not trustworthy.
+				activeKey = rot.newKeyPem;
+			}
+		}
+
 		previous = receipt;
 	}
 
@@ -307,22 +338,22 @@ export function verifyChain(
 	// hash), sig wins the tie (it is the more direct cryptographic
 	// statement). Mirrors the Go SDK's loopErr / loopErrAt selection so
 	// cross-SDK error strings agree on which failure to surface.
+	// Candidates checked in priority order — sig > rotation > hash — so when two
+	// errors fire at the same index the higher-priority one wins. Mirrors the Go
+	// SDK's loopErr / loopErrAt selection so cross-SDK error strings agree on
+	// which failure to surface.
 	let loopError: string | undefined;
 	let loopErrorAt = -1;
-	if (signatureError !== undefined && hashComputeError !== undefined) {
-		if (signatureErrorAt <= hashComputeErrorAt) {
-			loopError = signatureError;
-			loopErrorAt = signatureErrorAt;
-		} else {
-			loopError = hashComputeError;
-			loopErrorAt = hashComputeErrorAt;
+	for (const [msg, at] of [
+		[signatureError, signatureErrorAt],
+		[rotationError, rotationErrorAt],
+		[hashComputeError, hashComputeErrorAt],
+	] as const) {
+		if (msg === undefined) continue;
+		if (loopErrorAt === -1 || at < loopErrorAt) {
+			loopError = msg;
+			loopErrorAt = at;
 		}
-	} else if (signatureError !== undefined) {
-		loopError = signatureError;
-		loopErrorAt = signatureErrorAt;
-	} else if (hashComputeError !== undefined) {
-		loopError = hashComputeError;
-		loopErrorAt = hashComputeErrorAt;
 	}
 
 	// Chain identifier binding check (unconditional — spec §7.3.4).

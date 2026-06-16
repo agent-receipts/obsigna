@@ -83,7 +83,7 @@ Before a receipt can be trusted, it needs a cryptographic signature proving the 
 </svg>
 </div>
 
-*Steps 2–4 (canonicalization, signing, and signature encoding) are performed by `agent-receipts-daemon` in the reference implementation. The emitter supplies the receipt fields (step 1) and sends them over a Unix socket; the daemon owns the key and stores the result.*
+*Steps 2–4 (canonicalization, signing, and signature encoding) are performed by `obsigna-daemon` in the reference implementation. The emitter supplies the receipt fields (step 1) and sends them over a Unix socket; the daemon owns the key and stores the result.*
 
 1. Start with the receipt fields (everything except `proof`)
 2. Serialize to **RFC 8785** canonical JSON — deterministic byte ordering
@@ -95,7 +95,7 @@ In the reference implementation, steps 2–4 are performed by the `agent-receipt
 ```mermaid
 sequenceDiagram
   participant E as Emitter (plugin / proxy / SDK)
-  participant D as agent-receipts-daemon
+  participant D as obsigna-daemon
   participant DB as receipts.db
 
   E->>D: emitter frame (v, ts_emit, tool, session_id, agent_id?, agent_type?, channel, decision, input?, output?, error?) [Unix socket]

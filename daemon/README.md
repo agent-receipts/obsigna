@@ -1,4 +1,4 @@
-# agent-receipts-daemon
+# obsigna-daemon
 
 Single OS-user process that owns the Ed25519 signing key and the SQLite
 receipt store. Emitters (mcp-proxy, OpenClaw, SDK consumers) connect over a
@@ -7,19 +7,19 @@ captures the connecting peer's OS-attested credentials, canonicalises the
 receipt (RFC 8785), signs it (Ed25519), and persists it.
 
 See [ADR-0010](../docs/adr/0010-daemon-process-separation.md) for design
-rationale and [issue #236](https://github.com/agent-receipts/ar/issues/236)
+rationale and [issue #236](https://github.com/agent-receipts/obsigna/issues/236)
 for the work breakdown.
 
 This is **Phase 1** of the daemon roll-out — the foundation slice. It ships
 the standalone daemon binary, peer-cred capture, chain-tail resumption, the
-file-backed `KeySource`, and the `agent-receipts verify` read CLI (which
+file-backed `KeySource`, and the `obsigna receipt verify` read CLI (which
 works whether the daemon is up or down). Emitter refactor for mcp-proxy /
 OpenClaw / SDK ships in later phases.
 
 ## Build
 
 ```sh
-go build ./cmd/agent-receipts-daemon
+go build ./cmd/obsigna-daemon
 go test ./...                     # unit tests
 go test -tags=integration ./...   # integration tests (real socket, real DB)
 ```
@@ -27,7 +27,7 @@ go test -tags=integration ./...   # integration tests (real socket, real DB)
 Build from a clone of the monorepo: the repo-root `go.work` wires the in-tree
 `sdk/go` so `go build` from `daemon/` picks up `ReceiptStore.GetChainTail`.
 
-`go install github.com/agent-receipts/ar/daemon/cmd/agent-receipts-daemon@latest`
+`go install github.com/agent-receipts/ar/daemon/cmd/obsigna-daemon@latest`
 is **not yet supported**: the daemon depends on `sdk/go.GetChainTail`, which
 is not in the latest published `sdk/go` tag (`v0.6.0`). Standalone install
 becomes possible once the next `sdk/go` tag is released and a follow-up bumps
@@ -57,11 +57,11 @@ prints the fully resolved config (paths only — never key material) in the same
 shape, so it doubles as a starting `daemon.toml`.
 
 ```sh
-agent-receipts-daemon \
+obsigna-daemon \
   --socket /run/agentreceipts/events.sock \
   --db    /var/lib/agentreceipts/receipts.db \
   --key   /etc/agentreceipts/signing.key \
-  --chain-id default \
+  \
   --issuer-id "did:agent-receipts-daemon:$(hostname)" \
   --verification-method "did:agent-receipts-daemon:$(hostname)#k1"
 ```
@@ -121,7 +121,7 @@ suppress the warning, and it does not override the TCP rejection.
 
 On every startup the daemon publishes the matching SPKI public key to
 `--public-key` (default `<KeyPath>.pub`, tracking any `--key` override) with
-mode `0644`, so independent verifiers — `agent-receipts verify`, audit
+mode `0644`, so independent verifiers — `obsigna receipt verify`, audit
 scripts, CI checks — can load it without access to the private key path. If
 the file already exists with the same contents the publish is a no-op; if
 the contents differ the daemon refuses to start (a mismatch means either
@@ -159,24 +159,40 @@ Once a terminal receipt has been written, the daemon will refuse to start again 
 
 **TTL semantics (v1):** there is no idle-chain TTL in v1. The daemon emits `interrupted` for every open chain at shutdown time, regardless of how long ago the last receipt was written. Over-emitting `interrupted` for a long-idle chain is the lesser failure mode compared to designing TTL semantics under shutdown pressure. Follow-up issue tracked separately.
 
-## Read interface: `agent-receipts verify`
+## Read interface: `obsigna receipt verify`
 
 ```sh
-agent-receipts verify --chain-id default
+obsigna receipt verify
 # or, with explicit paths:
-agent-receipts verify \
+obsigna receipt verify \
   --db /var/lib/agentreceipts/receipts.db \
   --public-key /etc/agentreceipts/signing.key.pub \
-  --chain-id default
+ 
 ```
 
 Defaults match the daemon's: a verify run without flags works after
-`agent-receipts-daemon` has run at least once with the same per-user paths.
+`obsigna-daemon` has run at least once with the same per-user paths.
 
 `verify` opens the SQLite store **read-only** via `sdk/go/store.OpenReadOnly`
 so it is safe to run while the daemon is the active writer, and it does not
 require the daemon socket to be reachable. Independent verifiability is not
 gated on daemon availability (issue #236, Section 4).
+
+**Rotated chains verify with no extra flags.** After an offline
+`obsigna-daemon --rotate`, the published `--public-key` holds the *new*
+key, but a chain is anchored to the key that signed its first receipt. `verify`
+resolves that genesis key automatically from the superseded keys `--rotate`
+archives beside the live one (`<public-key>.rotated-<fingerprint>`), then traverses each
+`key_rotated` receipt forward (spec §7.3.7) — so a rotated chain reports `VALID`
+against the published key path. If those archives are missing, the chain reports
+`BROKEN` at the first receipt rather than silently passing.
+
+Resolution stays pinned to the operator's key: a chain reached through an
+archive must end its rotation lineage at the `--public-key` it was verified
+against. A cryptographically self-consistent chain that rotates to some *other*
+key — e.g. an attacker who planted a `<public-key>.rotated-*` archive and a
+chain signed under their own key — reports `BROKEN` (the published key is not
+the chain's current key), so a forged archive cannot turn into a `VALID` result.
 
 Exit codes are stable for scripting:
 
@@ -186,14 +202,14 @@ Exit codes are stable for scripting:
 | `1` | Chain failed verification (output lists per-receipt status) |
 | `2` | Usage error (bad flags, missing key file, unreadable DB) |
 
-## Read interface: `agent-receipts show <seq>`
+## Read interface: `obsigna receipt show <seq>`
 
 ```sh
-agent-receipts show 42
+obsigna receipt show 42
 # or, against a multi-chain store / explicit DB:
-agent-receipts show 42 --chain-id default --db /var/lib/agentreceipts/receipts.db
+obsigna receipt show 42 --db /var/lib/agentreceipts/receipts.db
 # pretty-printed JSON:
-agent-receipts show 42 --json
+obsigna receipt show 42 --json
 ```
 
 Prints the full fields of the receipt at chain sequence `<seq>` (1-indexed):
@@ -214,7 +230,7 @@ Exit codes are stable for scripting:
 | `1` | No receipt at the requested sequence (or empty store) |
 | `2` | Usage error (bad flags, ambiguous chain, unreadable DB) |
 
-## Read interface: `agent-receipts verify-event`
+## Read interface: `obsigna receipt verify-event`
 
 `verify` answers "is this chain internally consistent?". `verify-event` answers
 the narrower question that turns out to matter most for trust: **was this
@@ -227,16 +243,16 @@ is what is load-bearing.
 
 ```sh
 # A single receipt by id:
-agent-receipts verify-event --id urn:receipt:...
+obsigna receipt verify-event --id urn:receipt:...
 
 # The most recent receipt in the chain:
-agent-receipts verify-event --chain-head
+obsigna receipt verify-event --chain-head
 
 # Every receipt issued in a trailing window (e.g. post-incident triage):
-agent-receipts verify-event --since 10m --json
+obsigna receipt verify-event --since 10m --json
 
 # Pin the expected emitter(s) — mismatches warn, they do not fail:
-agent-receipts verify-event --chain-head \
+obsigna receipt verify-event --chain-head \
   --emitter-allowlist /usr/bin/mcp-proxy,/usr/bin/openclaw
 ```
 
@@ -292,16 +308,16 @@ Exit codes are stable for scripting:
 When a selector resolves to multiple receipts (`--since`), the process exit code
 is the worst case across them (`1` outranks `3`, which outranks `0`).
 
-## Health check: `agent-receipts doctor`
+## Health check: `obsigna doctor`
 
 ```sh
-agent-receipts doctor
+obsigna doctor
 # structured output for CI / healthchecks:
-agent-receipts doctor --json
+obsigna doctor --json
 # treat warnings as failures (stricter CI gate):
-agent-receipts doctor --json --warn-as-error
+obsigna doctor --json --warn-as-error
 # skip the synthetic round-trip (writes no event to the chain):
-agent-receipts doctor --no-roundtrip
+obsigna doctor --no-roundtrip
 ```
 
 `doctor` diagnoses the whole pipeline ADR-0010 describes — emitter → socket →
@@ -321,7 +337,7 @@ Checks, in pipeline order:
 
 | Check | What it asserts | `fail` means |
 |---|---|---|
-| `daemon process` | A daemon is reachable on the resolved socket. | No daemon is listening — start `agent-receipts-daemon`. |
+| `daemon process` | A daemon is reachable on the resolved socket. | No daemon is listening — start it with `obsigna daemon run`. |
 | `socket` | The socket file exists, is a socket, and is not world-accessible (daemon binds `0660`). | Missing/usurped path, or a non-socket file at the path. |
 | `emitter dial path` | The path an emitter on this host would dial matches the daemon's. | (warns) Emitter and daemon disagree — events would never arrive. |
 | `db permissions` | The receipt DB is no looser than `0640` (ADR-0010 § Read interface). | World-readable receipts leak peer attestation / disclosures. |
@@ -429,7 +445,7 @@ The following are deliberate Phase 1 choices, all callable out for follow-up:
 
 ```
 daemon.go                                  # Run() entrypoint and Config; publishes the public key on startup
-cmd/agent-receipts-daemon/main.go          # daemon CLI: flag/env parsing, signal handling
+cmd/obsigna-daemon/main.go                 # daemon CLI: flag/env parsing, signal handling
 cmd/agent-receipts/main.go                 # read CLI: thin shim over internal/{listcli,showcli,verifycli,doctorcli}
 internal/
   chain/state.go                           # in-memory (seq, prev_hash) owner; sole writer
@@ -438,10 +454,10 @@ internal/
   socket/listener.go                       # Unix-domain socket + length-prefix framing
   socket/peercred_{linux,darwin,other}.go  # OS-specific peer-credential capture
   pipeline/build.go                        # frame + peer -> AgentReceipt -> sign -> store
-  listcli/list.go                          # `agent-receipts list` subcommand
-  showcli/show.go                          # `agent-receipts show <seq>` subcommand
-  verifycli/verify.go                      # `agent-receipts verify` subcommand
-  doctorcli/doctor.go                      # `agent-receipts doctor` pipeline health check
+  listcli/list.go                          # `obsigna receipt list` subcommand
+  showcli/show.go                          # `obsigna receipt show <seq>` subcommand
+  verifycli/verify.go                      # `obsigna receipt verify` subcommand
+  doctorcli/doctor.go                      # `obsigna doctor` pipeline health check
 integration_test.go                        # tags: integration. End-to-end concurrency, peer-cred, and verify-CLI fixtures.
-tests_doctor_test.go                       # tags: integration. `agent-receipts doctor` round-trip against a live daemon.
+tests_doctor_test.go                       # tags: integration. `obsigna doctor` round-trip against a live daemon.
 ```

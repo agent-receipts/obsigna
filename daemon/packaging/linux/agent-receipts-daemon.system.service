@@ -8,14 +8,14 @@ User=agentreceipts
 Group=agentreceipts
 
 # Run once (as root) before enabling the service to generate the signing key:
-#   agent-receipts-daemon -init \
+#   obsigna-daemon -init \
 #     -key /etc/agentreceipts/signing.key \
 #     -public-key /var/lib/agentreceipts/signing.key.pub \
 #     -db /var/lib/agentreceipts/receipts.db
 #   chown agentreceipts:agentreceipts /etc/agentreceipts/signing.key
 #   chmod 0400 /etc/agentreceipts/signing.key
 # See README § System-level install for the full setup sequence.
-ExecStart=/usr/local/bin/agent-receipts-daemon \
+ExecStart=/usr/local/bin/obsigna-daemon \
   -db /var/lib/agentreceipts/receipts.db \
   -key /etc/agentreceipts/signing.key \
   -public-key /var/lib/agentreceipts/signing.key.pub \

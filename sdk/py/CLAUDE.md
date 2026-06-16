@@ -2,7 +2,7 @@
 
 ## Project
 
-Python SDK for [Agent Receipts](https://github.com/agent-receipts/ar) — cryptographically signed, hash-chained audit trails for AI agents.
+Python SDK for [Agent Receipts](https://github.com/agent-receipts/obsigna) — cryptographically signed, hash-chained audit trails for AI agents.
 
 ## Commands
 
@@ -16,9 +16,9 @@ uv run pyright src         # type check (strict mode, must pass)
 
 ## Architecture
 
-- `src/agent_receipts/receipt/` — Core: types, create, sign, hash, chain verification
-- `src/agent_receipts/store/` — SQLite persistence: ReceiptStore, query, verify_stored_chain
-- `src/agent_receipts/taxonomy/` — Action type classification, config loading
+- `src/obsigna/receipt/` — Core: types, create, sign, hash, chain verification
+- `src/obsigna/store/` — SQLite persistence: ReceiptStore, query, verify_stored_chain
+- `src/obsigna/taxonomy/` — Action type classification, config loading
 - `tests/` — Mirrors src structure. Uses conftest.py fixtures for receipt creation.
 
 ## Conventions

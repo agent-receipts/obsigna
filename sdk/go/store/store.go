@@ -428,6 +428,27 @@ func (s *Store) DistinctChainIDs() ([]string, error) {
 	return chains, nil
 }
 
+// LatestRootChainID returns the chain id of the most recently written root
+// receipt — the chain the daemon is currently appending to. Recency is measured
+// by rowid (insertion order), not timestamp: a busy daemon writes many receipts
+// within the same RFC3339 second, so a timestamp ordering would tiebreak on
+// sequence and could surface an older chain's high-sequence receipt. Agent
+// sub-chains (ids containing "/agent/") are excluded so the result is the root
+// chain operators and diagnostics target. found is false when the store holds
+// no root receipts.
+func (s *Store) LatestRootChainID() (chainID string, found bool, err error) {
+	row := s.db.QueryRow(
+		"SELECT chain_id FROM receipts WHERE chain_id NOT LIKE '%/agent/%' ORDER BY rowid DESC LIMIT 1",
+	)
+	if scanErr := row.Scan(&chainID); scanErr != nil {
+		if scanErr == sql.ErrNoRows {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("latest root chain id: %w", scanErr)
+	}
+	return chainID, true, nil
+}
+
 // GetChainTail returns the highest-sequence receipt's sequence and hash for
 // chainID. found is false (with zero values for the other fields and err nil)
 // when the chain is empty. The daemon uses this on startup to resume the

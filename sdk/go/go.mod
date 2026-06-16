@@ -3,7 +3,7 @@ module github.com/agent-receipts/ar/sdk/go
 go 1.26.1
 
 require (
-	github.com/agent-receipts/ar/daemon v0.16.0
+	github.com/agent-receipts/ar/daemon v0.23.0
 	github.com/cloudflare/circl v1.6.3
 	github.com/google/uuid v1.6.0
 	modernc.org/sqlite v1.52.0

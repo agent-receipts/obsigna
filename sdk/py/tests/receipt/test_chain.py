@@ -6,24 +6,24 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from agent_receipts.receipt.chain import (
+from obsigna.receipt.chain import (
     STATUS_COMPLETE,
     STATUS_INTERRUPTED,
     STATUS_UNKNOWN,
     verify_chain,
 )
-from agent_receipts.receipt.create import (
+from obsigna.receipt.create import (
     ActionInput,
     CreateReceiptInput,
     create_receipt,
 )
-from agent_receipts.receipt.hash import canonicalize, hash_receipt, sha256
-from agent_receipts.receipt.signing import (
+from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
+from obsigna.receipt.signing import (
     generate_key_pair,
     sign_receipt,
     verify_receipt,
 )
-from agent_receipts.receipt.types import (
+from obsigna.receipt.types import (
     Chain,
     Issuer,
     Outcome,
@@ -261,7 +261,7 @@ class TestAdr0008ChainBehaviours:
                 raise ValueError("synthetic sig failure")
             return real_verify(receipt, key)  # type: ignore[arg-type]
 
-        target = "agent_receipts.receipt.chain.verify_receipt"
+        target = "obsigna.receipt.chain.verify_receipt"
         with patch(target, side_effect=raise_sig):
             result = verify_chain(chain, kp.public_key)
 
@@ -532,7 +532,7 @@ class TestAdr0008ChainBehaviours:
         chain = _build_chain(2, kp.private_key)
 
         with patch(
-            "agent_receipts.receipt.chain.hash_receipt",
+            "obsigna.receipt.chain.hash_receipt",
             side_effect=ValueError("injected hash failure"),
         ):
             result = verify_chain(chain, kp.public_key)
@@ -561,7 +561,7 @@ class TestAdr0008ChainBehaviours:
             return real_hash_receipt(r)  # type: ignore[arg-type]
 
         with patch(
-            "agent_receipts.receipt.chain.hash_receipt",
+            "obsigna.receipt.chain.hash_receipt",
             side_effect=selective_raise,
         ):
             result = verify_chain(chain, kp.public_key)
@@ -609,7 +609,7 @@ class TestAdr0008ChainBehaviours:
             return real_hash_receipt(r)  # type: ignore[arg-type]
 
         with patch(
-            "agent_receipts.receipt.chain.hash_receipt",
+            "obsigna.receipt.chain.hash_receipt",
             side_effect=selective_raise,
         ):
             result = verify_chain(
@@ -635,7 +635,7 @@ class TestAdr0008ChainBehaviours:
         chain = _build_chain(2, kp.private_key)
 
         with patch(
-            "agent_receipts.receipt.chain.verify_receipt",
+            "obsigna.receipt.chain.verify_receipt",
             side_effect=ValueError("injected verify failure"),
         ):
             result = verify_chain(chain, kp.public_key)
@@ -670,8 +670,8 @@ class TestAdr0008ChainBehaviours:
                 raise ValueError("hash compute failure")
             return real_hash(r)  # type: ignore[arg-type]
 
-        sig_target = "agent_receipts.receipt.chain.verify_receipt"
-        hash_target = "agent_receipts.receipt.chain.hash_receipt"
+        sig_target = "obsigna.receipt.chain.verify_receipt"
+        hash_target = "obsigna.receipt.chain.hash_receipt"
         with patch(sig_target, side_effect=raise_sig):
             with patch(hash_target, side_effect=raise_hash):
                 result = verify_chain(chain, kp.public_key)
@@ -739,7 +739,7 @@ class TestAdr0008ChainBehaviours:
             return real_hash_receipt(r)  # type: ignore[arg-type]
 
         with patch(
-            "agent_receipts.receipt.chain.hash_receipt",
+            "obsigna.receipt.chain.hash_receipt",
             side_effect=selective_raise,
         ):
             result = verify_chain(chain, kp.public_key)

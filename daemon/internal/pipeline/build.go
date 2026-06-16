@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os/user"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +36,11 @@ const multibaseBase64URL = "u"
 // messages legible.
 const maxIdentityFieldLen = 256
 
+// maxTargetResourceLen caps the byte length of TargetResource. File paths can
+// reach 4096 bytes on Linux (PATH_MAX), so a separate, wider cap is used
+// rather than the identity-field limit.
+const maxTargetResourceLen = 4096
+
 // SupportedFrameVersion is the only emitter-frame schema this daemon accepts.
 // Bumping it requires a migration plan and a daemon-side translator for the
 // old version; until that exists, accepting unknown versions would silently
@@ -46,7 +53,7 @@ const SupportedFrameVersion = "1"
 // so min == max and the value equals SupportedFrameVersion; when a future
 // version ships with a daemon-side translator for an older shape, the max
 // widens and the accept check above widens with it. Gate #8 reads this range
-// (via `agent-receipts-daemon --protocol-version`) and asserts it intersects
+// (via `obsigna-daemon --protocol-version`) and asserts it intersects
 // the range each released SDK declares it can emit, so a release can never
 // ship an SDK/daemon pair that cannot talk to each other. Keeping these as the
 // single source of the daemon's spoken range — alongside a test that ties them
@@ -82,11 +89,11 @@ const actionTypeChainInterrupted = "agent_receipts.chain_interrupted"
 // events_dropped receipt with this count before the live receipt so the gap
 // is visible in the chain.
 type EmitterFrame struct {
-	Version        string          `json:"v"`
-	TsEmit         string          `json:"ts_emit"`
-	SessionID      string          `json:"session_id"`
-	Channel        string          `json:"channel"`
-	Tool           EmitterTool     `json:"tool"`
+	Version   string      `json:"v"`
+	TsEmit    string      `json:"ts_emit"`
+	SessionID string      `json:"session_id"`
+	Channel   string      `json:"channel"`
+	Tool      EmitterTool `json:"tool"`
 	// ActionType, when set, is the taxonomic action type the emitter has already
 	// resolved (e.g. "filesystem.file.delete"). The daemon uses it verbatim as
 	// action.type and resolves risk_level from it via the taxonomy. When empty,
@@ -110,6 +117,21 @@ type EmitterFrame struct {
 	CorrelationID  string          `json:"correlation_id,omitempty"`
 	AgentID        string          `json:"agent_id,omitempty"`
 	AgentType      string          `json:"agent_type,omitempty"`
+	// Model, Usage, and CaptureMethod carry runtime/observability metadata the
+	// emitter derived for this call (Claude Code: from the session transcript).
+	// The daemon maps them into issuer.runtime.{model,usage,capture_method}
+	// (ADR-0026 open container). Usage is forwarded verbatim — the runtime's own
+	// token-usage object, never recomputed. All optional.
+	Model         string          `json:"model,omitempty"`
+	Usage         json.RawMessage `json:"usage,omitempty"`
+	CaptureMethod string          `json:"capture_method,omitempty"`
+	// TargetSystem and TargetResource together identify the resource the action
+	// operates on. The daemon maps them into action.target.{system,resource}.
+	// For filesystem tools (Read, Write, Edit, MultiEdit) on the claude-code
+	// channel, TargetSystem is "filesystem" and TargetResource is the file path.
+	// Both are optional; omitted when the tool has no addressable resource.
+	TargetSystem   string `json:"target_system,omitempty"`
+	TargetResource string `json:"target_resource,omitempty"`
 }
 
 // EmitterTool identifies the tool the agent invoked.
@@ -508,6 +530,25 @@ func validateFrame(f *EmitterFrame) error {
 	if len(f.AgentType) > maxIdentityFieldLen {
 		return fmt.Errorf("agent_type exceeds %d bytes (got %d)", maxIdentityFieldLen, len(f.AgentType))
 	}
+	if len(f.Model) > maxIdentityFieldLen {
+		return fmt.Errorf("model exceeds %d bytes (got %d)", maxIdentityFieldLen, len(f.Model))
+	}
+	if len(f.CaptureMethod) > maxIdentityFieldLen {
+		return fmt.Errorf("capture_method exceeds %d bytes (got %d)", maxIdentityFieldLen, len(f.CaptureMethod))
+	}
+	if len(f.TargetSystem) > maxIdentityFieldLen {
+		return fmt.Errorf("target_system exceeds %d bytes (got %d)", maxIdentityFieldLen, len(f.TargetSystem))
+	}
+	if len(f.TargetResource) > maxTargetResourceLen {
+		return fmt.Errorf("target_resource exceeds %d bytes (got %d)", maxTargetResourceLen, len(f.TargetResource))
+	}
+	// target_system and target_resource must both be set or both absent.
+	// A half-populated target would produce ActionTarget{System:""} or
+	// ActionTarget{Resource:""} in the signed receipt because ActionTarget.System
+	// carries no omitempty tag.
+	if (f.TargetSystem != "") != (f.TargetResource != "") {
+		return fmt.Errorf("target_system and target_resource must both be set or both absent")
+	}
 	// Input and Output are accepted as any valid JSON value (object, array,
 	// primitive, or null). json.Unmarshal into EmitterFrame already validated
 	// JSON syntax, so anything reaching this point is well-formed. The hash
@@ -676,6 +717,12 @@ func (p *Pipeline) buildAndSign(
 		PeerCredential: peerCred,
 		IdempotencyKey: f.IdempotencyKey,
 	}
+	if f.TargetSystem != "" && f.TargetResource != "" {
+		action.Target = &receipt.ActionTarget{
+			System:   f.TargetSystem,
+			Resource: f.TargetResource,
+		}
+	}
 	if hasJSONPayload(f.Input) {
 		hash, err := canonicalSHA256(f.Input)
 		if err != nil {
@@ -731,7 +778,7 @@ func (p *Pipeline) buildAndSign(
 
 	return p.signAndHash(receipt.CreateInput{
 		Issuer:        issuerFromFrame(f, p.IssuerID),
-		Principal:     receipt.Principal{ID: "did:user:unknown"},
+		Principal:     principalFromPeer(peer),
 		Action:        action,
 		Outcome:       outcome,
 		CorrelationID: f.CorrelationID,
@@ -752,14 +799,27 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 	if f.OperatorID != "" {
 		op = &receipt.Operator{ID: f.OperatorID, Name: f.OperatorName}
 	}
-	// Gate runtime on AgentID alone, matching getOrCreateAgentState's routing
-	// key: a frame routes to a per-agent chain iff agent_id is non-empty, so
-	// only those receipts carry issuer.runtime. A stray agent_type without an
-	// agent_id belongs to the root chain and must stay runtime-free ("absent
-	// for the root agent").
+	// issuer.runtime is the ADR-0026 open container for runtime/observability
+	// metadata. agent_id/agent_type identify a sub-agent (and gate chain
+	// routing); model/usage/capture_method are observability fields the emitter
+	// derived for the call (e.g. from the session transcript) and, unlike the
+	// agent identity, apply to root-chain receipts too. So runtime is emitted
+	// whenever ANY of these are present — a root receipt now carries it when it
+	// has transcript-derived model/usage even though it has no agent_id.
+	// Forward usage verbatim, but only a real JSON payload — a literal null or
+	// empty must not be stored as the runtime's reported usage.
+	hasUsage := hasJSONPayload(f.Usage)
 	var runtime *receipt.Runtime
-	if f.AgentID != "" {
-		runtime = &receipt.Runtime{AgentID: f.AgentID, AgentType: f.AgentType}
+	if f.AgentID != "" || f.Model != "" || f.CaptureMethod != "" || hasUsage {
+		runtime = &receipt.Runtime{
+			AgentID:       f.AgentID,
+			AgentType:     f.AgentType,
+			Model:         f.Model,
+			CaptureMethod: f.CaptureMethod,
+		}
+		if hasUsage {
+			runtime.Usage = f.Usage
+		}
 	}
 	return receipt.Issuer{
 		ID:        daemonID,
@@ -801,7 +861,7 @@ func (p *Pipeline) buildAndSignDropReceipt(
 			Type:      "AgentReceiptsDaemon",
 			SessionID: sessionID,
 		},
-		Principal:  receipt.Principal{ID: "did:user:unknown"},
+		Principal:  principalFromPeer(peer),
 		Delegation: delegation,
 		Action: receipt.Action{
 			Type:           actionTypeEventsDropped,
@@ -842,6 +902,40 @@ func buildPeerCred(peer socket.PeerCred) *receipt.PeerCredential {
 }
 
 func ptrUint32(v uint32) *uint32 { return &v }
+
+// lookupUID resolves a POSIX uid to an OS user. It is a package var so tests can
+// stub the host user database and stay deterministic across machines.
+var lookupUID = user.LookupId
+
+// principalFromPeer derives the receipt Principal from kernel-attested peer
+// credentials. Absent an emitter-supplied principal, the OS user that ran the
+// emitting process is the best attested stand-in for "on whose authority": it is
+// the same LOCAL_PEERCRED/SO_PEERCRED identity the daemon already vouches for in
+// action.peer_credential, so the principal inherits that field's tamper-evidence
+// instead of trusting an emitter self-report.
+//
+// The kernel-attested uid is the stable fact and is preserved verbatim in
+// action.peer_credential. This resolves it to the host's login name for a
+// human-readable principal (did:user:<login>) — the name is the daemon's lookup
+// of an attested uid on its own host, not an emitter self-report. It falls back
+// to the numeric did:user:<platform>:<uid> when the host user database has no
+// entry (containers, directory-only users, deleted accounts), so the principal
+// is always at least the attested uid. The platform gate mirrors buildPeerCred:
+// platforms without a POSIX uid — and synthetic receipts with no connecting peer
+// — fall back to the did:user:unknown sentinel.
+//
+// The derived DID names the OS user, not a configured human or mandate. Mapping
+// a uid to a named principal or an authorization grant is a higher layer that
+// builds on this attested floor.
+func principalFromPeer(peer socket.PeerCred) receipt.Principal {
+	if peer.Platform != "linux" && peer.Platform != "darwin" {
+		return receipt.Principal{ID: "did:user:unknown"}
+	}
+	if u, err := lookupUID(strconv.FormatUint(uint64(peer.UID), 10)); err == nil && u.Username != "" {
+		return receipt.Principal{ID: "did:user:" + u.Username}
+	}
+	return receipt.Principal{ID: fmt.Sprintf("did:user:%s:%d", peer.Platform, peer.UID)}
+}
 
 // EmitTerminator emits interrupted-chain terminal receipts for all open chains
 // (root chain and any per-agent chains). It is called once, synchronously,

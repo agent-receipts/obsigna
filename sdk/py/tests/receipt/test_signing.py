@@ -1,11 +1,11 @@
 """Tests for Ed25519 signing and verification."""
 
-from agent_receipts.receipt.signing import (
+from obsigna.receipt.signing import (
     generate_key_pair,
     sign_receipt,
     verify_receipt,
 )
-from agent_receipts.receipt.types import AgentReceipt
+from obsigna.receipt.types import AgentReceipt
 from tests.conftest import TEST_PRIVATE_KEY, TEST_PUBLIC_KEY, make_unsigned
 
 

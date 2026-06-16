@@ -1,4 +1,4 @@
-// Package listcli implements the `agent-receipts list` subcommand:
+// Package listcli implements the `obsigna receipt list` subcommand:
 // query recent receipts from a daemon-written SQLite store and print them in
 // tabular or JSON form. It opens the database read-only so it is safe to run
 // while the daemon is the active writer.
@@ -48,7 +48,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		return fallback
 	}
 
-	fs := flag.NewFlagSet("list", flag.ContinueOnError)
+	fs := flag.NewFlagSet("receipt list", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dbPath := fs.String("db", envOr("AGENTRECEIPTS_DB", daemon.DefaultDBPath()), "SQLite receipt-store path (env: AGENTRECEIPTS_DB)")
 	asJSON := fs.Bool("json", false, "Output raw JSON array instead of tabular text")
@@ -60,21 +60,21 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		return ExitUsageError
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(stderr, "agent-receipts list: unexpected positional argument(s): %v\n", fs.Args())
+		fmt.Fprintf(stderr, "obsigna receipt list: unexpected positional argument(s): %v\n", fs.Args())
 		return ExitUsageError
 	}
 	if *dbPath == "" {
-		fmt.Fprintln(stderr, "agent-receipts list: --db is required (no AGENTRECEIPTS_DB and no home directory)")
+		fmt.Fprintln(stderr, "obsigna receipt list: --db is required (no AGENTRECEIPTS_DB and no home directory)")
 		return ExitUsageError
 	}
 	if *limit <= 0 {
-		fmt.Fprintln(stderr, "agent-receipts list: --limit must be a positive integer")
+		fmt.Fprintln(stderr, "obsigna receipt list: --limit must be a positive integer")
 		return ExitUsageError
 	}
 
 	s, err := store.OpenReadOnly(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts list: open store: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt list: open store: %v\n", err)
 		return ExitUsageError
 	}
 	defer s.Close()
@@ -85,7 +85,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		NewestFirst: true,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts list: query: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt list: query: %v\n", err)
 		return ExitUsageError
 	}
 
@@ -102,7 +102,7 @@ func writeJSON(stdout, stderr io.Writer, receipts []receipt.AgentReceipt) int {
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(receipts); err != nil {
-		fmt.Fprintf(stderr, "agent-receipts list: encode JSON: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt list: encode JSON: %v\n", err)
 		return ExitUsageError
 	}
 	return ExitOK

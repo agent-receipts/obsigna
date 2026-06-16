@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from agent_receipts.receipt.hash import hash_receipt
-from agent_receipts.store.store import ReceiptQuery, ReceiptStore, open_store
+from obsigna.receipt.hash import hash_receipt
+from obsigna.store.store import ReceiptQuery, ReceiptStore, open_store
 from tests.conftest import make_receipt
 
 

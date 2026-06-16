@@ -7,6 +7,7 @@ Updates, deep dives, and field notes from building the Agent Receipt Protocol.
 
 ## Posts
 
+- **2026-06-14** — [Your agents are isolated. Your shared state isn't.](/blog/attribution-over-undo/) — Worktrees fence the repo; snapshots restore it. Neither touches the database, the API, or the secret store two agents both reach for. When a swarm converges on shared state, the only record of which agent did what — under whose authority — is the receipt.
 - **2026-05-23** — [Agent Security Tooling Landscape — May 2026](/blog/agent-security-tooling-landscape-may-2026/) — Receipts as table stakes, the out-of-agent audit boundary as the durable differentiator, the emerging audit & provenance layer (Asqav, nono, et al.), and the standards-window race to the August 2 EU AI Act enforcement date.
 - **2026-05-18** — [The audit boundary belongs outside the agent](/blog/daemon-process-separation/) — The architectural problem with in-process receipt signing, and how daemon process separation restores the audit property.
 - **2026-04-27** — [OpenClaw Plugin: How It Works](/blog/openclaw-plugin-deep-dive/) — Plugin architecture, receipt anatomy, self-verification, and how the OpenClaw integration differs from the MCP Proxy.

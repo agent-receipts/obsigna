@@ -10,15 +10,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agent_receipts.receipt.chain import verify_chain
-from agent_receipts.receipt.hash import (
+from obsigna.receipt.chain import verify_chain
+from obsigna.receipt.hash import (
     _strip_optional_nulls,
     canonicalize,
     hash_receipt,
     sha256,
 )
-from agent_receipts.receipt.signing import generate_key_pair, verify_receipt
-from agent_receipts.receipt.types import AgentReceipt
+from obsigna.receipt.signing import generate_key_pair, verify_receipt
+from obsigna.receipt.types import AgentReceipt
 
 VECTORS = (
     Path(__file__).parent.parent.parent.parent / "cross-sdk-tests" / "go_vectors.json"

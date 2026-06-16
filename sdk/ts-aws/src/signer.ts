@@ -11,7 +11,7 @@ import {
  * exposing the private key. `getPublicKey` returns the raw 32-byte Ed25519
  * public key (RFC 8032 §5.1.5) used by verifiers.
  *
- * The core `@agnt-rcpt/sdk-ts` package does not yet define this interface; it
+ * The core `@obsigna/sdk-ts` package does not yet define this interface; it
  * is declared here so adapters in this package satisfy a single, documented
  * contract (mirrors the Go SDK's `aws` module).
  */

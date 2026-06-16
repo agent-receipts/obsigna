@@ -11,7 +11,7 @@ type VersionRange struct {
 
 // ProtocolVersion describes the wire protocol this daemon speaks. It is the
 // machine-readable surface ADR-0024 Gate #8 reads (via the
-// `agent-receipts-daemon --protocol-version` flag) to assert the released
+// `obsigna-daemon --protocol-version` flag) to assert the released
 // daemon's spoken range intersects the range each released SDK declares it can
 // emit.
 type ProtocolVersion struct {

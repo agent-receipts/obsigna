@@ -1,0 +1,75 @@
+---
+title: Python SDK
+description: Python SDK for creating, signing, and verifying Agent Receipts.
+---
+
+The Python SDK (`agent-receipts`) provides tools for creating, signing, and verifying Agent Receipts in Python applications.
+
+**Repository:** [agent-receipts/sdk-py](https://github.com/agent-receipts/obsigna/tree/main/sdk/py)
+
+## Features
+
+- Create and sign Agent Receipts with Ed25519
+- Build and verify receipt chains
+- Validate receipts against the JSON Schema
+- Action taxonomy helpers and risk level utilities
+- Full type annotations (PEP 484)
+
+## Quick example
+
+Receipts are signed by a separate `obsigna-daemon`. Your code sends
+tool-call *events* over a Unix socket; the daemon holds the key, builds the
+receipt, signs it, and chains it. This is the canonical path — reach for it first.
+
+{/* snippet-check: no-run */}
+```python
+from obsigna import DaemonEmitter
+
+with DaemonEmitter() as e:  # uses AGENTRECEIPTS_SOCKET or the per-OS default
+    e.emit(
+        channel="my-app",
+        tool_name="filesystem.file.read",
+        decision="allowed",
+    )
+```
+
+Start the daemon first — see [Daemon Setup](/getting-started/daemon-setup/) — then
+[Quick Start](/getting-started/quick-start/) walks the full emit → list → verify loop.
+
+## In-process signing (tutorial and testing only)
+
+:::caution[Not for production]
+This pattern keeps the signing key inside the agent process. Anyone with code execution in the agent can forge receipts. For real deployments, use the [daemon-mediated path](/getting-started/daemon-setup/), where the daemon owns the key and your app only sends events over a socket.
+:::
+
+```python
+from obsigna import (
+    CreateReceiptInput,
+    create_receipt,
+    generate_key_pair,
+    sign_receipt,
+)
+
+keys = generate_key_pair()
+
+unsigned = create_receipt(
+    CreateReceiptInput(
+        issuer={"id": "did:agent:my-agent"},
+        principal={"id": "did:user:alice"},
+        action={
+            "type": "filesystem.file.read",
+            "risk_level": "low",
+        },
+        outcome={"status": "success"},
+        chain={
+            "sequence": 1,
+            "previous_receipt_hash": None,
+            "chain_id": "chain_session-1",
+        },
+    )
+)
+
+signed = sign_receipt(unsigned, keys.private_key, "did:agent:my-agent#key-1")
+```
+
+See [Installation](/sdk-py/installation/) to get started.

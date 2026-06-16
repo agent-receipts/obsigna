@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from agent_receipts.receipt.key_provider import (
+from obsigna.receipt.key_provider import (
     GeneratingKeyProvider,
     ProductionKeyProviderError,
 )
-from agent_receipts.receipt.signing import sign_receipt, verify_receipt
+from obsigna.receipt.signing import sign_receipt, verify_receipt
 from tests.conftest import make_unsigned
 
 ENV_VAR = "AGENTRECEIPTS_PRODUCTION"
@@ -18,9 +18,7 @@ ENV_VAR = "AGENTRECEIPTS_PRODUCTION"
 def _reset_warning_latch(monkeypatch: pytest.MonkeyPatch) -> None:
     """Start each test with an unset env var and a fresh once-per-process latch."""
     monkeypatch.delenv(ENV_VAR, raising=False)
-    monkeypatch.setattr(
-        "agent_receipts.receipt.key_provider._dev_warning_emitted", False
-    )
+    monkeypatch.setattr("obsigna.receipt.key_provider._dev_warning_emitted", False)
 
 
 class TestProductionGuard:

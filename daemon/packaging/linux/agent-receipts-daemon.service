@@ -17,8 +17,8 @@ ExecStartPre=/bin/sh -c '\
   if test -f "%h/.local/share/agent-receipts/signing.key"; then exit 0;\
   elif test -f "%h/.local/share/agent-receipts/receipts.db"; then\
     printf "signing key missing but receipts.db exists -- recover the key before restarting\n" >&2; exit 1;\
-  else exec "%h/.local/bin/agent-receipts-daemon" -init; fi'
-ExecStart=%h/.local/bin/agent-receipts-daemon \
+  else exec "%h/.local/bin/obsigna-daemon" -init; fi'
+ExecStart=%h/.local/bin/obsigna-daemon \
   -socket %t/agentreceipts/events.sock
 Restart=on-failure
 RestartSec=5s

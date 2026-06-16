@@ -1,0 +1,271 @@
+---
+title: Claude Code Integration
+description: How to route Claude Code MCP servers through the Agent Receipts proxy for cryptographic audit trails.
+---
+
+Claude Code is a CLI-based agent that connects to MCP servers for tools like GitHub, databases, and file systems. The Agent Receipts proxy wraps any MCP server transparently — Claude Code doesn't know or care that the proxy is there.
+
+:::note[Approval workflow]
+The default policy includes a `pause_high_risk` rule. When you generate a config with `mcp-proxy init`, the snippet includes `-http 127.0.0.1:7778` so the approval listener starts automatically. If you run the proxy manually without `-http`, the listener is off and paused calls fail fast with `-32003`. Pass `--no-approval` to `mcp-proxy init` to generate a snippet without `-http`. If you're seeing `-32002` on tools that shouldn't pause, suspect client-side denial first — see [troubleshooting](/mcp-proxy/configuration/#-32002-errors-on-tool-calls).
+:::
+
+:::danger[Never put secrets in the config file]
+Both `claude mcp add-json` and `.mcp.json` persist their content as plaintext on disk (`~/.claude.json` and committed project files respectively). **Never** paste a token, API key, or other credential as a literal string into either one. Use a secret-manager wrapper (`op run`, `aws-vault exec`, …) to inject credentials at exec time — or reference them via `${VAR}` placeholders, which Claude Code expands at server-launch time from its environment. Both patterns are documented below.
+:::
+
+## Prerequisites
+
+- [mcp-proxy installed](/mcp-proxy/installation/)
+- [`obsigna-daemon` installed, initialised, and running](/getting-started/daemon-setup/) — it holds the signing key and writes every receipt
+- Claude Code installed (`npm install -g @anthropic-ai/claude-code`)
+- The MCP server you want to audit. The examples below wrap GitHub's official MCP server:
+
+  ```bash
+  brew install github-mcp-server
+  ```
+
+  This puts a `github-mcp-server` binary on your `$PATH`. Verify with `which github-mcp-server`.
+
+## Start the daemon
+
+The proxy holds no signing key of its own — `obsigna-daemon` owns the key and writes every receipt ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). Initialise the key once and start the daemon before launching Claude Code:
+
+```bash
+obsigna-daemon --init   # one-time: generates the Ed25519 signing key pair
+obsigna-daemon          # start the daemon (listens on a Unix socket)
+```
+
+The proxy reaches the daemon over its default platform socket automatically — no extra flag needed. See [Daemon Setup](/getting-started/daemon-setup/) for install options, socket paths, and running it as a service. Use absolute paths everywhere in the config below — Claude Code launches MCP servers with a clean environment where `~` expansion and `$PATH` may not behave as expected.
+
+## Register the proxy with Claude Code
+
+Use `claude mcp add-json` to register a proxied server. The example below wraps `github-mcp-server`. Your shell resolves the proxy and server paths at paste time.
+
+The token needs to reach `mcp-proxy`'s environment **without being written into the stored config**. Pick whichever pattern matches your secrets setup.
+
+### Recommended: secret manager (`op run`, `aws-vault exec`, …)
+
+Install the 1Password CLI (`brew install 1password-cli`), sign in (`op signin`), and create a referenced env file:
+
+```ini
+# ~/.local/share/agent-receipts/mcp.env  (chmod 600)
+GITHUB_PERSONAL_ACCESS_TOKEN=op://Personal/GitHub/token
+```
+
+Point Claude Code at `op run` — it resolves the `op://` reference at exec time and injects the value into `mcp-proxy`'s env. No `env` block is needed in the config. Find your `op` path with `which op`.
+
+**bash / zsh:**
+
+```bash
+# heredoc terminator (JSON) must be alone on its line; closing ) follows on the next
+JSON_BODY=$(cat <<JSON
+{
+  "command": "$(which op)",
+  "args": [
+    "run",
+    "--env-file=$HOME/.local/share/agent-receipts/mcp.env",
+    "--",
+    "$(which mcp-proxy)",
+    "-name", "github",
+    "-issuer-name", "Claude Code",
+    "-operator-id", "did:web:anthropic.com",
+    "-operator-name", "Anthropic",
+    "$(which github-mcp-server)", "stdio"
+  ]
+}
+JSON
+)
+
+claude mcp add-json github-audited --scope user "$JSON_BODY"
+```
+
+**fish:**
+
+```fish
+set OP (which op)
+set MCP_PROXY (which mcp-proxy)
+set GITHUB_MCP (which github-mcp-server)
+set ENV_FILE $HOME/.local/share/agent-receipts/mcp.env
+
+set json (printf '{
+  "command": "%s",
+  "args": [
+    "run",
+    "--env-file=%s",
+    "--",
+    "%s",
+    "-name", "github",
+    "-issuer-name", "Claude Code",
+    "-operator-id", "did:web:anthropic.com",
+    "-operator-name", "Anthropic",
+    "%s", "stdio"
+  ]
+}' $OP $ENV_FILE $MCP_PROXY $GITHUB_MCP | string collect)
+
+claude mcp add-json github-audited --scope user "$json"
+```
+
+`aws-vault exec`, `chamber exec` (AWS Parameter Store), and similar tools follow the same wrapping pattern — substitute whichever your team already deploys.
+
+### Alternative: shell environment (Claude Code only)
+
+Unlike Claude Desktop, Claude Code expands `${VAR}` placeholders in `env` blocks at server-launch time. This means you can keep the credential in your shell environment and reference it by name in the config.
+
+**bash / zsh** — `\$` escapes the placeholder so bash leaves it intact at paste time:
+
+```bash
+# heredoc terminator (JSON) must be alone on its line; closing ) follows on the next
+JSON_BODY=$(cat <<JSON
+{
+  "command": "$(which mcp-proxy)",
+  "args": [
+    "-name", "github",
+    "-issuer-name", "Claude Code",
+    "-operator-id", "did:web:anthropic.com",
+    "-operator-name", "Anthropic",
+    "$(which github-mcp-server)", "stdio"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "\${GITHUB_PERSONAL_ACCESS_TOKEN}"
+  }
+}
+JSON
+)
+
+claude mcp add-json github-audited --scope user "$JSON_BODY"
+```
+
+**fish** (no heredoc support — build JSON via `printf` instead; the single-quoted format string passes the placeholder through literally):
+
+```fish
+set MCP_PROXY (which mcp-proxy)
+set GITHUB_MCP (which github-mcp-server)
+set json (printf '{
+  "command": "%s",
+  "args": [
+    "-name", "github",
+    "-issuer-name", "Claude Code",
+    "-operator-id", "did:web:anthropic.com",
+    "-operator-name", "Anthropic",
+    "%s", "stdio"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+  }
+}' $MCP_PROXY $GITHUB_MCP | string collect)
+
+claude mcp add-json github-audited --scope user "$json"
+```
+
+Set `GITHUB_PERSONAL_ACCESS_TOKEN` in your shell rc (`~/.zshrc`, `~/.config/fish/config.fish`, etc.) before launching Claude Code. Verify the placeholder reached the stored config (and was *not* expanded at paste time) with `claude mcp get github-audited`.
+
+`--scope user` makes the server available across all projects. Omit it for project-local scope only.
+
+`-issuer-name`, `-operator-id`, and `-operator-name` stamp the signed receipt with the agent and the organisation running it. Setting `-issuer-name` to `Claude Code` here (and to `Codex` in the [Codex integration](/mcp-proxy/codex/)) is what lets you tell at receipt-inspection time which client made a given call — without it, every receipt just shows the daemon's default `did:agent-receipts-daemon:local` issuer. See the [configuration reference](/mcp-proxy/configuration/#cli-flags) for the full set of identity flags.
+
+Verify the server is registered:
+
+```bash
+claude mcp list
+```
+
+## Project-scoped setup via .mcp.json
+
+For a shared team configuration, add a `.mcp.json` file at the project root. This is committed to version control — do not put tokens directly in it.
+
+Since `.mcp.json` is a static JSON file, print the absolute paths you need first and paste them into the template below:
+
+```bash
+echo "command: $(which mcp-proxy)"
+echo "server:  $(which github-mcp-server)"
+```
+
+### Recommended: secret manager
+
+Point Claude Code at `op run`, same as the `claude mcp add-json` pattern above. Each developer needs `~/.local/share/agent-receipts/mcp.env` on their machine with their own `op://` reference (or whichever secret manager the team uses).
+
+```json
+{
+  "mcpServers": {
+    "github-audited": {
+      "command": "/opt/homebrew/bin/op",
+      "args": [
+        "run",
+        "--env-file=/Users/YOU/.local/share/agent-receipts/mcp.env",
+        "--",
+        "/Users/YOU/go/bin/mcp-proxy",
+        "-name", "github",
+        "-issuer-name", "Claude Code",
+        "-operator-id", "did:web:anthropic.com",
+        "-operator-name", "Anthropic",
+        "/opt/homebrew/bin/github-mcp-server", "stdio"
+      ]
+    }
+  }
+}
+```
+
+### Alternative: shell environment
+
+Claude Code expands `${VAR}` placeholders at server-launch time, so each developer can set `GITHUB_PERSONAL_ACCESS_TOKEN` in their shell environment and have it picked up automatically.
+
+```json
+{
+  "mcpServers": {
+    "github-audited": {
+      "command": "/Users/YOU/go/bin/mcp-proxy",
+      "args": [
+        "-name", "github",
+        "-issuer-name", "Claude Code",
+        "-operator-id", "did:web:anthropic.com",
+        "-operator-name", "Anthropic",
+        "/opt/homebrew/bin/github-mcp-server", "stdio"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+The proxy path will need to be consistent across the team, or handled via a wrapper script.
+
+## Verifying receipts
+
+The daemon signs and stores every tool call. After making calls through Claude Code, query and verify the store with the `agent-receipts` CLI (installed alongside the daemon). It opens the database read-only, so it is safe to run while the daemon is writing:
+
+```bash
+# List recent receipts (newest first)
+obsigna receipt list
+
+# Verify the chain's signatures and hash links
+obsigna receipt verify \
+  --public-key ~/.local/share/agent-receipts/signing.key.pub
+```
+
+```
+$ obsigna receipt list
+SEQ  TIMESTAMP             CHAIN       TOOL / ACTION TYPE
+5    2026-04-24T01:45:07Z  2026-04-24  list_issues
+4    2026-04-24T01:44:20Z  2026-04-24  list_pull_requests
+3    2026-04-24T00:51:57Z  2026-04-24  add_reply_to_pull_request
+2    2026-04-24T00:43:40Z  2026-04-24  request_copilot_review
+1    2026-04-24T00:19:35Z  2026-04-24  issue_write
+```
+
+`obsigna receipt verify` prints `Chain 2026-04-24: VALID (5 receipts)` when signatures and hash links are intact. Inspect a single receipt — including its action type, risk level, and parameters hash — with `obsigna receipt show <seq>`. See the [CLI reference](/reference/cli-commands/#obsigna) for all subcommands.
+
+## Gotchas
+
+**Absolute paths required.** Claude Code launches MCP servers with a clean `PATH`. Use the full path to `mcp-proxy` (find it with `which mcp-proxy`) and the full path to the wrapped server binary.
+
+**fish shell.** Fish does not support heredocs — pasting the bash/zsh snippet as-is fails with `Expected a string, but found a redirection`. Use the [fish alternative above](#register-the-proxy-with-claude-code), which builds the JSON via `printf` and stores it in a variable.
+
+**Want human-in-the-loop approvals? Opt in with `-http`.** The approval listener is off by default. If your server exposes tools that cross the risk-score threshold (e.g. `create_token` = 50, `update_auth_config` = 70), pass `-http 127.0.0.1:<port>` and run an approver — see [Approval Server](/mcp-proxy/approval-ui/). Without it, a paused call fails immediately with JSON-RPC code `-32003` (`no approver configured`). To prevent pausing entirely, drop `pause`/`block` rules from a custom `-rules` YAML.
+
+**Classic PATs for org-owned repos.** GitHub's fine-grained PATs can fail for org-level write operations even when permissions appear correct. Use a classic PAT with `repo` scope for org-owned repositories.
+
+**Chain IDs are daemon-managed.** The proxy no longer has a `-chain` flag — chain IDs are assigned by `obsigna-daemon`. By default the daemon writes receipts to a chain named for the current UTC date (e.g. `2026-06-13`), advancing to a new chain each day. Use `--chain-id` (or `AGENTRECEIPTS_CHAIN_ID`) on `agent-receipts` read and verify commands when working with a multi-chain store.
+
+**No receipts appearing?** The daemon must be running *before* Claude Code launches the proxied server, or emits fail. Confirm with `pgrep obsigna-daemon`, and see the [daemon troubleshooting guide](/getting-started/daemon-setup/#troubleshooting). If you run the daemon on a non-default socket, set `AGENTRECEIPTS_SOCKET` for both the daemon and the proxy.

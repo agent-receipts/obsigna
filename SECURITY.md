@@ -9,7 +9,7 @@ Security fixes are applied to the latest release of each component. We do not ba
 **Do not report security vulnerabilities through public GitHub issues.**
 
 Instead, please use GitHub's **Report a vulnerability** feature on this repository:
-[Report a vulnerability](https://github.com/agent-receipts/ar/security/advisories/new)
+[Report a vulnerability](https://github.com/agent-receipts/obsigna/security/advisories/new)
 
 Include as much detail as possible: description, steps to reproduce, impact assessment, and any suggested fix.
 

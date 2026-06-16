@@ -52,6 +52,7 @@ export {
 	type EmitterMetadata,
 	type Intent,
 	type Issuer,
+	type KeyRotation,
 	type Operator,
 	type Outcome,
 	type OutcomeStatus,

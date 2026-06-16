@@ -223,7 +223,7 @@ The v1 envelope is HPKE base mode (RFC 9180) with ciphersuite KEM = DHKEM(X25519
 }
 ```
 
-This envelope decrypts to `{"command":"echo \"build complete\""}` for the holder of the recipient key. It is byte-for-byte the first conformance vector in [`spec/test-vectors/disclosure-envelope/vectors.json`](https://github.com/agent-receipts/ar/blob/main/spec/test-vectors/disclosure-envelope/vectors.json), which all three SDKs reproduce. The envelope shape is validated by the sibling [`parameters-disclosure.schema.json`](https://github.com/agent-receipts/ar/blob/main/spec/schema/parameters-disclosure.schema.json) (also inlined as `$defs/parametersDisclosureEnvelope` in the main schema so single-file validators resolve it without external refs).
+This envelope decrypts to `{"command":"echo \"build complete\""}` for the holder of the recipient key. It is byte-for-byte the first conformance vector in [`spec/test-vectors/disclosure-envelope/vectors.json`](https://github.com/agent-receipts/obsigna/blob/main/spec/test-vectors/disclosure-envelope/vectors.json), which all three SDKs reproduce. The envelope shape is validated by the sibling [`parameters-disclosure.schema.json`](https://github.com/agent-receipts/obsigna/blob/main/spec/schema/parameters-disclosure.schema.json) (also inlined as `$defs/parametersDisclosureEnvelope` in the main schema so single-file validators resolve it without external refs).
 
 ### `intent`
 
@@ -298,4 +298,4 @@ This rule keeps all three SDKs producing byte-identical RFC 8785 canonical outpu
 
 ## JSON Schema
 
-A machine-readable JSON Schema (draft 2020-12) is available at [`spec/schema/agent-receipt.schema.json`](https://github.com/agent-receipts/ar/blob/main/spec/schema/agent-receipt.schema.json). The envelope shape of `parameters_disclosure` (v0.3.0+) is also published as a sibling schema for standalone validation: [`spec/schema/parameters-disclosure.schema.json`](https://github.com/agent-receipts/ar/blob/main/spec/schema/parameters-disclosure.schema.json).
+A machine-readable JSON Schema (draft 2020-12) is available at [`spec/schema/agent-receipt.schema.json`](https://github.com/agent-receipts/obsigna/blob/main/spec/schema/agent-receipt.schema.json). The envelope shape of `parameters_disclosure` (v0.3.0+) is also published as a sibling schema for standalone validation: [`spec/schema/parameters-disclosure.schema.json`](https://github.com/agent-receipts/obsigna/blob/main/spec/schema/parameters-disclosure.schema.json).

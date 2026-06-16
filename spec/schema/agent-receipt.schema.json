@@ -91,6 +91,54 @@
       "description": "SHA-256 digest in the format sha256:<64 hex chars>."
     },
 
+    "keyRotation": {
+      "type": "object",
+      "description": "Key-rotation event (ADR-0015). Present only on a key_rotated receipt; a receipt that is not a rotation event MUST NOT include this field. When present, all seven fields are required. The receipt is signed with the OUTGOING key (signed_with: \"old\"); new_public_key carries the incoming key inline so verifiers can chain through the rotation without an external key registry. See spec §7.3.7.",
+      "required": [
+        "event_type",
+        "new_public_key",
+        "old_key_fingerprint",
+        "new_key_fingerprint",
+        "old_algorithm",
+        "new_algorithm",
+        "signed_with"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "key_rotated",
+          "description": "Constant \"key_rotated\"."
+        },
+        "new_public_key": {
+          "type": "string",
+          "pattern": "^u[A-Za-z0-9_-]+$",
+          "description": "Incoming public key inline: raw key bytes per the algorithm's canonical encoding (Ed25519: the 32-byte public key per RFC 8032 §5.1.5), multibase-encoded with the \"u\" base64url prefix (the same encoding ADR-0001 defines for proof.proofValue, applied here to raw public-key bytes)."
+        },
+        "old_key_fingerprint": {
+          "$ref": "#/$defs/sha256Hash",
+          "description": "SHA-256 of the outgoing public key's raw bytes (not SPKI/PEM, not a backend handle), as sha256:<lowercase hex>. Index/consistency field — the outgoing key is resolved via proof.verificationMethod or, at genesis, the out-of-band registered key."
+        },
+        "new_key_fingerprint": {
+          "$ref": "#/$defs/sha256Hash",
+          "description": "SHA-256 of the incoming public key's raw bytes, as sha256:<lowercase hex>. MUST equal the SHA-256 of the bytes decoded from new_public_key."
+        },
+        "old_algorithm": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Algorithm tag of the outgoing key (e.g. \"ed25519\"). Used to verify the rotation event's own signature, since signed_with is \"old\"."
+        },
+        "new_algorithm": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Algorithm tag of the incoming key (e.g. \"ed25519\"). Used to verify subsequent receipts. Equal to old_algorithm for same-algorithm rotations."
+        },
+        "signed_with": {
+          "const": "old",
+          "description": "Constant \"old\": the rotation event is signed with the outgoing key, anchoring the transition to the key being retired."
+        }
+      }
+    },
+
     "issuer": {
       "type": "object",
       "required": ["id"],
@@ -484,6 +532,7 @@
         "authorization": { "$ref": "#/$defs/authorization" },
         "delegation": { "$ref": "#/$defs/delegation" },
         "chain": { "$ref": "#/$defs/chain" },
+        "keyRotation": { "$ref": "#/$defs/keyRotation" },
         "correlation_id": {
           "type": "string",
           "minLength": 1,

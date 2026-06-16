@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agent_receipts.emitters import InMemoryEmitter
+from obsigna.emitters import InMemoryEmitter
 from tests.conftest import make_receipt
 
 
@@ -44,7 +44,7 @@ def test_received_returns_snapshot_not_live_reference() -> None:
 def test_implements_emitter_protocol() -> None:
     # Light runtime check via the @runtime_checkable Protocol — this is the
     # contract every test-double must satisfy.
-    from agent_receipts.emitters import Emitter
+    from obsigna.emitters import Emitter
 
     e = InMemoryEmitter()
     assert isinstance(e, Emitter)

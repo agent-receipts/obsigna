@@ -111,7 +111,6 @@ func (s *stubKeySource) Init() error                   { return nil }
 func (s *stubKeySource) Sign(_ []byte) ([]byte, error) { return nil, nil }
 func (s *stubKeySource) PublicKey() (string, error)    { return s.pub, s.pubErr }
 func (s *stubKeySource) VerificationMethod() string    { return "did:test#k1" }
-func (s *stubKeySource) Rotate() error                 { return keysource.ErrNotImplemented }
 func (s *stubKeySource) Teardown() error               { return nil }
 
 func TestPublishPublicKey_WritesFreshFile(t *testing.T) {
@@ -272,7 +271,7 @@ func TestPublishPublicKey_FreshWriteRefusesPreCreatedSymlink(t *testing.T) {
 }
 
 // TestValidateConfig_PublicKeyPathDefaultsFromKeyPath pins the contract the
-// agent-receipts-daemon CLI relies on: when PublicKeyPath is left empty by
+// obsigna-daemon CLI relies on: when PublicKeyPath is left empty by
 // the caller, validateConfig fills it from the final KeyPath, so a
 // `--key /tmp/x.key` invocation publishes to `/tmp/x.key.pub` — not whatever
 // path was computed before flag.Parse.

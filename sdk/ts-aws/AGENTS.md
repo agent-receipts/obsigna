@@ -3,7 +3,7 @@
 AWS adapter for the TypeScript SDK. Implements the ADR-0018 `Signer`
 abstraction backed by AWS KMS (`KMSSigner`), so an Ed25519 private key can sign
 receipts without ever leaving KMS. Separate npm package
-(`@agnt-rcpt/sdk-ts-aws`): the core `@agnt-rcpt/sdk-ts` package stays free of
+(`@obsigna/sdk-ts-aws`): the core `@obsigna/sdk-ts` package stays free of
 AWS dependencies.
 
 ## Getting started
@@ -28,7 +28,7 @@ src/index.ts             # public exports
 ## Conventions
 
 - All changes go through pull requests — never push directly to main.
-- This package must not depend on `@agnt-rcpt/sdk-ts`; the `Signer` interface is
+- This package must not depend on `@obsigna/sdk-ts`; the `Signer` interface is
   declared locally (mirrors the Go SDK's `aws` module).
 - Use AWS SDK v3 (`@aws-sdk/client-kms`).
 - KMS signing uses `SigningAlgorithm=ED25519_SHA_512` + `MessageType=RAW`

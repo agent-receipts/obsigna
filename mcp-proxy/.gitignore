@@ -1,6 +1,12 @@
 # GoReleaser build output
 dist/
 
+# Locally compiled binaries from `go build -o <name> ./cmd/...` at the module
+# root — the proxy, the deprecation shim, and any Windows cross-compile.
+/obsigna-mcp
+/mcp-proxy
+*.exe
+
 # LICENSE is copied from the repo root by a GoReleaser `before` hook
 # so archives can include it without path traversal gymnastics.
 LICENSE

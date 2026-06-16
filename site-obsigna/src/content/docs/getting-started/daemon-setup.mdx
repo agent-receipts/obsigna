@@ -1,0 +1,353 @@
+---
+title: Daemon Setup
+description: Set up the obsigna-daemon and connect your emitters.
+---
+
+Agent Receipts signs receipts in a separate `obsigna-daemon` process rather than in-process — no SDK or plugin holds an Ed25519 key or SQLite database of its own. A single daemon process holds the signing key and manages the receipt chain for all emitters on the machine. This centralisation is what makes the tamper-evidence guarantee meaningful: a compromised SDK process cannot silently rewrite the chain, because it never holds the key.
+
+## Prerequisites
+
+- `obsigna-daemon` installed (see below)
+- Key initialised with `obsigna-daemon --init` (one-time, see below)
+- An emitter SDK or plugin installed (see [Connect your emitters](#connect-your-emitters))
+
+## Install and start
+
+### Install
+
+**macOS (Homebrew):**
+
+```bash
+brew install agent-receipts/tap/obsigna
+```
+
+Homebrew installs both the `obsigna-daemon` and the `obsigna` (read/verify) CLI binaries.
+
+**From source (macOS/Linux, requires Go 1.26.1+):**
+
+```bash
+go install github.com/agent-receipts/ar/daemon/cmd/obsigna-daemon@latest
+go install github.com/agent-receipts/ar/daemon/cmd/obsigna@latest
+```
+
+Install both from the same `@latest` so the daemon and the `obsigna` CLI
+are the same version — they share one module, and a version mismatch can make
+`verify` reject a chain the other wrote. `go install` drops the binaries in
+`$(go env GOPATH)/bin`; add it to your `PATH` if it isn't already:
+
+```bash
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+### Initialise (one-time)
+
+Generate the signing key pair before starting the daemon for the first time:
+
+```bash
+obsigna-daemon --init
+```
+
+Files created by `--init`:
+
+| File | Default path |
+|------|-------------|
+| Signing key | `$XDG_DATA_HOME/agent-receipts/signing.key` (falls back to `~/.local/share/agent-receipts/signing.key` when `$XDG_DATA_HOME` is unset or not an absolute path) |
+| Public key | `$XDG_DATA_HOME/agent-receipts/signing.key.pub` (same fallback) |
+
+Both `signing.key` and `signing.key.pub` are created together. The public key is needed by `obsigna receipt verify` — keep it alongside the database when archiving.
+
+Override these paths with environment variables: `AGENTRECEIPTS_KEY` (signing key), `AGENTRECEIPTS_PUBLIC_KEY` (public key).
+
+The receipt database (`$XDG_DATA_HOME/agent-receipts/receipts.db`, falling back to `~/.local/share/agent-receipts/receipts.db`) is created automatically the first time the daemon starts, not by `--init`. Override with `AGENTRECEIPTS_DB`.
+
+`--init` refuses to overwrite an existing key and exits non-zero. It is a one-time bootstrap, not a rotation command — run it once per machine.
+
+#### Rotate the signing key
+
+To rotate the daemon's signing key, stop the daemon and run `--rotate` ([ADR-0015](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0015-key-rotation-byok-anchoring.md)):
+
+```bash
+obsigna-daemon --rotate
+```
+
+This appends a `key_rotated` receipt — signed with the **outgoing** key — to the head of the current chain, archives the outgoing public key next to `signing.key.pub` (as `signing.key.pub.rotated-<fingerprint>`), and swaps the new key pair into place. The `key_rotated` receipt carries the incoming public key inline, so a verifier chains through the rotation: receipts before it verify under the old key, receipts after it under the new key. Restart the daemon afterwards to sign with the new key.
+
+`--rotate` refuses to run while the daemon's socket is reachable — stop the daemon first, or you will get a torn state where the running process keeps signing with the old key while the chain records a handover.
+
+> **Verifying a rotated chain.** A rotated chain is anchored to the **genesis** public key — the key that signed the chain's first receipt — not the freshly published `signing.key.pub` (which is now the *new* key only). `obsigna receipt verify` handles this for you: pointed at the published `signing.key.pub`, it rediscovers the genesis key from the archived `signing.key.pub.rotated-*` files and traverses the rotation automatically, and it reports `BROKEN` if those archives are missing or the chain does not hand off to the published key. (The SDK chain verifiers also traverse the rotation when given the genesis key directly.)
+
+Do **not** "rotate" by deleting `signing.key` and re-running `--init`. That new key has no `key_rotated` receipt bridging it to the old one, so every receipt signed by the retired key fails verification and the chain is split with no in-chain handover.
+
+##### Anchoring rotation events
+
+For the rotation history to survive a future daemon-key compromise, the rotation event must be recorded somewhere the daemon cannot later rewrite. Pass `--anchor-log <path>` (env `AGENTRECEIPTS_ANCHOR_LOG`) and `--rotate` writes the rotation event to that append-only log **before** committing locally — an anchor-write failure aborts the rotation cleanly, leaving nothing changed:
+
+```bash
+obsigna-daemon --rotate --anchor-log /var/log/agent-receipts/anchor.log
+```
+
+The built-in log is a **reference** sink: it appends newline-delimited JSON records, but a plain file is only as tamper-evident as the storage under it. To get the real post-compromise guarantee, point `--anchor-log` at a path backed by append-only/immutable storage (object-lock volume, a write-only log host, a transparency log). Adapters that speak directly to such systems (S3 object-lock, SIEM ingest) are follow-up work. Without `--anchor-log`, rotation still works and verifies — you simply opt out of the post-compromise guarantee.
+
+> Periodic *checkpoint* anchoring (for tail-truncation detection) is a separate, still-pending phase — see ADR-0015.
+
+### Start
+
+```bash
+obsigna-daemon
+```
+
+The daemon listens on a Unix domain socket. The socket path depends on platform:
+
+| Platform | Default socket path |
+|----------|---------------------|
+| macOS | `$XDG_DATA_HOME/agent-receipts/events.sock` (falls back to `~/.local/share/agent-receipts/events.sock` when `$XDG_DATA_HOME` is unset or not an absolute path) |
+| Linux | `$XDG_RUNTIME_DIR/agentreceipts/events.sock`, falling back to `/run/agentreceipts/events.sock` |
+
+:::caution
+On Linux, if `$XDG_RUNTIME_DIR` is not set, the daemon falls back to `/run/agentreceipts/events.sock`, which requires elevated permissions to create. If you are running as a non-root user without `$XDG_RUNTIME_DIR`, and `/run/user/$(id -u)` exists and is owned by you (standard on systemd-based Linux), set it with `export XDG_RUNTIME_DIR=/run/user/$(id -u)` — that path is user-writable and inside the daemon's per-platform safe set. On other init systems that directory may not exist; in that case set `AGENTRECEIPTS_SOCKET` to a path you create manually and pass `--unsafe-socket-path` (a boolean flag that allows the path outside the safe set). Note the daemon **rejects** an `AGENTRECEIPTS_SOCKET` value outside the safe set (`$XDG_RUNTIME_DIR`, `/run`, `/var/run`) unless you also pass `--unsafe-socket-path`, so a path like `~/.local/run/...` will not work on its own (see [issue #538](https://github.com/agent-receipts/obsigna/issues/538)).
+:::
+
+Start the daemon before launching any agent session. By default, emitters that cannot reach the socket **surface the failure to the caller** (bounded by the configured dial and write deadlines; the TypeScript SDK may re-dial once on a stale connection, so the bound can span two dial+write cycles) rather than dropping the event silently, so an unreachable daemon is detectable per the [emit failure contract](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0025-emit-failure-contract.md). The exact shape is language-specific — Go returns a non-nil `error`, Python raises `EmitTransportError`, TypeScript resolves with an `EmitTransportError`. SDKs offer an opt-in best-effort mode for callers that knowingly tolerate dropped events.
+
+To run as a persistent service on macOS, use the launchd plist available at [`daemon/packaging/macos/`](https://github.com/agent-receipts/obsigna/tree/main/daemon/packaging/macos) on GitHub and included in the release tarball. A Linux systemd unit is included in the release tarball but is not yet committed to the repository.
+
+### Configuration file
+
+Instead of (or alongside) flags and environment variables, the daemon reads a TOML config file. By default it looks at `$XDG_DATA_HOME/agent-receipts/daemon.toml` (falling back to `~/.local/share/agent-receipts/daemon.toml` when `$XDG_DATA_HOME` is unset or not an absolute path) — the same directory as `receipts.db` and the signing key. Point at a different file with `--config /path/to/daemon.toml`, or set `AGENTRECEIPTS_CONFIG`.
+
+A missing file at the default path is fine — the daemon runs on flags and environment variables alone. A `--config` (or `AGENTRECEIPTS_CONFIG`) path that does not exist is an error, as is a malformed file or an unknown key, so a typo never silently leaves the daemon on a different config than you intended.
+
+**Precedence (lowest to highest): config file → environment variables → command-line flags.** The file is the lowest-priority layer: a key omitted from the file leaves the default/env/flag value untouched, and any matching env var or explicit flag overrides a file value.
+
+The keys mirror the flag names with dashes replaced by underscores:
+
+```toml
+# ~/.local/share/agent-receipts/daemon.toml
+socket = "/run/user/1000/agentreceipts/events.sock"  # --socket
+db = "/home/me/.local/share/agent-receipts/receipts.db"  # --db
+key = "/home/me/.local/share/agent-receipts/signing.key"  # --key
+public_key = "/home/me/.local/share/agent-receipts/signing.key.pub"  # --public-key
+# chain_id = "my-chain"               # --chain-id; omit to use the per-day UTC default (recommended) — setting it pins one chain and disables daily auto-advance
+issuer_id = "did:agent-receipts-daemon:local"          # --issuer-id
+verification_method = "did:agent-receipts-daemon:local#k1"  # --verification-method
+parameter_disclosure = false          # --parameter-disclosure
+redact_patterns = "/etc/agent-receipts/redact.yaml"   # --redact-patterns
+unsafe_socket_path = false            # --unsafe-socket-path
+shutdown_deadline = "200ms"           # --shutdown-deadline (Go duration string)
+```
+
+Print the fully resolved config (after merging file, env, and flags) for debugging:
+
+```bash
+obsigna-daemon --print-config
+```
+
+The output is in the same `key = value` shape, so it doubles as a starting `daemon.toml`. Only filesystem paths are printed — the daemon never logs key material.
+
+## Connect your emitters
+
+Point each SDK or plugin at the daemon socket. On macOS and Linux, all components resolve a platform default socket path automatically (see the table above). Set `AGENTRECEIPTS_SOCKET` to override that default. Other platforms have no platform default, but `AGENTRECEIPTS_SOCKET` (or the SDK's explicit socket-path option, e.g. Go's `WithSocketPath`) still supplies one; the emitter constructor only errors when neither is provided.
+
+There is no in-process fallback: if the daemon is unreachable, emit surfaces the failure to the caller by default rather than dropping silently (see [Start](#start) for timeout and best-effort opt-out details).
+
+```bash
+export AGENTRECEIPTS_SOCKET=/path/to/events.sock   # overrides the platform default
+```
+
+### Go SDK
+
+**Option A: explicit socket path**
+
+```go
+import (
+	"log"
+	"github.com/agent-receipts/ar/sdk/go/emitter"
+)
+
+e, err := emitter.NewDaemon(emitter.WithSocketPath("/path/to/events.sock"))
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+**Option B: via environment variable (`AGENTRECEIPTS_SOCKET`)**
+
+```go
+import (
+	"log"
+	"github.com/agent-receipts/ar/sdk/go/emitter"
+)
+
+e, err := emitter.NewDaemon()
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+### TypeScript SDK
+
+Install:
+
+```bash
+npm install @obsigna/sdk-ts
+```
+
+**Option A: explicit socket path**
+
+```typescript
+import { DaemonEmitter } from "@obsigna/sdk-ts";
+
+const e = new DaemonEmitter({ socketPath: "/path/to/events.sock" });
+```
+
+**Option B: via environment variable (`AGENTRECEIPTS_SOCKET`)**
+
+```typescript
+import { DaemonEmitter } from "@obsigna/sdk-ts";
+
+const e = new DaemonEmitter();
+```
+
+### Python SDK
+
+Install:
+
+```bash
+pip install obsigna
+```
+
+**Option A: explicit socket path**
+
+```python
+from obsigna import DaemonEmitter
+
+e = DaemonEmitter(socket_path="/path/to/events.sock")
+```
+
+**Option B: via environment variable (`AGENTRECEIPTS_SOCKET`)**
+
+```python
+from obsigna import DaemonEmitter
+
+e = DaemonEmitter()
+```
+
+### MCP Proxy
+
+Pass `--socket` or set `AGENTRECEIPTS_SOCKET`:
+
+```bash
+mcp-proxy --socket /path/to/events.sock npx -y @modelcontextprotocol/server-filesystem ~/Documents
+# or
+AGENTRECEIPTS_SOCKET=/path/to/events.sock mcp-proxy npx -y @modelcontextprotocol/server-filesystem ~/Documents
+```
+
+### obsigna-hook
+
+`obsigna-hook` (formerly `agent-receipts-hook`, which still works as a deprecation shim) is a short-lived hook binary that captures native agent tool calls (Bash, Write, Edit, Read, …) that bypass `mcp-proxy`. Install it separately (see [Hook Installation](/hook/installation/)), then [wire it up as a PostToolUse hook](/hook/claude-code/) in your agent runtime. The hook uses the same socket-path resolution as the other emitters — no extra socket configuration needed.
+
+### OpenClaw
+
+See the [OpenClaw installation guide](/openclaw/installation) for daemon forwarding configuration.
+
+## Payload disclosure
+
+By default the daemon stores only a cryptographic hash of each tool call's input and output (`parameters_hash` / `response_hash`). This is privacy-preserving — the receipt proves what happened without retaining the raw payload.
+
+To make parameters *recoverable* without ever storing plaintext, the daemon can encrypt them to a forensic X25519 public key using HPKE (ADR-0012). The encrypted envelope rides in the signed receipt's `parameters_disclosure` field; only the holder of the matching private key can decrypt it, and the daemon itself cannot read what it wrote. The `parameters_hash` is always present, so tamper-evidence does not depend on disclosure being enabled.
+
+Generate a forensic key pair (once), then enable disclosure with a policy:
+
+```bash
+# Generate the key pair (private key stays offline; daemon only reads the public key)
+obsigna-daemon --init-forensic-key \
+  --forensic-key ~/.local/share/agent-receipts/forensic.key
+
+# Run with disclosure enabled: false | true | high | <comma-separated action types>
+obsigna-daemon \
+  --forensic-public-key ~/.local/share/agent-receipts/forensic.key.pub \
+  --parameter-disclosure high
+```
+
+`--parameter-disclosure` selects *which* actions disclose; it requires `--forensic-public-key` (there must be a key to encrypt to). The default is `false` (hash only).
+
+For the full model — disclosure modes, the two-key separation, forensic recovery, encrypt-failure fallback, and the GDPR/crypto-shredding story — see [Parameter Disclosure](https://agentreceipts.ai/specification/parameter-disclosure/).
+
+## Verify your chain
+
+`obsigna receipt verify` reads the database directly — the daemon does not need to be running:
+
+```bash
+AGENTRECEIPTS_DB=~/.local/share/agent-receipts/receipts.db \
+  obsigna receipt verify \
+  --public-key ~/.local/share/agent-receipts/signing.key.pub
+```
+
+:::note
+The paths above use the default fallback location (`~/.local/share/agent-receipts/`). If you set `AGENTRECEIPTS_DB` or `AGENTRECEIPTS_PUBLIC_KEY` when running the daemon, use those same values here. The `${XDG_DATA_HOME:-...}` shell expansion is not reliable for this command because the daemon also falls back to `~/.local/share` when `XDG_DATA_HOME` is set but is not an absolute path.
+:::
+
+A successful run prints the chain length and confirms hash linkage and signatures are intact. This is the command auditors and operators should use after any session.
+
+## Inspect a single receipt
+
+`obsigna receipt show <seq>` prints the full fields of one receipt by its chain sequence number (1-indexed) — issuer, chain id, action type and tool, parameters hash, outcome, signature, and any action-specific payload (such as the drop count on an `events_dropped` receipt). Like `verify`, it opens the store read-only, so it is safe to run while the daemon is writing.
+
+```bash
+AGENTRECEIPTS_DB=~/.local/share/agent-receipts/receipts.db \
+  obsigna receipt show 42
+```
+
+Add `--json` for the raw receipt JSON instead of the human-readable table:
+
+```bash
+AGENTRECEIPTS_DB=~/.local/share/agent-receipts/receipts.db \
+  obsigna receipt show 42 --json
+```
+
+`--chain-id` is required only when the store holds more than one chain; with a single chain it is auto-detected. Without it on a multi-chain store, the command lists the available chain ids and exits with a usage error.
+
+Exit codes are stable for scripting: `0` when the receipt is found and printed, `1` when there is no receipt at the requested sequence (or the store is empty), and `2` for a usage error (bad flags, ambiguous chain, or an unreadable database).
+
+## Migrating from pre-v0.8 in-process signing
+
+**Chains are abandoned at the cutover.** The daemon starts a fresh chain at seq=1. There is no migration path for pre-cutover chains — do not attempt to resume them under the daemon.
+
+**Preserve old data offline if you need it.** Auditors who need long-term verification of pre-v0.8 receipts should archive the old SQLite databases and their corresponding public keys before uninstalling the previous tooling. Verification of those receipts continues to work using the archived files and a v0.7 (or compatible) `verify` binary.
+
+**New paths are separate.** The daemon, MCP proxy, and hook all write to `$XDG_DATA_HOME/agent-receipts/` (falling back to `~/.local/share/agent-receipts/` when `$XDG_DATA_HOME` is unset or not an absolute path). The in-process SDKs (pre-v0.8) typically wrote to `~/.agent-receipts/` or a path configured via `AGENTRECEIPTS_DB`. These directories are distinct — the current tooling will not pick up old data from the legacy path.
+
+## Troubleshooting
+
+**Receipts are not appearing in the database.**
+The most common cause is that the daemon is not running when the emitter starts. By default, emitters surface an error when the socket is unreachable, so check your application logs for emit failures — then confirm `obsigna-daemon` is running and that the socket path matches. Confirm the daemon is alive and the socket exists:
+
+```bash
+pgrep obsigna-daemon
+ls -la ~/.local/share/agent-receipts/events.sock             # macOS (default fallback)
+ls -la "${XDG_RUNTIME_DIR:-/run}/agentreceipts/events.sock"  # Linux
+```
+
+If you've set `AGENTRECEIPTS_SOCKET` or an absolute `XDG_DATA_HOME`, check that path instead. The macOS example above assumes the default fallback location.
+
+**Socket path mismatch.**
+If you start the daemon and an emitter on different socket paths, the emitter cannot reach the daemon and (by default) surfaces a transport error on each emit. Set `AGENTRECEIPTS_SOCKET` to the same value in the daemon's environment and each emitter's environment, or rely on the platform default by not setting it in either.
+
+**Key not initialised error.**
+If the daemon exits immediately with an error about a missing key or database, run `obsigna-daemon --init` first. The daemon will not auto-create the key on first start — initialisation is intentionally explicit so key generation is a deliberate action, not a side effect.
+
+**`chain "…" tail (seq N) is already terminal` on startup.**
+When a running daemon is stopped by a signal (SIGTERM/SIGINT) with an open chain, it emits an interrupted-chain terminator (`chain.status="interrupted"`) to close that chain cleanly. A later daemon refuses to append after a terminal receipt, since that would produce a chain that fails verification. Continue on a fresh chain with `--chain-id <new-id>` (or point at a fresh `--db`); the original chain stays intact and verifiable.
+
+**`go install` binary not found.**
+After `go install`, the binary lands in `$GOBIN` (or `$(go env GOPATH)/bin`, usually `~/go/bin`). Add it to your `$PATH`:
+
+```bash
+# bash / zsh
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+```fish
+# fish
+fish_add_path (go env GOPATH)/bin
+```

@@ -1,3 +1,5 @@
-agent-receipts-hook
+# Built binary at the module root. Anchored with a leading slash so it does not
+# also match the cmd/agent-receipts-hook/ source directory.
+/agent-receipts-hook
 dist/
 LICENSE

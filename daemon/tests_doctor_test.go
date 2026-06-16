@@ -1,6 +1,6 @@
 //go:build integration && (linux || darwin)
 
-// Integration test for the `agent-receipts doctor` subcommand: drive the real
+// Integration test for the `obsigna doctor` subcommand: drive the real
 // check pipeline against a live daemon (real socket, real SQLite store, real
 // peer-credential capture) and confirm the load-bearing round-trip check
 // observes a synthetic event traverse emitter → socket → daemon → DB with a

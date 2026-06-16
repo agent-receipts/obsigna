@@ -1,0 +1,48 @@
+---
+title: "Obsigna — sign and verify every AI agent action"
+description: SDKs, an MCP proxy, a hook, and a dashboard for generating and verifying tamper-evident audit trails for AI agent actions.
+---
+
+Obsigna is the tooling layer for the [Agent Receipts protocol](https://agentreceipts.ai) — cryptographically signed, tamper-evident audit trails for every action your AI agent takes.
+
+The protocol spec lives at [agentreceipts.ai](https://agentreceipts.ai). This site covers the concrete tools: how to install them, configure them, and start generating receipts.
+
+## Choose your path
+
+### Hook — the fastest path
+
+The `obsigna-hook` binary integrates directly with agent runtimes (Claude Code `PostToolUse`, others). Records native tool calls before they reach any MCP layer.
+
+**Best for:** Claude Code users, runtime-level audit requirements.
+
+→ [Hook overview](/hook/overview/)  
+→ [Claude Code integration](/hook/claude-code/)
+
+---
+
+### MCP Proxy — no code changes
+
+The proxy sits in front of any MCP server and automatically signs a receipt for every tool call, without modifying the client or server.
+
+**Best for:** Claude Desktop, Claude Code, Cursor, Windsurf, VS Code Copilot, Cline, Codex — any MCP-connected agent.
+
+→ [MCP Proxy overview](/mcp-proxy/overview/)  
+→ [Quick Start](/getting-started/quick-start/)
+
+---
+
+### SDKs — emit receipts from your code
+
+Use the Go, TypeScript, or Python SDK to emit receipts directly from your application. Full control over what gets recorded, when, and how.
+
+**Best for:** custom agents, server-side code, automated pipelines.
+
+→ [Go SDK](/sdk-go/overview/) · [TypeScript SDK](/sdk-ts/overview/) · [Python SDK](/sdk-py/overview/)
+
+---
+
+## What you get
+
+Every tool call produces a receipt: a W3C Verifiable Credential signed with Ed25519, hash-chained into a tamper-evident sequence. The signing keys and receipt store live in the `obsigna-daemon` — outside the agent process.
+
+The chain is independently verifiable with `obsigna receipt verify`. See the [Agent Receipts protocol](https://agentreceipts.ai) for the full specification.

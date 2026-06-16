@@ -53,8 +53,8 @@ _INFO_TO_LANG = {
 # build — that drift is exactly what we want to surface.
 _SDK_IMPORT_PATTERN = {
     "go": re.compile(r"github\.com/agent-receipts/(?:ar/sdk/go|sdk-go)"),
-    "ts": re.compile(r"""['"]@agnt-rcpt/sdk-ts(?:/[\w-]+)?['"]"""),
-    "py": re.compile(r"\b(?:from|import)\s+agent_receipts\b"),
+    "ts": re.compile(r"""['"]@obsigna/sdk-ts(?:/[\w-]+)?['"]"""),
+    "py": re.compile(r"\b(?:from|import)\s+obsigna\b"),
 }
 
 # The opener fixes the closer: an HTML comment (``<!--``) must close with

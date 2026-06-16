@@ -85,10 +85,17 @@ func StartDaemonCrash(t *testing.T) *DaemonFixture {
 	return startDaemonFixture(t, time.Nanosecond)
 }
 
-// startDaemonFixture creates a fresh daemon with its own temp directories and
-// a generated signing key. shutdownDeadline is passed directly to Config; 0
-// uses the daemon's built-in default (200 ms), 1 ns simulates a crash.
-func startDaemonFixture(t *testing.T, shutdownDeadline time.Duration) *DaemonFixture {
+// newDaemonConfig builds a fresh daemon Config with its own temp directories
+// and a generated signing key, returning the config and the PEM-encoded public
+// key. The daemon is NOT started: the socket path is absent until something
+// binds it, so callers can either pass the config to StartDaemonFromConfig or
+// drive the unbound socket path directly (e.g. to exercise an emitter's
+// connect-failure path before the daemon comes up). TraceLog is deliberately
+// left unset — each starter installs its own trace buffer.
+//
+// shutdownDeadline is passed directly to Config; 0 uses the daemon's built-in
+// default (200 ms), 1 ns simulates a crash.
+func newDaemonConfig(t *testing.T, shutdownDeadline time.Duration) (Config, string) {
 	t.Helper()
 
 	sockDir := sockettest.ShortSocketDir(t)
@@ -130,6 +137,17 @@ func startDaemonFixture(t *testing.T, shutdownDeadline time.Duration) *DaemonFix
 		t.Fatal(err)
 	}
 	pubPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}))
+
+	return cfg, pubPEM
+}
+
+// startDaemonFixture creates a fresh daemon with its own temp directories and
+// a generated signing key. shutdownDeadline is passed directly to Config; 0
+// uses the daemon's built-in default (200 ms), 1 ns simulates a crash.
+func startDaemonFixture(t *testing.T, shutdownDeadline time.Duration) *DaemonFixture {
+	t.Helper()
+
+	cfg, pubPEM := newDaemonConfig(t, shutdownDeadline)
 
 	// Set up trace log for debugging
 	traceBuf := &syncBuffer{}

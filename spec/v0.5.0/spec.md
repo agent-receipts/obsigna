@@ -290,6 +290,14 @@ All five `proof` fields are required even in the minimal form.
 | `chain.previous_receipt_hash` | Yes | `sha256:` prefixed hash of the previous receipt's canonical form. MUST be `null` for the first receipt in a chain (`sequence: 1`). The field MUST always be present; `null` is not the same as omitting it. |
 | `chain.terminal` | No | When present, MUST be `true`. Asserts that no further receipts will be appended to this chain. Explicit `false` is schema-invalid; absence is the only valid way to express "no claim". Verifiers that observe any receipt following a terminal receipt in the verified input sequence MUST fail with a "receipt after terminal" error regardless of caller parameters. See §7.3.2. |
 | `chain.status` | No | When present, MUST be one of `"complete"` or `"interrupted"`. Issuer-asserted reason the chain ended. `"complete"` means the issuer ran to normal end-of-session; `"interrupted"` means a best-effort terminal receipt was emitted on signal or known abort path. Only meaningful alongside `chain.terminal: true` — a non-terminal receipt with `chain.status` is schema-invalid. Absence on a terminal receipt is equivalent to `"complete"` for backwards compatibility. The verifier-derived classification `"unknown"` (chains with no terminal at all) is never written on the wire. See §7.3.3. |
+| `keyRotation` | No | Present only on a key-rotation event (ADR-0015); a receipt that is not a rotation event MUST NOT include it. When present, all seven sub-fields are required and the receipt MUST be signed with the **outgoing** key. Note the camelCase field name, unlike its snake_case siblings. See §7.3.7. |
+| `keyRotation.event_type` | Yes* | Constant `"key_rotated"`. *Required when `keyRotation` is present. |
+| `keyRotation.new_public_key` | Yes* | The **incoming** public key inline: raw key bytes per the algorithm's canonical encoding (Ed25519: the 32-byte public key per RFC 8032 §5.1.5), multibase-encoded with the `u` base64url prefix (the encoding §7.2 uses for `proof.proofValue`, applied to raw public-key bytes). *Required when `keyRotation` is present. |
+| `keyRotation.old_key_fingerprint` | Yes* | `sha256:` prefixed hash of the outgoing public key's **raw bytes** (not SPKI/PEM, not a backend handle). A consistency index against the outgoing key, which is resolved from `proof.verificationMethod` (or, at genesis, the out-of-band registered key). *Required when `keyRotation` is present. |
+| `keyRotation.new_key_fingerprint` | Yes* | `sha256:` prefixed hash of the incoming public key's raw bytes. MUST equal the SHA-256 of the bytes decoded from `new_public_key`. *Required when `keyRotation` is present. |
+| `keyRotation.old_algorithm` | Yes* | Algorithm tag of the outgoing key (e.g. `"ed25519"`). Used to verify the rotation event's own signature. *Required when `keyRotation` is present. |
+| `keyRotation.new_algorithm` | Yes* | Algorithm tag of the incoming key. Equal to `old_algorithm` for same-algorithm rotations. Used to verify subsequent receipts. *Required when `keyRotation` is present. |
+| `keyRotation.signed_with` | Yes* | Constant `"old"`: the rotation event is signed with the outgoing key, anchoring the transition to the key being retired. *Required when `keyRotation` is present. |
 
 #### 4.3.2.1 Intent field guidance (non-normative)
 
@@ -519,6 +527,24 @@ These are operational controls outside the protocol; the verifier cannot synthes
 When an agent retries a tool call (e.g. on timeout), the wrapping proxy or SDK may emit more than one `tool_call` receipt for the same logical operation. Without a shared identifier, an auditor cannot distinguish a legitimate retry from a duplicated emission. `action.idempotency_key` (§4.3.2) carries a stable identifier for the logical operation so that all receipts arising from one operation share a value. The SDK and MCP proxy SHOULD populate it automatically where a stable source exists (e.g. the MCP proxy derives it from the wrapped JSON-RPC request `id`).
 
 Duplicate `idempotency_key` values are **not** a verification failure. Retries are a normal, legitimate occurrence and the protocol does not attempt to suppress duplicate receipts. Verifiers MUST treat two or more receipts sharing a non-empty `idempotency_key` as a **warning** surfaced alongside the verification result, leaving `valid` unchanged. The warning lets auditors review whether the duplicates represent expected retries or unexpected double-counting. Receipts that omit `idempotency_key` never contribute to duplicate warnings.
+
+#### 7.3.7 Key-rotation traversal
+
+A chain MAY change its signing key mid-stream. The transition is recorded as a **key-rotation event**: a receipt carrying `credentialSubject.keyRotation` (§4.3.2), signed with the **outgoing** key, that carries the **incoming** public key inline in `new_public_key`. This lets a verifier chain through arbitrary rotations using only the chain and the genesis key — no external key registry is consulted on the traversal path (ADR-0015).
+
+A verifier maintains an *active key*, initialised to the genesis key supplied by the caller, and processes receipts in order. For each receipt:
+
+1. **Verify the signature under the active key.** A key-rotation receipt is signed with the outgoing key (`signed_with: "old"`), so it verifies under the *current* active key like any other receipt — the active key does not change until *after* this receipt is processed.
+2. **If `keyRotation` is present, validate the rotation event:**
+   a. `event_type` MUST equal `"key_rotated"` and `signed_with` MUST equal `"old"`.
+   b. `old_algorithm` and `new_algorithm` MUST name a supported algorithm. This version supports only `"ed25519"` (ADR-0001); a verifier that cannot verify under the named algorithm MUST fail.
+   c. The SHA-256 of the active key's raw bytes MUST equal `old_key_fingerprint` (consistency index — a mismatch is a hard error).
+   d. Decode `new_public_key` (multibase `u` → raw bytes). Its SHA-256 MUST equal `new_key_fingerprint` (a mismatch is a hard error).
+3. **Adopt the incoming key.** Once a key-rotation receipt has both a valid signature under the outgoing key and valid rotation fields, the active key becomes the decoded `new_public_key` for every subsequent receipt, until the next rotation. A rotation receipt whose own signature is invalid MUST NOT hand the key over — the binding of `new_public_key` to the prior chain segment is only as trustworthy as the outgoing key's signature over it.
+
+The genesis (first) signing key is still registered out of band — there is no rotation event that introduces it — and that registration is what the first receipt's `proof.verificationMethod` resolves against. `proof.verificationMethod` identifies the *issuer*, not a specific key, and remains stable across rotations; verifiers MUST NOT treat it as a per-key identifier.
+
+Hash linkage and sequence contiguity (§7.3) are unaffected by rotation: a key-rotation receipt is hash-linked and sequenced exactly like any other receipt. Rotation only changes which key validates the signature.
 
 ### 7.4 Reversal receipts
 

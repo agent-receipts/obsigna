@@ -14,5 +14,5 @@ import (
 // at startup via daemon.Run; this stub exists only so the package compiles
 // in cross-platform CI.
 func capturePeer(_ *net.UnixConn) (PeerCred, error) {
-	return PeerCred{}, fmt.Errorf("agent-receipts-daemon: peer credential capture not implemented on %s", runtime.GOOS)
+	return PeerCred{}, fmt.Errorf("obsigna-daemon: peer credential capture not implemented on %s", runtime.GOOS)
 }

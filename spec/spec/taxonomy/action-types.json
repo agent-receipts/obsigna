@@ -39,6 +39,11 @@
 					"type": "filesystem.directory.delete",
 					"description": "Delete a directory",
 					"risk_level": "high"
+				},
+				{
+					"type": "filesystem.directory.list",
+					"description": "List directory contents",
+					"risk_level": "low"
 				}
 			]
 		},
@@ -66,6 +71,21 @@
 					"risk_level": "high"
 				},
 				{
+					"type": "system.code.execute",
+					"description": "Execute code in a sandbox code interpreter",
+					"risk_level": "high"
+				},
+				{
+					"type": "system.pty.open",
+					"description": "Open an interactive PTY session",
+					"risk_level": "critical"
+				},
+				{
+					"type": "system.pty.close",
+					"description": "Close a PTY session",
+					"risk_level": "high"
+				},
+				{
 					"type": "system.browser.navigate",
 					"description": "Navigate to a URL",
 					"risk_level": "low"
@@ -79,6 +99,16 @@
 					"type": "system.browser.authenticate",
 					"description": "Log into a service",
 					"risk_level": "high"
+				}
+			]
+		},
+		"network": {
+			"description": "Network and egress operations",
+			"actions": [
+				{
+					"type": "network.egress.observed",
+					"description": "Observed outbound network connection crossing a sandbox boundary",
+					"risk_level": "medium"
 				}
 			]
 		},

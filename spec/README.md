@@ -131,9 +131,9 @@ The canonical definitions live in [`spec/taxonomy/action-types.json`](spec/taxon
 
 | Repository | Language | Description |
 |:---|:---|:---|
-| [@agnt-rcpt/sdk-ts](https://github.com/agent-receipts/ar/tree/main/sdk/ts) | TypeScript | SDK — receipt creation, signing, hashing, storage, taxonomy ([npm](https://www.npmjs.com/package/@agnt-rcpt/sdk-ts)) |
+| [@obsigna/sdk-ts](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) | TypeScript | SDK — receipt creation, signing, hashing, storage, taxonomy ([npm](https://www.npmjs.com/package/@obsigna/sdk-ts)) |
 | [ojongerius/attest](https://github.com/ojongerius/attest) | TypeScript | MCP proxy + CLI — reference implementation |
-| [agent-receipts/sdk-py](https://github.com/agent-receipts/ar/tree/main/sdk/py) | Python | SDK — receipt creation, signing, hashing, chain verification ([PyPI](https://pypi.org/project/agent-receipts/)) |
+| [agent-receipts/sdk-py](https://github.com/agent-receipts/obsigna/tree/main/sdk/py) | Python | SDK — receipt creation, signing, hashing, chain verification ([PyPI](https://pypi.org/project/obsigna/)) |
 
 ## Contributing
 

@@ -109,12 +109,12 @@ Phase A receipts are forward-compatible with Phase B and C — no re-encryption,
 Phase A is complete as of 2026-05-21. The HPKE envelope is implemented end-to-end across all three SDKs and pinned across the spec and the cross-SDK test harness:
 
 - **HPKE primitives.** All three SDKs encrypt, decrypt, and round-trip the v1 envelope under the pinned ciphersuite (`hpke-x25519-hkdf-sha256-aes-256-gcm`):
-  - Go SDK: PR [#468](https://github.com/agent-receipts/ar/pull/468).
-  - TypeScript SDK: PR [#472](https://github.com/agent-receipts/ar/pull/472), hand-rolled from `node:crypto` (no `@hpke/core` dependency).
-  - Python SDK: PR [#494](https://github.com/agent-receipts/ar/pull/494).
+  - Go SDK: PR [#468](https://github.com/agent-receipts/obsigna/pull/468).
+  - TypeScript SDK: PR [#472](https://github.com/agent-receipts/obsigna/pull/472), hand-rolled from `node:crypto` (no `@hpke/core` dependency).
+  - Python SDK: PR [#494](https://github.com/agent-receipts/obsigna/pull/494).
 - **Forensic key-pair lifecycle.** Each SDK ships `GenerateForensicKeyPair` (or its language-idiomatic equivalent); on-disk layout next to the signing key and CLI export/import are tracked alongside the daemon's envelope-side wiring under #280.
-- **Spec at v0.3.0.** [`spec/schema/agent-receipt.schema.json`](../../spec/schema/agent-receipt.schema.json) inlines the envelope `$defs` (and the new `peer_credential` / `emitter_metadata` typed action fields) so the main receipt schema validates v0.3.0 receipts directly. PR [#496](https://github.com/agent-receipts/ar/pull/496).
-- **Cross-SDK byte-identical test vectors.** [`cross-sdk-tests/v030_vectors.json`](../../cross-sdk-tests/v030_vectors.json) pins both the envelope-shape receipt and the daemon-attested-fields receipt; every SDK must reproduce the pinned `expectedReceiptHash` byte-for-byte. PR [#499](https://github.com/agent-receipts/ar/pull/499).
+- **Spec at v0.3.0.** [`spec/schema/agent-receipt.schema.json`](../../spec/schema/agent-receipt.schema.json) inlines the envelope `$defs` (and the new `peer_credential` / `emitter_metadata` typed action fields) so the main receipt schema validates v0.3.0 receipts directly. PR [#496](https://github.com/agent-receipts/obsigna/pull/496).
+- **Cross-SDK byte-identical test vectors.** [`cross-sdk-tests/v030_vectors.json`](../../cross-sdk-tests/v030_vectors.json) pins both the envelope-shape receipt and the daemon-attested-fields receipt; every SDK must reproduce the pinned `expectedReceiptHash` byte-for-byte. PR [#499](https://github.com/agent-receipts/obsigna/pull/499).
 - **Typed daemon-attested fields land.** `action.peer_credential` and `action.emitter_metadata` replace the Phase-1 stash inside `parameters_disclosure` ([`daemon/internal/pipeline/build.go`](../../daemon/internal/pipeline/build.go)); the daemon-attested metadata now rides on dedicated typed fields, not on the envelope channel. Across the SDKs: Go in PR-C, TypeScript in PR-D, Python in PR-E (tracked under #280).
 
 The renamed config knob (`parameterDisclosure`) and the OpenClaw value space (`false | true | "high" | string[]`) continue to be honoured at the config layer; the disclosure pipeline now wires through the v1 envelope rather than the legacy flat-map shape.
@@ -225,6 +225,6 @@ Phase B and Phase C are unchanged and remain sequenced behind daemon work (ADR-0
 - SDK implementations of envelope encryption (Go / TS / Py). Tracked under #280.
 - Daemon rewire of `--parameter-disclosure` from redacted-plaintext to envelope. Tracked under #280.
 - Forensic-key CLI (export, import, rotate). Tracked under #280.
-- ~~Reference of `parameters-disclosure.schema.json` from `agent-receipt.schema.json`. Lands with the SDK work, not the spec.~~ **Done** in spec PR [#496](https://github.com/agent-receipts/ar/pull/496): `agent-receipt.schema.json` inlines the envelope `$defs` directly, so a validator does not need to dereference the sibling schema. The sibling schema stays as the documentation-of-record per the *Locked in* note above.
+- ~~Reference of `parameters-disclosure.schema.json` from `agent-receipt.schema.json`. Lands with the SDK work, not the spec.~~ **Done** in spec PR [#496](https://github.com/agent-receipts/obsigna/pull/496): `agent-receipt.schema.json` inlines the envelope `$defs` directly, so a validator does not need to dereference the sibling schema. The sibling schema stays as the documentation-of-record per the *Locked in* note above.
 - `kid` registry mechanism. v1 accepts either a `did:key` DID URL with a fragment or the `sha256:<hex>` fingerprint form; a normative registry is deferred.
 - Algorithm agility in `alg`. v1 pins exactly one ciphersuite. Additional ciphersuites require a new ADR-0012 amendment and a v2 envelope.

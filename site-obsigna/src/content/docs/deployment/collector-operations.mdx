@@ -1,0 +1,206 @@
+---
+title: Collector Operations Guide
+description: Day-2 operations guide for running the Agent Receipts reference collector in production — deployment shape, backing stores, authentication, scaling, observability, and trust boundaries.
+---
+
+This guide covers how to run the [reference collector](https://github.com/agent-receipts/obsigna/tree/main/collector) in production. It is the day-2 operations story — how the process is deployed, kept running, and observed. It does **not** duplicate the wire contract (POST `/receipts` semantics, status codes, validation scope) — that lives in [ADR-0020](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0020-emitter-abstraction-and-remote-receipt-delivery.md) and the [collector README](https://github.com/agent-receipts/obsigna/blob/main/collector/README.md). Cross-reference those for anything about the HTTP API itself.
+
+The companion guide for the adopter side — how your agent code emits receipts to the collector from ephemeral compute — is [Ephemeral Compute Deployment](/deployment/ephemeral-compute/).
+
+## Deployment shape
+
+The collector is a **single stateless binary**. All state lives in the backing store you configure; the process itself holds nothing between requests. This means:
+
+- You can run any number of collector instances behind a load balancer with no sticky routing. Receipt uniqueness is enforced by the backing store's unique constraint on `id`, not by routing every sender to the same instance.
+- Horizontal scaling is a store choice, not a collector choice. See [Scaling and durability](#scaling-and-durability).
+- Rolling restarts and zero-downtime redeploys work out of the box — there is no in-memory state to drain (the drain window, `--drain-timeout`, only covers in-flight HTTP requests).
+
+```
+                    ┌──────────────────────────┐
+SDK / HttpEmitter   │   Load balancer / proxy  │
+POST /receipts ───▶ │  (TLS termination, auth) │
+                    └────────────┬─────────────┘
+                                 │
+                      ┌──────────▼──────────┐   ┌──────────────────┐
+                      │  collector instance  │   │  collector inst. │
+                      │  (stateless binary)  │   │  (stateless bin) │
+                      └──────────┬───────────┘   └────────┬─────────┘
+                                 │                        │
+                                 └──────────┬─────────────┘
+                                            │
+                                    ┌───────▼───────┐
+                                    │  backing store │
+                                    │ (SQLite / PG)  │
+                                    └───────────────┘
+```
+
+Build the binary. From the repo root, build the collector's main package by its module-qualified path and name the output binary explicitly:
+
+```sh
+go build -o obsigna-collector github.com/agent-receipts/ar/collector/cmd/obsigna-collector
+```
+
+(The bare `go build ./cmd/obsigna-collector` only resolves from inside the `collector/` module directory.)
+
+Run it:
+
+```sh
+./obsigna-collector --addr 0.0.0.0:8787 --db /data/collector.db
+```
+
+The default `--addr` binds loopback only (`127.0.0.1:8787`) — opt in explicitly when exposing beyond localhost. See [Configuration](#configuration) for the full flag reference.
+
+### Configuration
+
+| Flag | Env var | Default | Notes |
+|------|---------|---------|-------|
+| `--addr` | `AGENTRECEIPTS_COLLECTOR_ADDR` | `127.0.0.1:8787` | HTTP listen address |
+| `--db` | `AGENTRECEIPTS_COLLECTOR_DB` | `collector.db` | SQLite path; use `:memory:` for non-durable |
+| `--max-body-bytes` | `AGENTRECEIPTS_COLLECTOR_MAX_BODY_BYTES` | `1048576` (1 MiB) | Per-request body cap |
+| `--drain-timeout` | `AGENTRECEIPTS_COLLECTOR_DRAIN_TIMEOUT` | `10s` | Graceful shutdown window |
+| `--version` | — | — | Print version and exit |
+
+## Backing store choices
+
+### SQLite (default, v0)
+
+The default store. A single file on local disk. No external dependencies, no server to manage. The store opens with `PRAGMA journal_mode=WAL`, which improves concurrency and journaling — readers and the single writer no longer block each other, and commits append to a write-ahead log instead of locking the main file. WAL alone does **not** guarantee fsync-level durability: the collector does not set `PRAGMA synchronous`, so commits run at SQLite's WAL default (`synchronous=NORMAL`), which fsyncs at checkpoints rather than on every commit. Crash durability therefore depends on a `synchronous` setting the collector does not currently configure, plus the OS and filesystem defaults — a power loss can lose the most recent commits.
+
+**When it fits:** low-to-moderate volume, single-node deployments, development, single-agent pipelines. SQLite handles thousands of receipts per second on commodity hardware without tuning.
+
+**Limits:** single writer (enforced by the database file lock); horizontal scaling requires a shared network filesystem or a different store. All query patterns must run against one file. GDPR erasure requires direct file-level tooling or a custom query, since the collector has no deletion endpoint by design (append-only).
+
+**Operationally:** back up the SQLite file with the `sqlite3` shell's `.backup` dot-command — `sqlite3 /data/collector.db ".backup '/backups/collector.db'"` — a filesystem snapshot, or `VACUUM INTO`. Rotate the file on a schedule if you need bounded retention.
+
+### Postgres (multi-node, planned)
+
+A Postgres backing store is on the roadmap for deployments that need horizontal write scaling or richer query patterns (filtering by `chain_id`, time range, agent DID). The uniqueness constraint on receipt `id` maps directly to a `UNIQUE` index; the append-only requirement means no `UPDATE` or `DELETE` statements on the receipts table.
+
+**When it fits:** multi-node collector fleets, deployments that run SQL-based audit queries directly against the store, or when your organisation already operates Postgres and wants receipts in the same retention and backup pipeline.
+
+**Trade-offs:** Postgres adds infrastructure complexity and a network hop. For most v0 deployments SQLite is sufficient. Postgres becomes relevant when you need to scale past a single machine or want direct SQL analytics without exporting from SQLite first.
+
+**GDPR erasure:** Postgres's row-level operations make targeted deletion easier to implement, but the collector schema is intentionally append-only and has no deletion endpoint. If your data-residency requirements mandate erasure, plan for a separate out-of-band erasure process that operates directly on the store. See ADR-0019 §S3 (tracked in [issue #478](https://github.com/agent-receipts/obsigna/issues/478)) for the payload-strategy design, which affects what is stored in receipts versus referenced off-chain — relevant to how much data needs erasing.
+
+### S3 / object storage (archival, planned)
+
+Object storage (S3, GCS, R2, Azure Blob) is an append-only archive target — each receipt stored as an individual object keyed by `id`. Suitable for long-term retention and audit archival where receipts are written once and read rarely.
+
+**When it fits:** regulatory archive requirements; organisations that already use object storage for audit logs; cross-region replication; very high volume where storage cost matters.
+
+**Trade-offs:** object storage is not suitable for interactive queries (no SQL, no index). Use it alongside a queryable store (SQLite, Postgres), or fan out receipts to both using a `CompositeEmitter`. Alternatively, periodically bulk-export from SQLite to S3 for archival.
+
+**Object-lock / WORM:** Object Lock (S3) or equivalent WORM flags on other platforms enforce immutability at the storage layer — a useful operational control on top of the protocol's tamper-evidence properties. See ADR-0019 §O2 (tracked in [issue #484](https://github.com/agent-receipts/obsigna/issues/484)) for the store-completeness design and rationale.
+
+:::note
+Neither Postgres nor S3/object-storage support is implemented in the reference collector today. The SQLite store is the only shipped backing store. These alternatives are documented here as the intended follow-up shapes.
+:::
+
+## Authentication
+
+**v0 ships without authentication.** This is a deliberate starting point, not an oversight. The client side — `HttpEmitter` — already supports `api-key`, `bearer`, and `mTLS` via `HttpEmitterAuth` ([ADR-0020](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0020-emitter-abstraction-and-remote-receipt-delivery.md)), so the authentication vocabulary exists. Server-side enforcement is tracked as future work.
+
+**The v0 stopgap is network-level controls:**
+
+- Run the collector inside a private VPC or VNet, accessible only to the subnets your agents run in.
+- Place it behind a reverse proxy (nginx, Caddy, Envoy, a cloud load balancer) that terminates TLS and enforces authentication. The proxy can validate API keys or bearer tokens before forwarding to the collector.
+- Use a service mesh (Linkerd, Istio) for mTLS between the agent's compute and the collector, without modifying the collector binary.
+
+When server-side `HttpEmitterAuth` enforcement lands, it will be a native option on the collector binary — you will be able to move auth enforcement in-process without the proxy tier if you prefer.
+
+:::caution
+Do not expose the collector on a public address without a protecting proxy layer. A collector reachable without authentication accepts receipts from anyone. While a forged receipt cannot impersonate a legitimate agent (it would fail signature verification by the auditor), it can pollute the store with garbage data and consume storage.
+:::
+
+## Scaling and durability
+
+### Horizontal scaling
+
+The collector layer scales horizontally because it is stateless. Add instances behind the load balancer freely — no session affinity required. Uniqueness is enforced by the backing store's `UNIQUE` constraint on receipt `id`; a duplicate receipt arriving at any instance returns `409 Conflict`, which the SDK treats as a successful delivery.
+
+For SQLite, horizontal write scaling is limited by the file lock — multiple writers on the same SQLite file are serialised. If you need multiple concurrent writers, use Postgres when it lands.
+
+### Append-only and durability
+
+"Append-only" means receipts are never modified or deleted after insertion. Operationally this means:
+
+- **Backups are straightforward.** The store only grows. A backup taken at any point in time is a valid and complete snapshot of everything received up to that moment. You do not need to coordinate backups with the collector process (SQLite's WAL mode allows hot backups without locking out writers).
+- **Immutability flags.** For regulated workloads, pair append-only semantics with storage-level immutability — object lock on S3, WORM volumes, or a Postgres row-level security policy that prevents `DELETE`. The protocol's tamper-evidence (hash chains) detects post-hoc alteration, but storage-level immutability prevents deletion of entire sessions from going undetected. See ADR-0019 §O2 / [issue #484](https://github.com/agent-receipts/obsigna/issues/484) for the store-completeness rationale.
+- **Retention.** The collector has no built-in retention policy. Implement retention at the storage layer: S3 lifecycle rules, filesystem rotation with archival, or — with care and documentation — a Postgres cleanup job as a deliberate exception to the append-only rule.
+
+### Idempotency and safe retry
+
+Receipt `id` values are URNs of the form `urn:receipt:<uuid-v4>` (a UUID v4 in a `urn:receipt:` namespace), generated by the SDK before delivery. The store's unique constraint on the full `id` string means:
+
+- Delivering the same receipt twice returns `201` on the first attempt and `409` on subsequent ones. The SDK treats `409` as success.
+- This makes retries safe. You do not need exactly-once delivery guarantees between the SDK and the collector — at-least-once is sufficient.
+- Load balancers can freely retry failed requests without risk of duplicate data.
+
+## Observability
+
+### Health check
+
+```sh
+GET /healthz
+→ 200  store is reachable
+→ 503  store is unreachable (database connection lost)
+```
+
+Wire `/healthz` to your load balancer's health check. An instance that returns `503` should be taken out of rotation — it will reject all writes until the store comes back.
+
+`/healthz` probes store reachability only — it runs a read-only presence lookup (a `SELECT` against the store) and never attempts a write. A `200` therefore confirms the store is reachable, **not** that writes will succeed. A full disk, for example, can still satisfy the read probe while insert operations fail — the health check returns `200` while `POST /receipts` begins returning `500`. Monitor `5xx` rates on the ingest path as a separate write-safety signal.
+
+### Structured logging
+
+The collector emits structured JSON logs (`log/slog`) to stdout. Each record carries the standard slog `level`, `time`, and `msg` fields. The `id` field is **best-effort, present only when available**: the accept path, the duplicate (`409`) path, and the structural-validation and insert-failure paths attach it (and the accept path also adds `chain_id` and `sequence`), but the early-rejection paths that fail before a receipt id can be decoded do not. The collector does **not** emit an HTTP status field — derive status-code signals from the `msg` value (or from your proxy's access logs, see [Metrics](#metrics)).
+
+Not every `400` produces a log record. The empty-body and trailing-data (multiple JSON objects) rejections return `400` with no structured log line at all, while the body-too-large, body-read-failure, and malformed-JSON rejections log a `WARN` but carry no `id`. Because of this, **do not derive client-error metrics from collector logs alone** — they will miss some `400`s entirely. Use proxy access logs as the authoritative source for error-rate counts. Key things to filter on for audit-relevant events:
+
+| Filter | What to watch |
+|--------|---------------|
+| `level=ERROR` | Store write failures, connection errors (e.g. `msg="receipt insert failed"`) |
+| `msg="receipt rejected: …"` | Malformed receipts (logged at `WARN`) — investigate the SDK version or emitter config |
+| `msg="receipt already exists, returning 409"` | Duplicate receipts — expected on retry; a high rate may indicate a retry loop |
+| `msg="receipt accepted"` | A receipt was persisted — the primary audit record of what arrived and when |
+| `id` | Correlate a specific receipt (a `urn:receipt:<uuid>` value) across SDK logs and collector logs |
+| `chain_id` | Group all receipts belonging to a single agent chain |
+| `sequence` | The receipt's position within its chain |
+
+For audit purposes, `msg="receipt accepted"` log lines — with their `id`, `chain_id`, and `sequence` — are the primary record of what arrived and when.
+
+### Metrics
+
+There is no built-in Prometheus metrics endpoint in v0. The collector logs no HTTP status field, so derive status-code metrics from your proxy/load-balancer access logs (which record the response status directly), or by counting the specific collector `msg` values that map to each outcome.
+
+When deriving rates from access logs, **filter by route and method (`POST /receipts`)**. The collector also serves `GET /healthz`, and load-balancer probes against it produce a steady stream of `200`s — counting all `2xx` regardless of route would conflate health-check traffic with receipt ingest and skew the rates. Each row below is already scoped to `POST /receipts` for this reason:
+
+| Metric | How to derive |
+|--------|---------------|
+| Ingest rate (receipts/s) | Count proxy `2xx` on `POST /receipts`, or `msg="receipt accepted"` log lines, per second |
+| Conflict rate | Count proxy `409` on `POST /receipts`, or `msg="receipt already exists, returning 409"` log lines, per second — elevated rate signals retry loops |
+| Client error rate | Count proxy `400` on `POST /receipts`, or `msg="receipt rejected: …"` log lines, per second — unexpected spikes indicate SDK misconfiguration; note that some early-rejection `400`s are not logged (see above) |
+| Server error rate | Count proxy `5xx` on `POST /receipts`, or `level=ERROR` log lines (e.g. `msg="receipt insert failed"`), per second — correlate with store health |
+| Store write latency | Instrument at the proxy layer or derive from response-time fields in access logs |
+| Queue depth | Only applicable if you add a message queue in front of the collector; monitor at the queue layer |
+
+If you add a message queue (SQS, Pub/Sub, Kafka) in front of the collector as a buffer against traffic spikes, monitor queue depth and consumer lag as the primary backpressure signal.
+
+## Trust boundary
+
+**The collector is not a trusted component for chain construction.** Every receipt arrives already signed and chained client-side, before it leaves the SDK. The collector stores wire bytes verbatim — it does not re-sign, reorder, recompute chain linkage (`previous_receipt_hash`), or verify signatures. It **does** compute a canonical `receipt_hash` over the raw body, which it stores for indexing and returns in the `201 Created` response, but that is a content digest of the bytes as received — it is independent of chain construction and is not a signature or linkage check.
+
+This has two important operational consequences:
+
+1. **Chain verification is the auditor's job, not the collector's.** Auditors verify chains using only the agent's public key. They never need to trust the collector operator. This is what makes multi-tenant collector infrastructure safe — tenants can share a collector without trusting each other or the operator. Use the verifier tooling (`obsigna receipt verify`, documented in [CLI Commands](/reference/cli-commands/)) to verify chains independently of the collector.
+
+2. **A compromised collector cannot forge or alter receipts, but it can drop them.** If a collector is compromised or selectively drops receipts, the resulting chain will have gaps. The SDK's `WALEmitter` surfaces undelivered receipts; the verifier will flag a chain with missing sequence numbers. Receipts where a tool call occurred but no `tool_result` was delivered are classified as `incomplete_tool_roundtrip` by the verifier (see [ADR-0019 §O3](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0019-protocol-integrity-gaps-and-mitigations.md)), distinguishing deliberate omission from a normal chain gap.
+
+In short: the collector's role is delivery and storage. Correctness — whether a chain is complete, unforged, and attributable to the right agent — is enforced cryptographically by the agent's signing key and verified by auditors offline.
+
+## References
+
+- [ADR-0020 — Emitter abstraction and remote receipt delivery](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0020-emitter-abstraction-and-remote-receipt-delivery.md)
+- [ADR-0019 — Protocol integrity gaps and mitigations](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0019-protocol-integrity-gaps-and-mitigations.md)
+- [Collector README](https://github.com/agent-receipts/obsigna/blob/main/collector/README.md) — wire contract, validation scope, configuration flags
+- [Ephemeral Compute Deployment](/deployment/ephemeral-compute/) — adopter-side guide for SDK emitter configuration
+- [CLI Commands](/reference/cli-commands/) — verifier tooling (`obsigna receipt verify`)

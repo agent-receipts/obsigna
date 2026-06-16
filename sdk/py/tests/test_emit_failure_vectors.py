@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agent_receipts.daemon_emitter import DaemonEmitter, EmitTransportError
+from obsigna.daemon_emitter import DaemonEmitter, EmitTransportError
 
 if TYPE_CHECKING:
     from collections.abc import Callable

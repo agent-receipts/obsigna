@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from agent_receipts.receipt.signing import generate_key_pair
-from agent_receipts.receipt.types import (
+from obsigna.receipt.signing import generate_key_pair
+from obsigna.receipt.types import (
     CONTEXT,
     CREDENTIAL_TYPE,
     VERSION,

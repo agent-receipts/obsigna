@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from agent_receipts import DAEMON_PROTOCOL_RANGE, DaemonProtocolRange
-from agent_receipts.daemon_emitter import SUPPORTED_FRAME_VERSION
+from obsigna import DAEMON_PROTOCOL_RANGE, DaemonProtocolRange
+from obsigna.daemon_emitter import SUPPORTED_FRAME_VERSION
 
 
 def test_range_is_well_formed() -> None:

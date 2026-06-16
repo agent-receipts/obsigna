@@ -13,8 +13,8 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-from agent_receipts.aws import KMSSigner, KMSSignerError
-from agent_receipts.aws.kms import MESSAGE_TYPE, SIGNING_ALGORITHM
+from obsigna.aws import KMSSigner, KMSSignerError
+from obsigna.aws.kms import MESSAGE_TYPE, SIGNING_ALGORITHM
 from tests.aws.conftest import MockKMSClient
 
 TEST_KEY_ID = "arn:aws:kms:us-east-1:111122223333:key/test-ed25519"

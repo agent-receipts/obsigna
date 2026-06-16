@@ -44,7 +44,7 @@ def test_directive_attaches_to_next_block() -> None:
     text = """
 <!-- snippet-check: skip -->
 ```python
-from agent_receipts import x
+from obsigna import x
 ```
 """
     (block,) = extract.parse_blocks(text)
@@ -56,7 +56,7 @@ def test_directive_broken_by_intervening_prose() -> None:
 <!-- snippet-check: continues -->
 some prose here
 ```python
-from agent_receipts import x
+from obsigna import x
 ```
 """
     (block,) = extract.parse_blocks(text)
@@ -76,7 +76,7 @@ def test_unknown_directive_clears_pending_directive() -> None:
 <!-- snippet-check: continues -->
 <!-- snippet-check: bogus -->
 ```python
-from agent_receipts import x
+from obsigna import x
 ```
 """
     (block,) = extract.parse_blocks(text)
@@ -90,7 +90,7 @@ print("no sdk here")
 ```
 
 ```python
-from agent_receipts import create_receipt
+from obsigna import create_receipt
 create_receipt()
 ```
 """
@@ -102,13 +102,13 @@ create_receipt()
 def test_continues_concatenates_onto_previous() -> None:
     text = """
 ```python
-from agent_receipts import create_receipt
+from obsigna import create_receipt
 receipt = create_receipt()
 ```
 
 <!-- snippet-check: continues -->
 ```python
-from agent_receipts import verify_receipt
+from obsigna import verify_receipt
 verify_receipt(receipt)
 ```
 """
@@ -122,13 +122,13 @@ verify_receipt(receipt)
 def test_skip_excludes_block_and_breaks_chain() -> None:
     text = """
 ```python
-from agent_receipts import create_receipt
+from obsigna import create_receipt
 receipt = create_receipt()
 ```
 
 <!-- snippet-check: skip -->
 ```python
-from agent_receipts import verify_chain
+from obsigna import verify_chain
 verify_chain(receipts, key)
 ```
 """
@@ -243,7 +243,7 @@ def test_mdx_jsx_comment_directive() -> None:
     text = """
 {/* snippet-check: skip */}
 ```python
-from agent_receipts import x
+from obsigna import x
 ```
 """
     (block,) = extract.parse_blocks(text)
@@ -254,7 +254,7 @@ def test_mdx_jsx_comment_no_run() -> None:
     text = """
 {/* snippet-check: no-run */}
 ```typescript
-import { KMSSigner } from "@agnt-rcpt/sdk-ts";
+import { KMSSigner } from "@obsigna/sdk-ts";
 ```
 """
     (unit,) = extract.build_units("page.mdx", text, "ts")
@@ -269,7 +269,7 @@ def test_mismatched_comment_delimiters_are_not_directives() -> None:
         text = f"""
 {opener} snippet-check: skip {closer}
 ```python
-from agent_receipts import create_receipt
+from obsigna import create_receipt
 create_receipt()
 ```
 """
@@ -278,7 +278,7 @@ create_receipt()
 
 
 def test_default_unit_is_runnable() -> None:
-    text = "```python\nfrom agent_receipts import create_receipt\ncreate_receipt()\n```\n"
+    text = "```python\nfrom obsigna import create_receipt\ncreate_receipt()\n```\n"
     (unit,) = extract.build_units("R.md", text, "py")
     assert unit.run is True
 
@@ -289,7 +289,7 @@ def test_no_run_directive_marks_unit_not_runnable() -> None:
     text = """
 <!-- snippet-check: no-run -->
 ```python
-from agent_receipts.aws import KMSSigner
+from obsigna.aws import KMSSigner
 
 signer = KMSSigner("arn:aws:kms:...")
 ```
@@ -303,13 +303,13 @@ def test_no_run_block_is_not_excluded_like_skip() -> None:
     # A `skip` block disappears; a `no-run` block survives (just isn't run).
     text = """
 ```python
-from agent_receipts import create_receipt
+from obsigna import create_receipt
 receipt = create_receipt()
 ```
 
 <!-- snippet-check: no-run -->
 ```python
-from agent_receipts import KMSSigner
+from obsigna import KMSSigner
 KMSSigner("x")
 ```
 """
@@ -321,13 +321,13 @@ KMSSigner("x")
 def test_no_run_in_chain_taints_whole_unit() -> None:
     text = """
 ```python
-from agent_receipts import create_receipt
+from obsigna import create_receipt
 receipt = create_receipt()
 ```
 
 <!-- snippet-check: no-run -->
 ```python
-from agent_receipts import verify_receipt
+from obsigna import verify_receipt
 verify_receipt(receipt)
 ```
 """
@@ -341,7 +341,7 @@ def test_continues_chain_inherits_no_run() -> None:
     text = """
 <!-- snippet-check: no-run -->
 ```python
-from agent_receipts import HttpEmitter
+from obsigna import HttpEmitter
 http = HttpEmitter()
 ```
 

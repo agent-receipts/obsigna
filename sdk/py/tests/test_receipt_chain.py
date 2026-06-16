@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agent_receipts import (
+from obsigna import (
     ChainEmitInput,
     InMemoryEmitter,
     ReceiptChain,
@@ -17,11 +17,11 @@ from agent_receipts import (
     hash_receipt,
     verify_chain,
 )
-from agent_receipts.receipt.create import ActionInput
-from agent_receipts.receipt.types import AgentReceipt, Issuer, Outcome, Principal
+from obsigna.receipt.create import ActionInput
+from obsigna.receipt.types import AgentReceipt, Issuer, Outcome, Principal
 
 if TYPE_CHECKING:
-    from agent_receipts.emitters.types import Emitter
+    from obsigna.emitters.types import Emitter
 
 _KEYS = generate_key_pair()
 _VERIFICATION_METHOD = "did:agent:test#key-1"
@@ -129,7 +129,7 @@ def test_no_warning_when_called_sequentially(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     chain = _make_chain()
-    with caplog.at_level(logging.WARNING, logger="agent_receipts.receipt_chain"):
+    with caplog.at_level(logging.WARNING, logger="obsigna.receipt_chain"):
         chain.emit(_make_input("/a"))
         chain.emit(_make_input("/b"))
     assert "concurrent emit()" not in caplog.text
@@ -147,7 +147,7 @@ def test_serialises_concurrent_emits_and_warns(
         for i in range(n)
     ]
 
-    with caplog.at_level(logging.WARNING, logger="agent_receipts.receipt_chain"):
+    with caplog.at_level(logging.WARNING, logger="obsigna.receipt_chain"):
         for t in threads:
             t.start()
         # Wait until the warning has fired — proof that ≥2 emits overlapped —

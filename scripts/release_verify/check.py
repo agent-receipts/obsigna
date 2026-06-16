@@ -8,8 +8,8 @@ install exactly that version".
 
 Two properties this gate asserts (ADR-0024 D1/D2):
 
-  1. Version identity — `pip install agent-receipts==X.Y.Z`, `npm install
-     @agnt-rcpt/sdk-ts@X.Y.Z`, or `go get ...@vX.Y.Z` resolves to exactly
+  1. Version identity — `pip install obsigna==X.Y.Z`, `npm install
+     @obsigna/sdk-ts@X.Y.Z`, or `go get ...@vX.Y.Z` resolves to exactly
      the tagged version, not a redirect, yank-substitute, or nearest match.
 
   2. Installability — the artifact is fetchable in a clean environment.
@@ -45,8 +45,8 @@ import time
 # ---------------------------------------------------------------------------
 
 GO_MODULE = "github.com/agent-receipts/ar/sdk/go"
-TS_PACKAGE = "@agnt-rcpt/sdk-ts"
-PY_PACKAGE = "agent-receipts"
+TS_PACKAGE = "@obsigna/sdk-ts"
+PY_PACKAGE = "obsigna"
 
 # How many times to retry a registry fetch before failing. The public
 # registries have occasional propagation lag after a new version is pushed;
@@ -101,7 +101,7 @@ def _parse_pip_show_version(output: str) -> str | None:
 
 
 def verify_py(version: str, workdir: str) -> int:
-    """Install agent-receipts==version from PyPI and confirm the resolved version."""
+    """Install obsigna==version from PyPI and confirm the resolved version."""
     venv = os.path.join(workdir, "venv")
     if _run([sys.executable, "-m", "venv", venv], cwd=workdir).returncode != 0:
         return 1
@@ -144,7 +144,7 @@ def _parse_npm_list_version(output: str, package: str) -> str | None:
 
 
 def verify_ts(version: str, workdir: str) -> int:
-    """Install @agnt-rcpt/sdk-ts@version from npm and confirm the resolved version."""
+    """Install @obsigna/sdk-ts@version from npm and confirm the resolved version."""
     package_json = {
         "name": "release-verify",
         "private": True,

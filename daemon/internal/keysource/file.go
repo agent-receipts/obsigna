@@ -144,10 +144,6 @@ func (f *File) PublicKey() (string, error) {
 // VerificationMethod returns the configured verification-method ID.
 func (f *File) VerificationMethod() string { return f.VerificationMethodID }
 
-// Rotate is a stub. ADR-0015 specifies the rotation contract; Phase 1 does
-// not implement it.
-func (f *File) Rotate() error { return ErrNotImplemented }
-
 // Teardown wipes the in-memory key.
 func (f *File) Teardown() error {
 	if f.priv != nil {

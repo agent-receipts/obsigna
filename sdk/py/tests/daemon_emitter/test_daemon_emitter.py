@@ -1,8 +1,8 @@
 """Tests for the fire-and-forget emitter (ADR-0010).
 
-End-to-end tests start the agent-receipts-daemon as a subprocess.  The
+End-to-end tests start the obsigna-daemon as a subprocess.  The
 daemon binary is resolved via the AGENT_RECEIPTS_DAEMON env var, falling
-back to /tmp/agent-receipts-daemon.
+back to /tmp/obsigna-daemon.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from agent_receipts.daemon_emitter import (
+from obsigna.daemon_emitter import (
     DaemonEmitter,
     EmitTransportError,
     default_socket_path,
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 _DAEMON_BIN = os.environ.get(
     "AGENT_RECEIPTS_DAEMON",
-    "/tmp/agent-receipts-daemon",
+    "/tmp/obsigna-daemon",
 )
 
 _DAEMON_AVAILABLE = Path(_DAEMON_BIN).is_file() and os.access(_DAEMON_BIN, os.X_OK)
@@ -191,7 +191,7 @@ def daemon() -> Iterator[DaemonHandle]:
 _DAEMON_SKIP_REASON = (
     f"daemon binary not found at {_DAEMON_BIN}; "
     "build with: cd daemon && go build"
-    " -o /tmp/agent-receipts-daemon ./cmd/agent-receipts-daemon"
+    " -o /tmp/obsigna-daemon ./cmd/obsigna-daemon"
     " (or set AGENT_RECEIPTS_DAEMON to a custom path)"
 )
 requires_daemon = pytest.mark.skipif(not _DAEMON_AVAILABLE, reason=_DAEMON_SKIP_REASON)

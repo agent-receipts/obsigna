@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -140,6 +141,50 @@ func TestBuildPeerCred(t *testing.T) {
 	}
 }
 
+// TestPrincipalFromPeer covers derivation of the receipt principal from
+// kernel-attested peer credentials: a resolvable uid yields the host login name
+// (did:user:<login>); an unresolvable uid falls back to the numeric
+// did:user:<platform>:<uid> (the attested uid is never lost, including root);
+// and platforms with no POSIX uid — or an absent peer — fall back to the
+// did:user:unknown sentinel. lookupUID is stubbed so the test is deterministic
+// regardless of the host user database.
+func TestPrincipalFromPeer(t *testing.T) {
+	orig := lookupUID
+	t.Cleanup(func() { lookupUID = orig })
+
+	resolves := func(uid string) (*user.User, error) {
+		return &user.User{Uid: uid, Username: "ottojongerius", Name: "Otto Jongerius"}, nil
+	}
+	emptyName := func(uid string) (*user.User, error) {
+		return &user.User{Uid: uid, Username: ""}, nil
+	}
+	notFound := func(uid string) (*user.User, error) {
+		return nil, user.UnknownUserIdError(0)
+	}
+
+	cases := []struct {
+		name   string
+		lookup func(string) (*user.User, error)
+		peer   socket.PeerCred
+		want   string
+	}{
+		{"resolvable uid yields login name", resolves, socket.PeerCred{Platform: "darwin", PID: 99, UID: 501, GID: 20}, "did:user:ottojongerius"},
+		{"unresolvable uid falls back to numeric", notFound, socket.PeerCred{Platform: "linux", PID: 42, UID: 1000, GID: 1000}, "did:user:linux:1000"},
+		{"empty resolved name falls back to numeric", emptyName, socket.PeerCred{Platform: "darwin", PID: 7, UID: 501, GID: 20}, "did:user:darwin:501"},
+		{"unresolvable root (uid=0 attested, not unknown)", notFound, socket.PeerCred{Platform: "linux", PID: 1, UID: 0, GID: 0}, "did:user:linux:0"},
+		{"non-POSIX platform falls back to unknown", notFound, socket.PeerCred{Platform: "windows", PID: 7}, "did:user:unknown"},
+		{"absent peer falls back to unknown", notFound, socket.PeerCred{}, "did:user:unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			lookupUID = tc.lookup
+			if got := principalFromPeer(tc.peer).ID; got != tc.want {
+				t.Errorf("principalFromPeer(%+v).ID = %q, want %q", tc.peer, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestProcess_BuildsSignedReceipt(t *testing.T) {
 	ks := newTestKeySource(t)
 	st := newTestStore(t)
@@ -180,6 +225,13 @@ func TestProcess_BuildsSignedReceipt(t *testing.T) {
 	}
 	if pc.ExePath != "/usr/bin/mcp-proxy" {
 		t.Errorf("peer_credential.exe_path = %q", pc.ExePath)
+	}
+	// Principal must be derived from the kernel-attested peer uid (sampleFrame's
+	// peer is uid 1000), not the did:user:unknown sentinel. Exact formatting —
+	// resolved login name vs numeric fallback — is covered by TestPrincipalFromPeer;
+	// here we only assert the wiring derives something from the peer.
+	if got := r.CredentialSubject.Principal.ID; got == "did:user:unknown" || !strings.HasPrefix(got, "did:user:") {
+		t.Errorf("principal.id = %q, want a peer-derived did:user:* (not the unknown sentinel)", got)
 	}
 	// Live receipts MUST NOT carry the synthetic emitter_metadata block —
 	// drop_count belongs to events_dropped synthetic receipts only.
@@ -718,7 +770,6 @@ func (panicSigningKeySource) Init() error                { return nil }
 func (panicSigningKeySource) Teardown() error            { return nil }
 func (panicSigningKeySource) PublicKey() (string, error) { return "", nil }
 func (panicSigningKeySource) VerificationMethod() string { return "did:test#k1" }
-func (panicSigningKeySource) Rotate() error              { return nil }
 func (panicSigningKeySource) Sign(_ []byte) ([]byte, error) {
 	panic("simulated panic during signing")
 }
@@ -1658,6 +1709,71 @@ func agentFrame(t *testing.T, agentID string) socket.Frame {
 	return socket.Frame{Payload: body}
 }
 
+// TestProcess_RuntimeModelUsageOnRootReceipt verifies that the transcript-
+// derived model/usage/capture_method fields on a frame are stamped onto
+// issuer.runtime — even on a ROOT receipt with no agent_id, which historically
+// carried no runtime. Usage is forwarded verbatim, and the receipt round-trips
+// through HashReceipt so a dropped runtime key would fail the hash.
+func TestProcess_RuntimeModelUsageOnRootReceipt(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("root")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+
+	usage := json.RawMessage(`{"input_tokens":1954,"output_tokens":392,"cache_read_input_tokens":0,"cache_creation_input_tokens":16762}`)
+	body, err := json.Marshal(EmitterFrame{
+		Version:       "1",
+		TsEmit:        "2026-05-03T00:00:00Z",
+		SessionID:     "sess-abc",
+		Channel:       "claude-code",
+		Tool:          EmitterTool{Name: "Bash"},
+		Decision:      "allowed",
+		Model:         "claude-opus-4-8",
+		Usage:         usage,
+		CaptureMethod: "transcript",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	receipts, err := st.GetChain("root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts, want 1", len(receipts))
+	}
+	rt := receipts[0].Issuer.Runtime
+	if rt == nil {
+		t.Fatal("issuer.runtime is nil; want model/usage/capture_method on a root receipt")
+	}
+	if rt.AgentID != "" {
+		t.Errorf("runtime.agent_id = %q; want empty on a root receipt", rt.AgentID)
+	}
+	if rt.Model != "claude-opus-4-8" {
+		t.Errorf("runtime.model = %q; want claude-opus-4-8", rt.Model)
+	}
+	if rt.CaptureMethod != "transcript" {
+		t.Errorf("runtime.capture_method = %q; want transcript", rt.CaptureMethod)
+	}
+	var got map[string]int
+	if err := json.Unmarshal(rt.Usage, &got); err != nil {
+		t.Fatalf("runtime.usage is not an object: %v (%s)", err, rt.Usage)
+	}
+	if got["input_tokens"] != 1954 || got["output_tokens"] != 392 || got["cache_creation_input_tokens"] != 16762 {
+		t.Errorf("runtime.usage = %v; want the verbatim token object", got)
+	}
+
+	// The signed receipt must re-hash to a stable value through the typed
+	// Runtime struct (the open-container round-trip invariant from ADR-0026).
+	if _, err := receipt.HashReceipt(receipts[0]); err != nil {
+		t.Fatalf("HashReceipt on a runtime-bearing receipt: %v", err)
+	}
+}
+
 // TestProcess_AgentIDRoutesToSeparateChain verifies that frames with a non-empty
 // agent_id land on a per-agent chain distinct from the root chain.
 func TestProcess_AgentIDRoutesToSeparateChain(t *testing.T) {
@@ -2002,4 +2118,137 @@ func TestEmitTerminator_TerminatesAgentChains(t *testing.T) {
 			t.Errorf("chain %q tail is not terminal", chainID)
 		}
 	}
+}
+
+// TestProcess_TargetResourcePopulatesActionTarget verifies that TargetSystem and
+// TargetResource in the emitter frame flow through into action.target on the
+// signed receipt.
+func TestProcess_TargetResourcePopulatesActionTarget(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("root")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+
+	body, err := json.Marshal(EmitterFrame{
+		Version:        "1",
+		TsEmit:         "2026-05-03T00:00:00Z",
+		SessionID:      "sess-target",
+		Channel:        "claude-code",
+		Tool:           EmitterTool{Name: "Read"},
+		Decision:       "allowed",
+		TargetSystem:   "filesystem",
+		TargetResource: "/home/user/project/main.go",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	receipts, err := st.GetChain("root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts; want 1", len(receipts))
+	}
+	target := receipts[0].CredentialSubject.Action.Target
+	if target == nil {
+		t.Fatal("action.target is nil; want populated")
+	}
+	if target.System != "filesystem" {
+		t.Errorf("action.target.system = %q; want filesystem", target.System)
+	}
+	if target.Resource != "/home/user/project/main.go" {
+		t.Errorf("action.target.resource = %q; want /home/user/project/main.go", target.Resource)
+	}
+}
+
+// TestProcess_NoTargetLeavesActionTargetNil verifies that a frame with no
+// TargetSystem/TargetResource leaves action.target nil.
+func TestProcess_NoTargetLeavesActionTargetNil(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("root")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+
+	if err := p.Process(sampleFrame(t)); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	receipts, err := st.GetChain("root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts; want 1", len(receipts))
+	}
+	if target := receipts[0].CredentialSubject.Action.Target; target != nil {
+		t.Errorf("action.target = %+v; want nil", *target)
+	}
+}
+
+// TestValidateFrame_RejectsOversizeTargetSystem verifies that validateFrame rejects
+// a target_system value exceeding maxIdentityFieldLen bytes.
+func TestValidateFrame_RejectsOversizeTargetSystem(t *testing.T) {
+	f := &EmitterFrame{
+		Version:        "1",
+		TsEmit:         "2026-06-12T00:00:00Z",
+		SessionID:      "s",
+		Channel:        "claude-code",
+		Tool:           EmitterTool{Name: "Read"},
+		Decision:       "allowed",
+		TargetSystem:   strings.Repeat("x", maxIdentityFieldLen+1),
+		TargetResource: "/etc/hosts",
+	}
+	if err := validateFrame(f); err == nil {
+		t.Error("validateFrame accepted an oversize target_system; want rejection")
+	}
+}
+
+// TestValidateFrame_RejectsOversizeTargetResource verifies that validateFrame rejects
+// a target_resource value exceeding maxTargetResourceLen bytes.
+func TestValidateFrame_RejectsOversizeTargetResource(t *testing.T) {
+	f := &EmitterFrame{
+		Version:        "1",
+		TsEmit:         "2026-06-12T00:00:00Z",
+		SessionID:      "s",
+		Channel:        "claude-code",
+		Tool:           EmitterTool{Name: "Read"},
+		Decision:       "allowed",
+		TargetSystem:   "filesystem",
+		TargetResource: strings.Repeat("x", maxTargetResourceLen+1),
+	}
+	if err := validateFrame(f); err == nil {
+		t.Error("validateFrame accepted an oversize target_resource; want rejection")
+	}
+}
+
+// TestValidateFrame_RejectsHalfPopulatedTarget verifies that validateFrame rejects
+// frames where only one of target_system/target_resource is set.
+func TestValidateFrame_RejectsHalfPopulatedTarget(t *testing.T) {
+	base := EmitterFrame{
+		Version:   "1",
+		TsEmit:    "2026-06-12T00:00:00Z",
+		SessionID: "s",
+		Channel:   "claude-code",
+		Tool:      EmitterTool{Name: "Read"},
+		Decision:  "allowed",
+	}
+
+	t.Run("system without resource", func(t *testing.T) {
+		f := base
+		f.TargetSystem = "filesystem"
+		if err := validateFrame(&f); err == nil {
+			t.Error("validateFrame accepted target_system without target_resource; want rejection")
+		}
+	})
+	t.Run("resource without system", func(t *testing.T) {
+		f := base
+		f.TargetResource = "/etc/hosts"
+		if err := validateFrame(&f); err == nil {
+			t.Error("validateFrame accepted target_resource without target_system; want rejection")
+		}
+	})
 }

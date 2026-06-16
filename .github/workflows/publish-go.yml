@@ -100,7 +100,7 @@ jobs:
           '
 
       - run: go vet ./...
-      - run: go build ./cmd/agent-receipts-hook
+      - run: go build ./cmd/...
       - run: go test ./...
 
       - name: Request pkg.go.dev indexing
@@ -143,7 +143,10 @@ jobs:
       - name: Build with version
         run: |
           VERSION="${GITHUB_REF_NAME#mcp-proxy/}"
-          go build -ldflags "-X main.version=${VERSION}" ./cmd/mcp-proxy
+          # Validate version stamping on the primary binary, obsigna-mcp
+          # (ADR-0033). cmd/mcp-proxy is now the deprecation shim and carries no
+          # main.version symbol, so stamping it would no-op silently.
+          go build -ldflags "-X main.version=${VERSION}" ./cmd/obsigna-mcp
           go build ./...
       - run: go test ./...
 

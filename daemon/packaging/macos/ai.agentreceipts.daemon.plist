@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<!-- User-level LaunchAgent for agent-receipts-daemon.
+<!-- User-level LaunchAgent for obsigna-daemon.
 
      Install (macOS Monterey+):
        1. Create the log directory:
@@ -12,7 +12,7 @@
               sed "s|/Users/YOUR_USERNAME|$HOME|g" ai.agentreceipts.daemon.plist \
                 > ~/Library/LaunchAgents/ai.agentreceipts.daemon.plist
        4. Run the one-time key initialisation:
-              agent-receipts-daemon --init
+              obsigna-daemon --init
        5. Load the agent:
               launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.agentreceipts.daemon.plist
 
@@ -32,8 +32,8 @@
 
     <key>ProgramArguments</key>
     <array>
-        <!-- Apple Silicon Homebrew path. Intel: /usr/local/bin/agent-receipts-daemon -->
-        <string>/opt/homebrew/bin/agent-receipts-daemon</string>
+        <!-- Apple Silicon Homebrew path. Intel: /usr/local/bin/obsigna-daemon -->
+        <string>/opt/homebrew/bin/obsigna-daemon</string>
     </array>
 
     <!-- Restart on crash or non-zero exit; do not restart on clean exit.

@@ -1,6 +1,6 @@
 # @agent-receipts/opencode-plugin
 
-[OpenCode](https://opencode.ai) plugin for [Agent Receipts](https://github.com/agent-receipts/ar). Emits one cryptographically signed receipt per **native** tool call (`bash`, `edit`, `write`, `webfetch`, …) by forwarding each call to `agent-receipts-daemon` over a Unix-domain socket. The daemon — not this plugin — holds the key, canonicalises, signs, and chains the receipt.
+[OpenCode](https://opencode.ai) plugin for [Agent Receipts](https://github.com/agent-receipts/obsigna). Emits one cryptographically signed receipt per **native** tool call (`bash`, `edit`, `write`, `webfetch`, …) by forwarding each call to `agent-receipts-daemon` over a Unix-domain socket. The daemon — not this plugin — holds the key, canonicalises, signs, and chains the receipt.
 
 This is the OpenCode analog of the [`agent-receipts-hook`](../../hook/) Claude Code integration, covering the native-tool channel. MCP tool calls are covered separately by [`mcp-proxy`](../../mcp-proxy/).
 
@@ -22,7 +22,7 @@ Register it as an OpenCode plugin in `opencode.json`:
 }
 ```
 
-Requires `agent-receipts-daemon` to be running. See the [OpenCode docs](https://agentreceipts.ai/opencode/overview/) for the full Tier A + Tier B walkthrough and an end-to-end `agent-receipts verify` example.
+Requires `agent-receipts-daemon` to be running. See the [OpenCode docs](https://obsigna.dev/opencode/overview/) for the full Tier A + Tier B walkthrough and an end-to-end `agent-receipts verify` example.
 
 ## Configuration
 
@@ -45,7 +45,7 @@ Default is catch-and-warn: a tool call is **never** aborted because the daemon i
 ## Development
 
 ```sh
-pnpm install   # installs deps; @agnt-rcpt/sdk-ts is linked from ../../sdk/ts
+pnpm install   # installs deps; @obsigna/sdk-ts is linked from ../../sdk/ts
 pnpm build     # tsc → dist/
 pnpm test      # vitest
 pnpm typecheck # tsc --noEmit

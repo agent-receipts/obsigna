@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agent_receipts.emitters import (
+from obsigna.emitters import (
     ApiKeyAuth,
     BearerAuth,
     EmitError,
@@ -307,7 +307,7 @@ def test_http_url_warns_on_construction(caplog: object) -> None:
     import logging
 
     caplog.set_level(  # type: ignore[attr-defined]
-        logging.WARNING, logger="agent_receipts.emitters.http"
+        logging.WARNING, logger="obsigna.emitters.http"
     )
     HttpEmitter(HttpEmitterConfig(endpoint="http://example.com/receipts"))
     msgs = [r.getMessage() for r in caplog.records]  # type: ignore[attr-defined]
@@ -318,7 +318,7 @@ def test_https_url_does_not_warn(caplog: object) -> None:
     import logging
 
     caplog.set_level(  # type: ignore[attr-defined]
-        logging.WARNING, logger="agent_receipts.emitters.http"
+        logging.WARNING, logger="obsigna.emitters.http"
     )
     HttpEmitter(HttpEmitterConfig(endpoint="https://example.com/receipts"))
     msgs = [r.getMessage() for r in caplog.records]  # type: ignore[attr-defined]

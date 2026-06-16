@@ -1,0 +1,68 @@
+---
+title: Installation
+description: Install and run the Agent Receipts Dashboard.
+---
+
+## Homebrew (macOS, Linux)
+
+```sh
+brew install agent-receipts/tap/dashboard
+```
+
+## Prebuilt binaries
+
+Binaries for darwin/linux (amd64, arm64) are attached to each [GitHub release](https://github.com/agent-receipts/dashboard/releases).
+
+## Install with Go
+
+```sh
+go install github.com/agent-receipts/dashboard/cmd/dashboard@latest
+```
+
+## Build from source
+
+```sh
+git clone https://github.com/agent-receipts/dashboard.git
+cd dashboard
+make build
+```
+
+## Usage
+
+The dashboard is read-only — it visualises an existing receipt database, it does not create one. If you were handed a colleague's `receipts.db`, point at it with `-db`. To produce one yourself, run the [daemon](/getting-started/daemon-setup/) and emit a receipt from any SDK (see the [Quick Start](/getting-started/quick-start/)) or wrap an MCP server with the [MCP proxy](/mcp-proxy/overview/); the daemon writes the store at the per-user path below.
+
+If you use the standard per-user path (`~/.local/share/agent-receipts/receipts.db`), no flags are needed:
+
+```sh
+dashboard
+```
+
+Then open [http://localhost:8080](http://localhost:8080) in your browser.
+
+If port 8080 is already in use, `dashboard` exits immediately with `bind: address already in use` — pass `-port <n>` to pick another (e.g. `dashboard -port 9090`).
+
+### Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-db` | `~/.local/share/agent-receipts/receipts.db` | Path to a receipt SQLite database |
+| `-host` | `127.0.0.1` | Address to bind the web server to |
+| `-port` | `8080` | Port to serve on |
+| `-poll-interval` | `5s` | How often to poll the database for new receipts (also set via `AR_DASHBOARD_POLL_INTERVAL`) |
+
+### Forensic decryption
+
+If the dashboard runs on a loopback address (the default) and a forensic key exists at `~/.local/share/agent-receipts/forensic.key`, it is loaded automatically and encrypted parameter disclosures are decrypted inline. You can also load a key from the UI. See the [overview](/dashboard/overview/#forensic-decryption) and the dashboard [README](https://github.com/agent-receipts/dashboard#forensic-decryption) for the security model and accepted key formats.
+
+### Example
+
+```sh
+# Standard local install — no flags required
+dashboard
+
+# Point at a custom database
+dashboard -db ./receipts.db
+
+# Use a custom port
+dashboard -port 9090
+```

@@ -1,0 +1,30 @@
+---
+title: Configuration
+description: Configuration options for Agent Receipts SDKs and tooling.
+---
+
+## MCP Proxy
+
+The MCP Proxy is the primary configurable component. See the dedicated [MCP Proxy Configuration](/mcp-proxy/configuration/) page for:
+
+- CLI flags (database paths, signing keys, DIDs)
+- Policy rules (YAML format, actions, matching)
+- Risk scoring and operation classification
+- Approval workflows
+- Data redaction and encryption at rest
+
+## Taxonomy mappings
+
+All SDKs and the MCP Proxy accept a taxonomy mappings file that maps tool names to action types:
+
+```json
+{
+  "mappings": [
+    { "tool_name": "read_file", "action_type": "filesystem.file.read" },
+    { "tool_name": "write_file", "action_type": "filesystem.file.modify" },
+    { "tool_name": "exec_command", "action_type": "system.command.execute" }
+  ]
+}
+```
+
+See the [Action Taxonomy](https://agentreceipts.ai/specification/action-taxonomy/) specification for the full list of built-in action types.

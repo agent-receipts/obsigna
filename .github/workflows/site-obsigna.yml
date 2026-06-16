@@ -1,0 +1,60 @@
+name: Site (obsigna.dev)
+
+on:
+  push:
+    branches: [main]
+    # The blog source of truth lives in site/; sync-blog.mjs mirrors it into
+    # this site at build time. Without site/blog paths here, a blog-only edit
+    # never retriggers an obsigna.dev rebuild, leaving the mirror stale.
+    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, sdk/ts/**, sdk/py/**, mcp-proxy/**, hook/**]
+  pull_request:
+    branches: [main]
+    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**]
+  # Manual rebuild — e.g. to resync the blog mirror after a missed trigger.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize deploys per ref so a slower older run can't finish last and
+# overwrite obsigna.dev with stale output.
+concurrency:
+  group: site-obsigna-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: site-obsigna
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+
+      - name: Install pnpm
+        run: corepack enable && corepack install
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium (for mermaid rendering)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Deploy to obsigna-site gh-pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          personal_token: ${{ secrets.OBSIGNA_SITE_DEPLOY_PAT }}
+          external_repository: agent-receipts/obsigna-site
+          publish_dir: site-obsigna/dist
+          cname: obsigna.dev

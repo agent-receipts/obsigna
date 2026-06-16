@@ -1,0 +1,145 @@
+---
+title: Windsurf Integration
+description: How to route Windsurf (Cascade) MCP servers through the Agent Receipts proxy for cryptographic audit trails.
+---
+
+Windsurf's Cascade assistant connects to MCP servers defined in `~/.codeium/windsurf/mcp_config.json`. The Agent Receipts proxy wraps any MCP server transparently — Windsurf doesn't know or care that the proxy is there.
+
+:::note[Approval workflow]
+The default policy includes a `pause_high_risk` rule. If the proxy runs without `-http`, the listener is off and paused calls fail fast with `-32003`. To approve high-risk calls interactively, pass `-http 127.0.0.1:<port>` and run an approver — see [Approval Server](/mcp-proxy/approval-ui/).
+:::
+
+:::danger[Never put secrets in mcp_config.json]
+`~/.codeium/windsurf/mcp_config.json` is plaintext on disk. Anything you write into an `env` block is stored verbatim. Do **not** put a real token, API key, or other credential there. Use a secret-manager wrapper (`op run`, `aws-vault exec`, …) or an OS keychain launcher script — both are documented below.
+:::
+
+## Prerequisites
+
+- [mcp-proxy installed](/mcp-proxy/installation/)
+- [`obsigna-daemon` installed, initialised, and running](/getting-started/daemon-setup/) — it holds the signing key and writes every receipt
+- Windsurf installed
+- The MCP server you want to audit. The examples below wrap GitHub's official MCP server:
+
+  ```bash
+  brew install github-mcp-server
+  ```
+
+  This puts a `github-mcp-server` binary on your `$PATH`. Verify with `which github-mcp-server`.
+
+## Start the daemon
+
+The proxy holds no signing key of its own — `obsigna-daemon` owns the key and writes every receipt ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). Initialise the key once and start the daemon before launching Windsurf:
+
+```bash
+obsigna-daemon --init   # one-time: generates the Ed25519 signing key pair
+obsigna-daemon          # start the daemon (listens on a Unix socket)
+```
+
+The proxy reaches the daemon over its default platform socket automatically. See [Daemon Setup](/getting-started/daemon-setup/) for install options and socket paths.
+
+## Configure mcp_config.json
+
+In the Cascade panel, open the MCP/plugins controls and choose **View raw config** to open `~/.codeium/windsurf/mcp_config.json` (you can also edit the file directly). The format uses a top-level `mcpServers` key.
+
+Windsurf launches MCP servers without your shell's `PATH`, so use absolute paths. Print them first:
+
+```bash
+echo "op:     $(which op)"
+echo "proxy:  $(which mcp-proxy)"
+echo "server: $(which github-mcp-server)"
+```
+
+### Recommended: secret manager (`op run`, `aws-vault exec`, …)
+
+Install the 1Password CLI (`brew install 1password-cli`), sign in (`op signin`), and create a referenced env file:
+
+```ini
+# ~/.local/share/agent-receipts/mcp.env  (chmod 600)
+GITHUB_PERSONAL_ACCESS_TOKEN=op://Personal/GitHub/token
+```
+
+Point Windsurf at `op run` — it resolves the `op://` reference at exec time and injects the value into `mcp-proxy`'s env without writing it to `mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "github-audited": {
+      "command": "/opt/homebrew/bin/op",
+      "args": [
+        "run",
+        "--env-file=/Users/YOU/.local/share/agent-receipts/mcp.env",
+        "--",
+        "/Users/YOU/go/bin/mcp-proxy",
+        "-name", "github",
+        "-issuer-name", "Windsurf",
+        "-operator-id", "did:web:windsurf.com",
+        "-operator-name", "Windsurf",
+        "/opt/homebrew/bin/github-mcp-server", "stdio"
+      ]
+    }
+  }
+}
+```
+
+`aws-vault exec`, `chamber exec` (AWS Parameter Store), and `direnv` with `op://` references all follow the same wrapping pattern.
+
+### Fallback: OS keychain launcher script
+
+If you don't have a secret manager, reuse the launcher script from [Claude Desktop's keychain fallback](/mcp-proxy/claude-desktop/#fallback-os-keychain-launcher-script) (one script works across clients). Point `command` at the launcher and drop the env block — the script sets `GITHUB_PERSONAL_ACCESS_TOKEN` from the keychain:
+
+```json
+{
+  "mcpServers": {
+    "github-audited": {
+      "command": "/Users/YOU/.local/share/agent-receipts/run-mcp-proxy-github.sh",
+      "args": [
+        "-name", "github",
+        "-issuer-name", "Windsurf",
+        "-operator-id", "did:web:windsurf.com",
+        "-operator-name", "Windsurf",
+        "/opt/homebrew/bin/github-mcp-server", "stdio"
+      ]
+    }
+  }
+}
+```
+
+`-issuer-name`, `-operator-id`, and `-operator-name` stamp each signed receipt so you can tell which client made a given call when reviewing a shared store — setting `-issuer-name` to `Windsurf` here (and to `Claude Code`, `Codex`, etc. in the other guides) is what distinguishes them at audit time.
+
+Back in the Cascade MCP panel, click **Refresh** so Windsurf re-reads the config. The `github-audited` server should appear with the tools the proxied server exposes; use it from Cascade.
+
+## Verifying receipts
+
+The daemon signs and stores every tool call. After making calls through Windsurf, query and verify the store with the `agent-receipts` CLI (installed alongside the daemon). It opens the database read-only, so it is safe to run while the daemon is writing:
+
+```bash
+# List recent receipts (newest first)
+obsigna receipt list
+
+# Verify the chain's signatures and hash links
+obsigna receipt verify \
+  --public-key ~/.local/share/agent-receipts/signing.key.pub
+```
+
+```
+$ obsigna receipt list
+SEQ  TIMESTAMP             CHAIN       TOOL / ACTION TYPE
+4    2026-04-24T02:05:19Z  2026-04-24  get_file_contents
+3    2026-04-24T01:58:45Z  2026-04-24  create_or_update_file
+2    2026-04-24T01:56:12Z  2026-04-24  search_issues
+1    2026-04-24T01:45:07Z  2026-04-24  list_issues
+```
+
+`obsigna receipt verify` prints `Chain 2026-04-24: VALID (4 receipts)` when signatures and hash links are intact. Inspect a single receipt — including its action type, risk level, and parameters hash — with `obsigna receipt show <seq>`. See the [CLI reference](/reference/cli-commands/#obsigna) for all subcommands.
+
+## Gotchas
+
+**Absolute paths required.** Windsurf launches MCP servers with a clean `PATH`. Use the full path to `op`/`mcp-proxy` (find each with `which`) and the full path to the wrapped server binary.
+
+**Refresh after editing.** Windsurf reads `mcp_config.json` on demand — after editing the file, click **Refresh** in the Cascade MCP panel rather than expecting a live reload.
+
+**Keep the toolset focused.** Windsurf exposes a bounded number of MCP tools to Cascade at once; wrapping a server through the proxy doesn't change its tool count, but if you proxy several large servers, disable the ones you aren't using so Cascade sees the tools that matter.
+
+**No receipts appearing?** The daemon must be running *before* Windsurf starts the proxied server, or emits fail. Confirm with `pgrep obsigna-daemon`, and see the [daemon troubleshooting guide](/getting-started/daemon-setup/#troubleshooting). If you run the daemon on a non-default socket, set `AGENTRECEIPTS_SOCKET` for both the daemon and the proxy.
+
+**Want human-in-the-loop approvals? Opt in with `-http`.** The approval listener is off by default. Add `-http 127.0.0.1:<port>` to `args` and run an approver — see [Approval Server](/mcp-proxy/approval-ui/). Without it, a paused call fails immediately with `-32003`.

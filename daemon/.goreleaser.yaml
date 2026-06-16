@@ -1,6 +1,6 @@
 version: 2
 
-project_name: daemon
+project_name: obsigna
 
 # Disable the Go workspace so GoReleaser resolves dependencies strictly from
 # daemon/go.mod (published versions) rather than the in-tree ./sdk/go module
@@ -10,15 +10,40 @@ env:
 
 before:
   hooks:
+    # Prime the module cache for every module the unified build spans (ADR-0034
+    # PR 2). Each build below resolves its own go.mod with GOWORK=off, so every
+    # folded module needs its deps downloaded first: the bare `go mod download`
+    # covers daemon (the GoReleaser workdir); the dir-scoped hooks cover the
+    # folded mcp-proxy, collector, and hook modules.
     - go mod download
+    - sh -c "cd ../mcp-proxy && go mod download"
+    - sh -c "cd ../collector && go mod download"
+    - sh -c "cd ../hook && go mod download"
     - sh -c "cp ../LICENSE LICENSE"
 
+# Reproducible builds are an attestation requirement (ADR-0031), not a nicety:
+# auditors must independently rebuild obsigna-daemon and match the published
+# hash. Determinism comes from CGO_ENABLED=0 (no host toolchain bytes),
+# -trimpath (no absolute $GOPATH/working-dir paths baked in), a patch-pinned
+# toolchain (go.mod `toolchain`, consumed via go-version-file in CI), and
+# version stamping that derives only from the tag/commit — never wall-clock
+# time. mod_timestamp uses the commit timestamp so archive/file mtimes are a
+# function of the commit, not of when the release runner happened to build.
+# -buildvcs=false omits git VCS stamping: the `before` hook copies LICENSE into
+# daemon/ (an untracked file), which would otherwise flip go's vcs.modified and
+# make the released binary differ from a clean rebuild that has no such file.
+# Keep these obsigna-daemon flags in lockstep with daemon/scripts/reproducible-build.sh,
+# the shared script the Gate B reproducibility checks rebuild with (ADR-0031).
 builds:
-  - id: agent-receipts-daemon
-    main: ./cmd/agent-receipts-daemon
-    binary: agent-receipts-daemon
+  - id: obsigna-daemon
+    main: ./cmd/obsigna-daemon
+    binary: obsigna-daemon
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - darwin
       - linux
@@ -28,11 +53,178 @@ builds:
     ldflags:
       - -s -w -X main.version=v{{.Version}}
 
+  # The receipt CLI, renamed agent-receipts -> obsigna (ADR-0030). This is the
+  # primary CLI; the agent-receipts entry below is a thin deprecation shim that
+  # forwards to it.
+  - id: obsigna
+    main: ./cmd/obsigna
+    binary: obsigna
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+  # Deprecation shim: keeps `agent-receipts <cmd>` working by forwarding to
+  # obsigna with a one-line stderr notice. Ships alongside obsigna so existing
+  # scripts/CI keep running through the rename.
   - id: agent-receipts
     main: ./cmd/agent-receipts
     binary: agent-receipts
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+  # ---------------------------------------------------------------------------
+  # Folded-in toolset binaries (ADR-0034 PR 2): obsigna-mcp, obsigna-collector,
+  # and obsigna-hook live in sibling Go modules (../mcp-proxy, ../collector,
+  # ../hook), so each build sets `dir:` to its module and `main:` relative to
+  # it. The global GOWORK=off makes every build resolve its own go.mod's
+  # published deps (not the in-tree ./sdk/go wired by the repo-root go.work),
+  # matching the per-binary reproducible-build.sh scripts the release attest
+  # rebuilds with. The same determinism flags (CGO off, -trimpath,
+  # -buildvcs=false, commit-timestamped) carry over per build (ADR-0033/0035/0036).
+  # ---------------------------------------------------------------------------
+
+  # The MCP stdio proxy (ADR-0032/0033), launched via `obsigna mcp run`. Primary
+  # binary; the mcp-proxy entry below is its deprecation shim.
+  - id: obsigna-mcp
+    dir: ../mcp-proxy
+    main: ./cmd/obsigna-mcp
+    binary: obsigna-mcp
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version=v{{.Version}}
+
+  # Deprecation shim: keeps `mcp-proxy <cmd>` working by exec-forwarding to
+  # obsigna-mcp. Carries no -X main.version (it forwards `--version`), but keeps
+  # the same determinism flags so it is reproducible too.
+  - id: mcp-proxy
+    dir: ../mcp-proxy
+    main: ./cmd/mcp-proxy
+    binary: mcp-proxy
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+  # The receipt collector hub (ADR-0017/0035), launched via `obsigna collector
+  # run`. Primary binary; the collector entry below is its deprecation shim.
+  - id: obsigna-collector
+    dir: ../collector
+    main: ./cmd/obsigna-collector
+    binary: obsigna-collector
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version=v{{.Version}}
+
+  # Deprecation shim: keeps `collector <flags>` working by exec-forwarding to
+  # obsigna-collector. Same reproducibility flags; no version stamp.
+  - id: collector
+    dir: ../collector
+    main: ./cmd/collector
+    binary: collector
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+  # The per-tool-call emission hook (ADR-0013/0036). Invoked directly by path —
+  # it gets no `obsigna hook run` launcher (ADR-0034 decision 5). Primary
+  # binary; the agent-receipts-hook entry below is its deprecation shim.
+  - id: obsigna-hook
+    dir: ../hook
+    main: ./cmd/obsigna-hook
+    binary: obsigna-hook
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version=v{{.Version}}
+
+  # Deprecation shim: keeps `agent-receipts-hook` working by exec-forwarding to
+  # obsigna-hook. Same reproducibility flags; no version stamp.
+  - id: agent-receipts-hook
+    dir: ../hook
+    main: ./cmd/agent-receipts-hook
+    binary: agent-receipts-hook
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - darwin
       - linux
@@ -43,9 +235,18 @@ builds:
       - -s -w
 
 archives:
+  # One umbrella archive carries the whole toolset (ADR-0034): the five primary
+  # binaries plus the four deprecation shims.
   - ids:
-      - agent-receipts-daemon
+      - obsigna-daemon
+      - obsigna
       - agent-receipts
+      - obsigna-mcp
+      - mcp-proxy
+      - obsigna-collector
+      - collector
+      - obsigna-hook
+      - agent-receipts-hook
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     files:
@@ -56,17 +257,17 @@ checksum:
   name_template: "checksums.txt"
 
 # GitHub release is created outside GoReleaser (against the prefixed tag
-# `daemon/vX.Y.Z`). GoReleaser only builds archives and publishes the
+# `obsigna/vX.Y.Z`). GoReleaser only builds archives and publishes the
 # Homebrew formula; the workflow uploads binaries with `gh`.
 release:
   disable: true
 
 brews:
-  - name: agent-receipts-daemon
+  - name: obsigna
     # `auto` skips the formula bump PR when the release version contains a
     # pre-release suffix (e.g. v0.8.0-alpha.1). The Homebrew tap stays
-    # locked to the latest stable daemon until a non-pre-release tag is cut,
-    # so `brew install agent-receipts/tap/agent-receipts-daemon` keeps giving
+    # locked to the latest stable release until a non-pre-release tag is cut,
+    # so `brew install agent-receipts/tap/obsigna` keeps giving
     # users a stable build during alpha/beta soak periods.
     skip_upload: auto
     repository:
@@ -84,24 +285,40 @@ brews:
         base:
           branch: main
     directory: Formula
-    url_template: "https://github.com/agent-receipts/ar/releases/download/daemon%2Fv{{ .Version }}/{{ .ArtifactName }}"
-    homepage: "https://github.com/agent-receipts/ar/tree/main/daemon"
-    description: "Agent Receipts daemon and companion verify CLI"
+    url_template: "https://github.com/agent-receipts/obsigna/releases/download/obsigna%2Fv{{ .Version }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/agent-receipts/obsigna/tree/main/daemon"
+    description: "Obsigna — Agent Receipts CLI, signing daemon, and verify tooling"
     license: "Apache-2.0"
     commit_author:
       name: agent-receipts-bot
       email: bot@agentreceipts.ai
-    commit_msg_template: "chore(daemon): bump to v{{ .Version }}"
+    commit_msg_template: "chore(obsigna): bump to v{{ .Version }}"
+    # The umbrella formula installs the whole toolset (ADR-0034 decision 4): the
+    # five primary binaries plus the four deprecation shims.
     install: |
-      bin.install "agent-receipts-daemon"
+      bin.install "obsigna-daemon"
+      bin.install "obsigna"
       bin.install "agent-receipts"
+      bin.install "obsigna-mcp"
+      bin.install "mcp-proxy"
+      bin.install "obsigna-collector"
+      bin.install "collector"
+      bin.install "obsigna-hook"
+      bin.install "agent-receipts-hook"
     test: |
-      system "#{bin}/agent-receipts-daemon", "--version"
+      system "#{bin}/obsigna-daemon", "--version"
+      system "#{bin}/obsigna", "--help"
       system "#{bin}/agent-receipts", "--help"
+      system "#{bin}/obsigna-mcp", "--version"
+      system "#{bin}/mcp-proxy", "--version"
+      system "#{bin}/obsigna-collector", "--version"
+      system "#{bin}/collector", "--version"
+      system "#{bin}/obsigna-hook", "--version"
+      system "#{bin}/agent-receipts-hook", "--version"
     # `brew outdated` and `brew livecheck` use this to detect new releases.
     # The `ar` repo ships multiple taggable components, so we can't use
     # `:github_latest` (which returns repo-wide latest). `:github_releases`
-    # scans all releases; regex extracts version from the `daemon/vX.Y.Z`
+    # scans all releases; regex extracts version from the `obsigna/vX.Y.Z`
     # tag prefix.
     #
     # post_install, service, and caveats are also emitted here so they survive
@@ -113,7 +330,7 @@ brews:
       end
 
       service do
-        run opt_bin/"agent-receipts-daemon"
+        run opt_bin/"obsigna-daemon"
         keep_alive crashed: true
         log_path var/"log/agent-receipts/daemon.log"
         error_log_path var/"log/agent-receipts/daemon.log"
@@ -121,15 +338,29 @@ brews:
 
       def caveats
         <<~EOS
-          agent-receipts-hook is now a separate formula. If you previously installed
-          it via this formula, run:
-            brew install agent-receipts/tap/agent-receipts-hook
+          This formula now installs the whole Obsigna toolset (ADR-0034): the
+          obsigna CLI, the obsigna-daemon signer, obsigna-mcp (the MCP proxy,
+          run via `obsigna mcp run`), obsigna-collector (the receipt hub, run via
+          `obsigna collector run`), and obsigna-hook (the per-tool-call emission
+          callback). Each ships alongside its deprecation shim (agent-receipts,
+          mcp-proxy, collector, agent-receipts-hook), which forwards to the new
+          binary — update references when convenient; the shims will be removed
+          in a future release. The retired mcp-proxy, collector, and
+          agent-receipts-hook formulae are migrated to this one via the tap's
+          tap_migrations.json, so `brew update && brew upgrade` moves you with no
+          manual step.
+
+          The daemon binary is now obsigna-daemon (was agent-receipts-daemon).
+          If you reference the old binary name in any install script, systemd unit,
+          launchd plist, or `brew services` wrapper, update it to obsigna-daemon and
+          restart the service after upgrading:
+            brew services restart agent-receipts/tap/obsigna
 
           Before starting the service for the first time, generate your signing key:
-            agent-receipts-daemon --init
+            obsigna-daemon --init
 
           Then start the daemon:
-            brew services start agent-receipts/tap/agent-receipts-daemon
+            brew services start agent-receipts/tap/obsigna
 
           Receipts database: $XDG_DATA_HOME/agent-receipts/receipts.db
                              (falls back to ~/.local/share/agent-receipts/receipts.db when $XDG_DATA_HOME is unset or relative)
@@ -148,19 +379,19 @@ brews:
         EOS
       end
 
-      conflicts_with "agent-receipts-daemon-alpha", because: "both install the same binaries"
+      conflicts_with "obsigna-alpha", because: "both install the same binaries"
 
       livecheck do
-        url "https://github.com/agent-receipts/ar"
+        url "https://github.com/agent-receipts/obsigna"
         strategy :github_releases
-        regex(/^daemon\/v?(\d+(?:\.\d+)+)$/i)
+        regex(/^obsigna\/v?(\d+(?:\.\d+)+)$/i)
       end
 
   # Alpha-track formula — updated on every release (stable and pre-release).
-  # `brew install agent-receipts/tap/agent-receipts-daemon-alpha` always gives
+  # `brew install agent-receipts/tap/obsigna-alpha` always gives
   # the latest cut; conflicts with the stable formula since both install the
   # same binaries.
-  - name: agent-receipts-daemon-alpha
+  - name: obsigna-alpha
     repository:
       owner: agent-receipts
       name: homebrew-tap
@@ -171,29 +402,45 @@ brews:
         base:
           branch: main
     directory: Formula
-    url_template: "https://github.com/agent-receipts/ar/releases/download/daemon%2Fv{{ .Version }}/{{ .ArtifactName }}"
-    homepage: "https://github.com/agent-receipts/ar/tree/main/daemon"
-    description: "Agent Receipts daemon and companion verify CLI (alpha/beta track)"
+    url_template: "https://github.com/agent-receipts/obsigna/releases/download/obsigna%2Fv{{ .Version }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/agent-receipts/obsigna/tree/main/daemon"
+    description: "Obsigna — Agent Receipts CLI, signing daemon, and verify tooling (alpha/beta track)"
     license: "Apache-2.0"
     commit_author:
       name: agent-receipts-bot
       email: bot@agentreceipts.ai
-    commit_msg_template: "chore(daemon): bump alpha to v{{ .Version }}"
+    commit_msg_template: "chore(obsigna): bump alpha to v{{ .Version }}"
+    # The umbrella formula installs the whole toolset (ADR-0034 decision 4): the
+    # five primary binaries plus the four deprecation shims.
     install: |
-      bin.install "agent-receipts-daemon"
+      bin.install "obsigna-daemon"
+      bin.install "obsigna"
       bin.install "agent-receipts"
+      bin.install "obsigna-mcp"
+      bin.install "mcp-proxy"
+      bin.install "obsigna-collector"
+      bin.install "collector"
+      bin.install "obsigna-hook"
+      bin.install "agent-receipts-hook"
     test: |
-      system "#{bin}/agent-receipts-daemon", "--version"
+      system "#{bin}/obsigna-daemon", "--version"
+      system "#{bin}/obsigna", "--help"
       system "#{bin}/agent-receipts", "--help"
+      system "#{bin}/obsigna-mcp", "--version"
+      system "#{bin}/mcp-proxy", "--version"
+      system "#{bin}/obsigna-collector", "--version"
+      system "#{bin}/collector", "--version"
+      system "#{bin}/obsigna-hook", "--version"
+      system "#{bin}/agent-receipts-hook", "--version"
     custom_block: |
-      conflicts_with "agent-receipts-daemon", because: "both install the same binaries"
+      conflicts_with "obsigna", because: "both install the same binaries"
 
       def post_install
         (var/"log/agent-receipts").mkpath
       end
 
       service do
-        run opt_bin/"agent-receipts-daemon"
+        run opt_bin/"obsigna-daemon"
         keep_alive crashed: true
         log_path var/"log/agent-receipts/daemon.log"
         error_log_path var/"log/agent-receipts/daemon.log"
@@ -202,13 +449,26 @@ brews:
       def caveats
         <<~EOS
           This is the alpha/beta track — it tracks every release including pre-releases.
-          For stable-only installs use: brew install agent-receipts/tap/agent-receipts-daemon
+          For stable-only installs use: brew install agent-receipts/tap/obsigna
+
+          This formula now installs the whole Obsigna toolset (ADR-0034): the
+          obsigna CLI, the obsigna-daemon signer, obsigna-mcp (the MCP proxy,
+          run via `obsigna mcp run`), obsigna-collector (the receipt hub, run via
+          `obsigna collector run`), and obsigna-hook (the per-tool-call emission
+          callback), each alongside its deprecation shim (agent-receipts,
+          mcp-proxy, collector, agent-receipts-hook).
+
+          The daemon binary is now obsigna-daemon (was agent-receipts-daemon).
+          If you reference the old binary name in any install script, systemd unit,
+          launchd plist, or `brew services` wrapper, update it to obsigna-daemon and
+          restart the service after upgrading:
+            brew services restart agent-receipts/tap/obsigna-alpha
 
           Before starting the service for the first time, generate your signing key:
-            agent-receipts-daemon --init
+            obsigna-daemon --init
 
           Then start the daemon:
-            brew services start agent-receipts/tap/agent-receipts-daemon-alpha
+            brew services start agent-receipts/tap/obsigna-alpha
 
           Receipts database: $XDG_DATA_HOME/agent-receipts/receipts.db
                              (falls back to ~/.local/share/agent-receipts/receipts.db when $XDG_DATA_HOME is unset or relative)
@@ -228,7 +488,7 @@ brews:
       end
 
       livecheck do
-        url "https://github.com/agent-receipts/ar"
+        url "https://github.com/agent-receipts/obsigna"
         strategy :github_releases
-        regex(/^daemon\/v?(\d+(?:\.\d+)+(?:-[a-z0-9.]+)?)$/i)
+        regex(/^obsigna\/v?(\d+(?:\.\d+)+(?:-[a-z0-9.]+)?)$/i)
       end

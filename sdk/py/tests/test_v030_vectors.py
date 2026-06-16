@@ -25,9 +25,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agent_receipts.receipt.hash import hash_receipt
-from agent_receipts.receipt.signing import verify_receipt
-from agent_receipts.receipt.types import AgentReceipt
+from obsigna.receipt.hash import hash_receipt
+from obsigna.receipt.signing import verify_receipt
+from obsigna.receipt.types import AgentReceipt
 
 VECTORS = (
     Path(__file__).parent.parent.parent.parent / "cross-sdk-tests" / "v030_vectors.json"

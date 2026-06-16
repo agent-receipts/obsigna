@@ -5,15 +5,15 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from agent_receipts.receipt.chain import verify_chain
-from agent_receipts.receipt.create import (
+from obsigna.receipt.chain import verify_chain
+from obsigna.receipt.create import (
     ActionInput,
     CreateReceiptInput,
     create_receipt,
 )
-from agent_receipts.receipt.hash import canonicalize, hash_receipt
-from agent_receipts.receipt.signing import sign_receipt
-from agent_receipts.receipt.types import (
+from obsigna.receipt.hash import canonicalize, hash_receipt
+from obsigna.receipt.signing import sign_receipt
+from obsigna.receipt.types import (
     Action,
     AgentReceipt,
     Chain,

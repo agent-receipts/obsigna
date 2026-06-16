@@ -1,0 +1,88 @@
+---
+title: Plugin Installation
+description: Install and configure the @agent-receipts/opencode-plugin to capture native OpenCode tool calls, then verify the chain end to end.
+---
+
+The `@agent-receipts/opencode-plugin` package (Tier B) emits one daemon-signed receipt per native OpenCode tool call. For the MCP channel (Tier A), see [MCP Proxy](/opencode/mcp-proxy/).
+
+## Prerequisites
+
+- [`agent-receipts-daemon` installed, initialised, and running](/getting-started/daemon-setup/) — it holds the signing key and writes every receipt
+- OpenCode installed (`npm install -g opencode-ai` or see the [OpenCode docs](https://opencode.ai/docs/))
+
+## Start the daemon
+
+The plugin holds no key of its own — `agent-receipts-daemon` owns the key and signs every receipt ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). Initialise it once and start it before launching OpenCode:
+
+```bash
+agent-receipts-daemon --init   # one-time: generates the Ed25519 signing key pair
+agent-receipts-daemon          # start the daemon (listens on a Unix socket)
+```
+
+The plugin reaches the daemon over its default platform socket automatically — no extra flag needed.
+
+## Install the plugin
+
+Add the package to your project and register it in `opencode.json`:
+
+```bash
+npm install @agent-receipts/opencode-plugin
+```
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@agent-receipts/opencode-plugin"]
+}
+```
+
+OpenCode also loads plugins from `.opencode/plugin/`. To configure the plugin programmatically, export a configured instance from a file there:
+
+{/* snippet-check: no-run */}
+```ts
+// .opencode/plugin/agent-receipts.ts
+import { createAgentReceiptsPlugin } from "@agent-receipts/opencode-plugin";
+
+export const AgentReceiptsPlugin = createAgentReceiptsPlugin({
+  strict: false,
+  deny: ["read", "glob", "grep", "list"], // skip read-only noise
+});
+```
+
+## Configuration
+
+Configure via environment variables (read when the plugin loads):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AGENTRECEIPTS_SOCKET` | per-OS default | Daemon socket path |
+| `AGENT_RECEIPTS_CHANNEL` | `opencode` | Receipt channel label |
+| `AGENT_RECEIPTS_STRICT` | `false` | Re-throw on emit failure instead of warning |
+| `AGENT_RECEIPTS_ALLOW` | — | Comma-separated tool allow-list (only these emit) |
+| `AGENT_RECEIPTS_DENY` | — | Comma-separated tool deny-list (these never emit) |
+
+`createAgentReceiptsPlugin(config)` accepts the same options plus `actionMap` (per-tool action-type overrides) and `debugLog` (a custom log sink). Explicit config wins over environment variables.
+
+## Failure posture
+
+Default is **catch-and-warn** (ADR-0025): a tool call is never aborted because the daemon is unreachable; the drop is logged loudly via the configured logger. Because emission is best-effort, a daemon outage produces a **chain gap** — `agent-receipts verify` will report it — rather than silently passing. This is honest-operator-grade auditing, not a completeness guarantee.
+
+Set `AGENT_RECEIPTS_STRICT=1` to re-throw emit failures from the `tool.execute.after` hook so OpenCode surfaces a broken audit pipeline.
+
+:::note[At-least-once delivery]
+The plugin is emitter-only and never signs, so it cannot use the SDK's `WalEmitter`/`HttpEmitter` write-ahead-log path (that path delivers already-**signed** receipts to a collector). At-least-once delivery with a WAL belongs to that out-of-process signed path, documented under [Deployment](/deployment/ephemeral-compute/). For the daemon socket path, a daemon outage means a chain gap, surfaced by `verify`.
+:::
+
+## Verify the chain end to end
+
+After running a few OpenCode tool calls (e.g. ask it to run a shell command and edit a file), inspect and verify the receipts:
+
+```bash
+agent-receipts list            # recent receipts — look for channel: opencode
+agent-receipts show 1          # full fields of receipt #1 by sequence
+agent-receipts verify          # walk the hash chain and check every signature
+```
+
+A healthy chain prints an `OK` summary. If the daemon was down for some calls, `verify` reports the gap — exactly the honest-operator signal the default posture is designed to surface.
+
+To see both channels together, run an MCP tool too (see [MCP Proxy](/opencode/mcp-proxy/)): receipts with `channel: opencode` (native, from the plugin) appear alongside `channel: mcp` (from the proxy), all in the same daemon chain.

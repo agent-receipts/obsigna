@@ -1,406 +1,156 @@
 package main
 
 import (
-	"encoding/json"
+	"bytes"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
 	"strings"
+	"syscall"
 	"testing"
-
-	"github.com/agent-receipts/ar/sdk/go/emitter"
 )
 
-// --- readClaudeCode unit tests ---
-
-func TestReadClaudeCode(t *testing.T) {
-	tests := []struct {
-		name         string
-		stdin        string
-		wantErr      bool
-		wantTool     string
-		wantSID      string
-		wantDecision string
-		wantInput    bool
-		wantOut      bool
-	}{
-		{
-			name: "PostToolUse full frame",
-			stdin: `{
-				"hook_event_name": "PostToolUse",
-				"session_id": "sess-abc",
-				"tool_name": "Bash",
-				"tool_input": {"command":"go test ./..."},
-				"tool_response": {"output":"ok","exit_code":0}
-			}`,
-			wantTool:     "Bash",
-			wantSID:      "sess-abc",
-			wantDecision: "allowed",
-			wantInput:    true,
-			wantOut:      true,
-		},
-		{
-			name: "PreToolUse frame",
-			stdin: `{
-				"hook_event_name": "PreToolUse",
-				"session_id": "sess-pre",
-				"tool_use_id": "tu-001",
-				"tool_name": "Bash",
-				"tool_input": {"command":"rm -rf /"}
-			}`,
-			wantTool:     "Bash",
-			wantSID:      "sess-pre",
-			wantDecision: "pending",
-			wantInput:    true,
-			wantOut:      false,
-		},
-		{
-			name: "legacy frame without hook_event_name falls back to allowed",
-			stdin: `{
-				"session_id": "sess-legacy",
-				"tool_name": "Bash",
-				"tool_input": {"command":"go test ./..."},
-				"tool_response": {"output":"ok","exit_code":0}
-			}`,
-			wantTool:     "Bash",
-			wantSID:      "sess-legacy",
-			wantDecision: "allowed",
-			wantInput:    true,
-			wantOut:      true,
-		},
-		{
-			name: "no session_id",
-			stdin: `{
-				"hook_event_name": "PostToolUse",
-				"tool_name": "Read",
-				"tool_input": {"file_path":"/etc/hosts"},
-				"tool_response": {"content":"127.0.0.1 localhost"}
-			}`,
-			wantTool:     "Read",
-			wantSID:      "",
-			wantDecision: "allowed",
-			wantInput:    true,
-			wantOut:      true,
-		},
-		{
-			name: "no tool_input",
-			stdin: `{
-				"hook_event_name": "PostToolUse",
-				"session_id": "s1",
-				"tool_name": "WebSearch",
-				"tool_response": {"results":[]}
-			}`,
-			wantTool:     "WebSearch",
-			wantSID:      "s1",
-			wantDecision: "allowed",
-			wantInput:    false,
-			wantOut:      true,
-		},
-		{
-			name: "no tool_response",
-			stdin: `{
-				"hook_event_name": "PostToolUse",
-				"session_id": "s2",
-				"tool_name": "Write",
-				"tool_input": {"file_path":"x.go","content":"package main"}
-			}`,
-			wantTool:     "Write",
-			wantSID:      "s2",
-			wantDecision: "allowed",
-			wantInput:    true,
-			wantOut:      false,
-		},
-		{
-			name:    "missing tool_name",
-			stdin:   `{"session_id":"s3","tool_input":{},"tool_response":{}}`,
-			wantErr: true,
-		},
-		{
-			name:    "malformed JSON",
-			stdin:   `not json at all`,
-			wantErr: true,
-		},
-		{
-			name:    "empty stdin",
-			stdin:   ``,
-			wantErr: true,
-		},
-		{
-			name: "oversized payload (within emitter limit) passes readClaudeCode",
-			stdin: func() string {
-				// Build a frame with a large but valid JSON input.
-				val := strings.Repeat("x", 100)
-				f := map[string]any{
-					"hook_event_name": "PostToolUse",
-					"session_id":      "big",
-					"tool_name":       "Bash",
-					"tool_input":      map[string]string{"command": val},
-					"tool_response":   map[string]string{"output": val},
-				}
-				b, _ := json.Marshal(f)
-				return string(b)
-			}(),
-			wantTool:     "Bash",
-			wantSID:      "big",
-			wantDecision: "allowed",
-			wantInput:    true,
-			wantOut:      true,
-		},
-	}
-
-	noEnv := func(string) string { return "" }
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ev, sid, err := readClaudeCode([]byte(tt.stdin), noEnv)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if ev.Channel != "claude-code" {
-				t.Errorf("Channel = %q; want claude-code", ev.Channel)
-			}
-			if ev.Tool.Name != tt.wantTool {
-				t.Errorf("Tool.Name = %q; want %q", ev.Tool.Name, tt.wantTool)
-			}
-			if ev.Tool.Server != "" {
-				t.Errorf("Tool.Server = %q; want empty", ev.Tool.Server)
-			}
-			wantDecision := tt.wantDecision
-			if wantDecision == "" {
-				wantDecision = "allowed"
-			}
-			if ev.Decision != wantDecision {
-				t.Errorf("Decision = %q; want %q", ev.Decision, wantDecision)
-			}
-			if sid != tt.wantSID {
-				t.Errorf("sessionID = %q; want %q", sid, tt.wantSID)
-			}
-			if tt.wantInput && ev.Input == nil {
-				t.Error("Input is nil; want non-nil")
-			}
-			if !tt.wantInput && ev.Input != nil {
-				t.Errorf("Input = %s; want nil", ev.Input)
-			}
-			if tt.wantOut && ev.Output == nil {
-				t.Error("Output is nil; want non-nil")
-			}
-			if !tt.wantOut && ev.Output != nil {
-				t.Errorf("Output = %s; want nil", ev.Output)
-			}
-		})
+// TestExecImageDefaultsToSyscallExec asserts the shim replaces its image rather
+// than forking a child (ADR-0036): a fork would add a second process per tool
+// call and could decouple the hook's exit status from what the runtime observes.
+func TestExecImageDefaultsToSyscallExec(t *testing.T) {
+	if reflect.ValueOf(execImage).Pointer() != reflect.ValueOf(syscall.Exec).Pointer() {
+		t.Error("execImage must default to syscall.Exec so the shim replaces its image, never forks a child")
 	}
 }
 
-// TestReadClaudeCode_InputOutputAreValidJSON asserts the returned Input and
-// Output are valid JSON when present.
-func TestReadClaudeCode_InputOutputAreValidJSON(t *testing.T) {
-	stdin := `{
-		"session_id": "v",
-		"tool_name": "Edit",
-		"tool_input": {"file_path":"a.go","old_string":"x","new_string":"y"},
-		"tool_response": {"success":true}
-	}`
-	ev, _, err := readClaudeCode([]byte(stdin), func(string) string { return "" })
+// TestRunForwardsArgvAndEnviron stubs execImage to capture what the shim would
+// exec: argv[0] is the resolved binary, the remaining argv is the shim's args
+// verbatim (the hook surface is identical, so there is no translation), and the
+// deprecation notice goes to the provided writer.
+func TestRunForwardsArgvAndEnviron(t *testing.T) {
+	// Place an executable named obsigna-hook beside this test binary so
+	// resolveSibling finds it via os.Executable()'s directory.
+	dir := t.TempDir()
+	target := filepath.Join(dir, targetBinary)
+	if err := os.WriteFile(target, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+
+	var gotPath string
+	var gotArgv []string
+	execImage = func(path string, argv []string, _ []string) error {
+		gotPath, gotArgv = path, argv
+		return nil
+	}
+	t.Cleanup(func() { execImage = syscall.Exec })
+
+	var stderr bytes.Buffer
+	code := run([]string{"--format", "claude-code"}, &stderr)
+	if code != 0 {
+		t.Fatalf("run exit = %d, want 0", code)
+	}
+	if filepath.Base(gotPath) != targetBinary {
+		t.Errorf("exec path = %q, want a path to %q", gotPath, targetBinary)
+	}
+	wantArgv := []string{gotPath, "--format", "claude-code"}
+	if !reflect.DeepEqual(gotArgv, wantArgv) {
+		t.Errorf("argv = %v, want %v", gotArgv, wantArgv)
+	}
+	if !strings.Contains(stderr.String(), "agent-receipts-hook is deprecated") {
+		t.Errorf("missing deprecation notice on stderr: %q", stderr.String())
+	}
+}
+
+// TestRunReportsMissingTarget covers the only error path: when obsigna-hook
+// can't be resolved, the shim reports it and returns non-zero rather than
+// exiting 0.
+func TestRunReportsMissingTarget(t *testing.T) {
+	// An empty PATH and a temp working dir guarantee no obsigna-hook is found.
+	t.Setenv("PATH", t.TempDir())
+	var stderr bytes.Buffer
+	if code := run(nil, &stderr); code != 1 {
+		t.Errorf("run exit = %d, want 1 when target is missing", code)
+	}
+	if !strings.Contains(stderr.String(), "cannot locate") {
+		t.Errorf("stderr = %q, want a 'cannot locate' message", stderr.String())
+	}
+}
+
+// TestShimDoesNotReimplementSurface keeps cmd/agent-receipts-hook a thin
+// forwarder: it must carry the shim marker and must NOT import the hook's
+// emitter wiring (which would mean it had grown its own surface again).
+func TestShimDoesNotReimplementSurface(t *testing.T) {
+	src, err := os.ReadFile("main.go")
 	if err != nil {
-		t.Fatalf("readClaudeCode: %v", err)
+		t.Fatal(err)
 	}
-	if !json.Valid(ev.Input) {
-		t.Errorf("Input is not valid JSON: %s", ev.Input)
+	if !strings.Contains(string(src), deprecationShimMarker) {
+		t.Error("cmd/agent-receipts-hook is missing the deprecation-shim marker; it must remain a forwarding shim")
 	}
-	if !json.Valid(ev.Output) {
-		t.Errorf("Output is not valid JSON: %s", ev.Output)
-	}
-}
-
-// --- detect unit tests ---
-
-func TestDetect(t *testing.T) {
-	tests := []struct {
-		name  string
-		stdin string
-		env   map[string]string
-		want  string
-	}{
-		{
-			name: "CLAUDE_SESSION_ID env var set",
-			env:  map[string]string{"CLAUDE_SESSION_ID": "abc"},
-			want: "claude-code",
-		},
-		{
-			name:  "hook_event_name in stdin (no env var)",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Bash","tool_input":{},"tool_response":{}}`,
-			env:   map[string]string{},
-			want:  "claude-code",
-		},
-		{
-			name:  "hook_event_name takes precedence over missing env var",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Read"}`,
-			env:   map[string]string{"CLAUDE_SESSION_ID": ""},
-			want:  "claude-code",
-		},
-		{
-			name:  "no env var and no hook_event_name in stdin",
-			stdin: `{"session_id":"s","tool_name":"Bash"}`,
-			env:   map[string]string{},
-			want:  "",
-		},
-		{
-			name:  "PreToolUse hook_event_name is detected as claude-code",
-			stdin: `{"hook_event_name":"PreToolUse","session_id":"s","tool_name":"Bash","tool_input":{}}`,
-			env:   map[string]string{},
-			want:  "claude-code",
-		},
-		{
-			name:  "unrecognised hook_event_name is not detected",
-			stdin: `{"hook_event_name":"StopHook","session_id":"s"}`,
-			env:   map[string]string{},
-			want:  "",
-		},
-		{
-			name: "no known env vars and empty stdin",
-			env:  map[string]string{},
-			want: "",
-		},
-		{
-			name: "unrelated env var",
-			env:  map[string]string{"HOME": "/home/user"},
-			want: "",
-		},
-		{
-			name: "CLAUDE_SESSION_ID empty string",
-			env:  map[string]string{"CLAUDE_SESSION_ID": ""},
-			want: "",
-		},
-		{
-			name:  "malformed stdin does not panic",
-			stdin: `not json`,
-			env:   map[string]string{},
-			want:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := detect([]byte(tt.stdin), func(k string) string { return tt.env[k] })
-			if got != tt.want {
-				t.Errorf("detect() = %q; want %q", got, tt.want)
-			}
-		})
+	if strings.Contains(string(src), "sdk/go/emitter") {
+		t.Error("cmd/agent-receipts-hook imports sdk/go/emitter — the shim must forward to obsigna-hook, not re-implement the surface")
 	}
 }
 
-// --- emitter.Event compatibility tests ---
+// TestForwardingIntegration builds the shim and obsigna-hook into one directory
+// (the installed layout) and checks the shim execs obsigna-hook: `agent-receipts-hook
+// --version` is replaced by `obsigna-hook --version`, so stdout carries
+// obsigna-hook's version line while the deprecation notice appears once on stderr
+// and never on stdout.
+func TestForwardingIntegration(t *testing.T) {
+	if syscall.Getuid() < 0 {
+		t.Skip("syscall.Exec unavailable on this platform")
+	}
+	dir := t.TempDir()
+	shim := filepath.Join(dir, "agent-receipts-hook")
+	real := filepath.Join(dir, "obsigna-hook")
+	goBuild(t, shim, "github.com/agent-receipts/ar/hook/cmd/agent-receipts-hook")
+	goBuild(t, real, "github.com/agent-receipts/ar/hook/cmd/obsigna-hook")
 
-// checkEventAcceptedByEmitter replicates the emitter's validation rules without
-// dialling a socket. Used by TestReadClaudeCode_EventAcceptedByEmitter and
-// TestReadClaudeCode_PreToolUseAcceptedByEmitter.
-func checkEventAcceptedByEmitter(t *testing.T, ev emitter.Event) {
+	out, errOut, code := runBin(t, shim, "--version")
+	if code != 0 {
+		t.Fatalf("agent-receipts-hook --version exit = %d (stderr: %q)", code, errOut)
+	}
+	if !strings.HasPrefix(out, "obsigna-hook ") {
+		t.Errorf("stdout = %q, want it to start with the obsigna-hook version line (shim execs obsigna-hook)", out)
+	}
+	const notice = "agent-receipts-hook is deprecated"
+	if !strings.Contains(errOut, notice) {
+		t.Errorf("deprecation notice missing from stderr: %q", errOut)
+	}
+	if strings.Contains(out, notice) {
+		t.Errorf("deprecation notice leaked into stdout: %q", out)
+	}
+}
+
+func goBuild(t *testing.T, out, pkg string) {
 	t.Helper()
-	if ev.Channel == "" {
-		t.Error("Channel is empty; emitter would reject")
+	cmd := exec.Command("go", "build", "-o", out, pkg)
+	if combined, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build %s: %v\n%s", pkg, err, combined)
 	}
-	if ev.Tool.Name == "" {
-		t.Error("Tool.Name is empty; emitter would reject")
-	}
-	switch ev.Decision {
-	case "allowed", "denied", "pending":
-	default:
-		t.Errorf("Decision %q not in allowed set; emitter would reject", ev.Decision)
-	}
-	if ev.Input != nil && len(ev.Input) == 0 {
-		t.Error("Input is non-nil empty slice; emitter would reject")
-	}
-	if ev.Output != nil && len(ev.Output) == 0 {
-		t.Error("Output is non-nil empty slice; emitter would reject")
-	}
-	if ev.Input != nil && !json.Valid(ev.Input) {
-		t.Errorf("Input is not valid JSON: %s", ev.Input)
-	}
-	if ev.Output != nil && !json.Valid(ev.Output) {
-		t.Errorf("Output is not valid JSON: %s", ev.Output)
-	}
-	// Sanity-check emitter.Tool type is used (compile-time check embedded here).
-	var _ emitter.Tool = ev.Tool
 }
 
-// TestReadClaudeCode_EventAcceptedByEmitter verifies that the emitter.Event
-// produced by readClaudeCode for a PostToolUse frame satisfies the emitter's
-// validation rules. This catches mismatches before the emitter rejects the
-// frame at emit time.
-func TestReadClaudeCode_EventAcceptedByEmitter(t *testing.T) {
-	stdin := `{
-		"hook_event_name": "PostToolUse",
-		"session_id": "compat-test",
-		"tool_name": "Bash",
-		"tool_input": {"command":"echo hello"},
-		"tool_response": {"output":"hello\n","exit_code":0}
-	}`
-	ev, _, err := readClaudeCode([]byte(stdin), func(string) string { return "" })
+func runBin(t *testing.T, bin string, args ...string) (stdout, stderr string, code int) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	cmd := exec.Command(bin, args...)
+	cmd.Stdout = &out
+	cmd.Stderr = &errOut
+	err := cmd.Run()
+	code = 0
 	if err != nil {
-		t.Fatalf("readClaudeCode: %v", err)
+		var ee *exec.ExitError
+		if !asExit(err, &ee) {
+			t.Fatalf("run %s %v: %v", bin, args, err)
+		}
+		code = ee.ExitCode()
 	}
-	if ev.Decision != "allowed" {
-		t.Errorf("PostToolUse decision = %q; want allowed", ev.Decision)
-	}
-	checkEventAcceptedByEmitter(t, ev)
+	return out.String(), errOut.String(), code
 }
 
-// TestReadClaudeCode_PreToolUseAcceptedByEmitter verifies that the emitter.Event
-// produced by readClaudeCode for a PreToolUse frame satisfies the emitter's
-// validation rules, with decision="pending".
-func TestReadClaudeCode_PreToolUseAcceptedByEmitter(t *testing.T) {
-	stdin := `{
-		"hook_event_name": "PreToolUse",
-		"session_id": "pre-compat-test",
-		"tool_use_id": "tu-abc",
-		"tool_name": "Write",
-		"tool_input": {"file_path":"x.go","content":"package main"}
-	}`
-	ev, _, err := readClaudeCode([]byte(stdin), func(string) string { return "" })
-	if err != nil {
-		t.Fatalf("readClaudeCode: %v", err)
+func asExit(err error, target **exec.ExitError) bool {
+	if ee, ok := err.(*exec.ExitError); ok {
+		*target = ee
+		return true
 	}
-	if ev.Decision != "pending" {
-		t.Errorf("PreToolUse decision = %q; want pending", ev.Decision)
-	}
-	checkEventAcceptedByEmitter(t, ev)
-}
-
-// --- resolveVersion unit tests ---
-
-// TestResolveVersion_PrefersLDFlagInjection pins the precedence the
-// release pipeline relies on: a -ldflags "-X main.version=..." build
-// wins over both Go's build info and the "dev" fallback. Mirrors the
-// equivalent test in daemon/cmd/agent-receipts-daemon/main_test.go.
-func TestResolveVersion_PrefersLDFlagInjection(t *testing.T) {
-	original := version
-	t.Cleanup(func() { version = original })
-
-	version = "v9.9.9-test"
-	if got, want := resolveVersion(), "v9.9.9-test"; got != want {
-		t.Errorf("resolveVersion() = %q, want %q", got, want)
-	}
-}
-
-// TestResolveVersion_FallsBackToDevWhenUnset is the contract when neither
-// the release pipeline injected a version nor `go install` produced a
-// module version: --version must still print something useful instead of
-// an empty string. "dev" matches mcp-proxy's and daemon's behaviour.
-func TestResolveVersion_FallsBackToDevWhenUnset(t *testing.T) {
-	original := version
-	t.Cleanup(func() { version = original })
-
-	version = ""
-	got := resolveVersion()
-	// Under `go test`, debug.ReadBuildInfo() can return either an empty
-	// or "(devel)" Main.Version depending on how the binary was invoked
-	// — both branches must yield a non-empty, sensible string. We accept
-	// either "dev" or any non-empty version-shaped value (anything that
-	// isn't the empty string the operator would never want to see).
-	if got == "" {
-		t.Error("resolveVersion() returned empty string; --version output would be empty")
-	}
+	return false
 }

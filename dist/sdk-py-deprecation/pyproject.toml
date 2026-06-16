@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+# Deprecation shim: this project retains the legacy distribution name
+# `agent-receipts` and exists only to redirect installs to `obsigna`.
+# The legacy name is intentional here — this is the one place the rename
+# guard (scripts/legacy_name_guard) allows it.
+name = "agent-receipts"
+# Must sort ABOVE every previously published `agent-receipts` release
+# (latest real release was 0.12.0) so a bare `pip install agent-receipts`
+# resolves to this redirect shim rather than the last real package.
+version = "0.13.0"
+description = "Deprecated: 'agent-receipts' has been renamed to 'obsigna'. Installs and re-exports obsigna."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "Otto Jongerius" }]
+keywords = ["deprecated", "obsigna", "agent-receipts"]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+]
+# Pull in the renamed package. The lower bound names a pre-release, which
+# (per PEP 440) lets pip install the current alpha of obsigna.
+dependencies = [
+    "obsigna>=0.13.0a1",
+]
+
+[project.urls]
+Homepage = "https://github.com/agent-receipts/obsigna"
+Repository = "https://github.com/agent-receipts/obsigna"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_receipts"]

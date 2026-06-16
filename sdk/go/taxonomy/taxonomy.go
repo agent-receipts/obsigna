@@ -43,6 +43,7 @@ var (
 		{Type: "filesystem.file.move", Description: "Move or rename a file", RiskLevel: receipt.RiskMedium},
 		{Type: "filesystem.directory.create", Description: "Create a directory", RiskLevel: receipt.RiskLow},
 		{Type: "filesystem.directory.delete", Description: "Delete a directory", RiskLevel: receipt.RiskHigh},
+		{Type: "filesystem.directory.list", Description: "List directory contents", RiskLevel: receipt.RiskLow},
 	}
 
 	SystemActions = []ActionTypeEntry{
@@ -50,6 +51,9 @@ var (
 		{Type: "system.application.control", Description: "Control an application via UI automation", RiskLevel: receipt.RiskMedium},
 		{Type: "system.settings.modify", Description: "Modify system or app settings", RiskLevel: receipt.RiskHigh},
 		{Type: "system.command.execute", Description: "Execute a shell command", RiskLevel: receipt.RiskHigh},
+		{Type: "system.code.execute", Description: "Execute code in a sandbox code interpreter", RiskLevel: receipt.RiskHigh},
+		{Type: receipt.ActionTypePTYOpen, Description: "Open an interactive PTY session", RiskLevel: receipt.RiskCritical},
+		{Type: receipt.ActionTypePTYClose, Description: "Close a PTY session", RiskLevel: receipt.RiskHigh},
 		{Type: "system.browser.navigate", Description: "Navigate to a URL", RiskLevel: receipt.RiskLow},
 		{Type: "system.browser.form_submit", Description: "Submit a web form", RiskLevel: receipt.RiskMedium},
 		{Type: "system.browser.authenticate", Description: "Log into a service", RiskLevel: receipt.RiskHigh},
@@ -59,6 +63,10 @@ var (
 		{Type: "data.api.read", Description: "Read data from an external API", RiskLevel: receipt.RiskLow},
 		{Type: "data.api.write", Description: "Write data to an external API", RiskLevel: receipt.RiskMedium},
 		{Type: "data.api.delete", Description: "Delete data via an external API", RiskLevel: receipt.RiskHigh},
+	}
+
+	NetworkActions = []ActionTypeEntry{
+		{Type: "network.egress.observed", Description: "Observed outbound network connection crossing a sandbox boundary", RiskLevel: receipt.RiskMedium},
 	}
 
 	// DiagnosticActions classify daemon/CLI self-checks rather than agent tool
@@ -97,6 +105,9 @@ func init() {
 	for _, e := range DataActions {
 		actionMap[e.Type] = e
 	}
+	for _, e := range NetworkActions {
+		actionMap[e.Type] = e
+	}
 	for _, e := range DiagnosticActions {
 		actionMap[e.Type] = e
 	}
@@ -105,10 +116,11 @@ func init() {
 
 // AllActions returns all built-in action type entries.
 func AllActions() []ActionTypeEntry {
-	out := make([]ActionTypeEntry, 0, len(FilesystemActions)+len(SystemActions)+len(DataActions)+len(DiagnosticActions)+1)
+	out := make([]ActionTypeEntry, 0, len(FilesystemActions)+len(SystemActions)+len(DataActions)+len(NetworkActions)+len(DiagnosticActions)+1)
 	out = append(out, FilesystemActions...)
 	out = append(out, SystemActions...)
 	out = append(out, DataActions...)
+	out = append(out, NetworkActions...)
 	out = append(out, DiagnosticActions...)
 	out = append(out, UnknownAction)
 	return out

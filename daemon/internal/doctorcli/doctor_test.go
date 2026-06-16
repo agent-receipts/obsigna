@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agent-receipts/ar/sdk/go/receipt"
 	"github.com/agent-receipts/ar/sdk/go/store"
@@ -526,4 +527,109 @@ func TestRunNoRoundtripFlag(t *testing.T) {
 		}
 	}
 	t.Error("round-trip check missing from report")
+}
+
+// seedChain appends count signed receipts on chainID to the store at dbPath,
+// signed with privPEM. Unlike fixtureChain it does not create the public-key
+// file and can be called repeatedly to build a multi-chain store.
+func seedChain(t *testing.T, dbPath, privPEM, chainID string, count int) {
+	t.Helper()
+	s, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var prevHash *string
+	for i := 1; i <= count; i++ {
+		unsigned := receipt.Create(receipt.CreateInput{
+			Issuer:    receipt.Issuer{ID: "did:test"},
+			Principal: receipt.Principal{ID: "did:user:test"},
+			Action:    receipt.Action{Type: "filesystem.file.read", RiskLevel: receipt.RiskLow},
+			Outcome:   receipt.Outcome{Status: receipt.StatusSuccess},
+			Chain:     receipt.Chain{Sequence: i, PreviousReceiptHash: prevHash, ChainID: chainID},
+		})
+		signed, err := receipt.Sign(unsigned, privPEM, "did:test#k1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		h, err := receipt.HashReceipt(signed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Insert(signed, h); err != nil {
+			t.Fatal(err)
+		}
+		prevHash = &h
+	}
+}
+
+func TestDetectActiveRootChain(t *testing.T) {
+	t.Run("empty store returns empty", func(t *testing.T) {
+		dir := t.TempDir()
+		dbPath := filepath.Join(dir, "receipts.db")
+		s, err := store.Open(dbPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = s.Close()
+		if got := detectActiveRootChain(dbPath); got != "" {
+			t.Fatalf("got %q, want empty for an empty store", got)
+		}
+	})
+
+	t.Run("unreadable store returns empty", func(t *testing.T) {
+		if got := detectActiveRootChain(filepath.Join(t.TempDir(), "nope.db")); got != "" {
+			t.Fatalf("got %q, want empty for a missing store", got)
+		}
+	})
+
+	t.Run("picks newest root chain", func(t *testing.T) {
+		dir := t.TempDir()
+		dbPath := filepath.Join(dir, "receipts.db")
+		privPEM, _ := genKeyPEM(t)
+		seedChain(t, dbPath, privPEM, "2026-06-03", 3)
+		seedChain(t, dbPath, privPEM, "2026-06-03-8", 2) // inserted last → newest
+		if got := detectActiveRootChain(dbPath); got != "2026-06-03-8" {
+			t.Fatalf("got %q, want the most recently appended root chain", got)
+		}
+	})
+
+	t.Run("skips agent sub-chains", func(t *testing.T) {
+		dir := t.TempDir()
+		dbPath := filepath.Join(dir, "receipts.db")
+		privPEM, _ := genKeyPEM(t)
+		seedChain(t, dbPath, privPEM, "2026-06-03-8", 2)
+		// An agent sub-chain receipt is newer (inserted last) but must be
+		// skipped: doctor's round-trip lands on the root chain, not here.
+		seedChain(t, dbPath, privPEM, "2026-06-03-8/agent/abc123", 1)
+		if got := detectActiveRootChain(dbPath); got != "2026-06-03-8" {
+			t.Fatalf("got %q, want the root chain (agent sub-chain must be skipped)", got)
+		}
+	})
+}
+
+func TestResolveChainID(t *testing.T) {
+	t.Run("detected chain wins over date fallback", func(t *testing.T) {
+		dir := t.TempDir()
+		dbPath := filepath.Join(dir, "receipts.db")
+		privPEM, _ := genKeyPEM(t)
+		seedChain(t, dbPath, privPEM, "2026-06-03-8", 1)
+		if got := resolveChainID(dbPath); got != "2026-06-03-8" {
+			t.Fatalf("got %q, want the detected active chain", got)
+		}
+	})
+
+	t.Run("empty store falls back to UTC date", func(t *testing.T) {
+		dir := t.TempDir()
+		dbPath := filepath.Join(dir, "receipts.db")
+		s, err := store.Open(dbPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = s.Close()
+		got := resolveChainID(dbPath)
+		if _, err := time.Parse("2006-01-02", got); err != nil {
+			t.Fatalf("got %q, want a YYYY-MM-DD date fallback: %v", got, err)
+		}
+	})
 }

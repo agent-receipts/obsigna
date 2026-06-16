@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agent_receipts.taxonomy.actions import (
+from obsigna.taxonomy.actions import (
     ALL_ACTIONS,
     FILESYSTEM_ACTIONS,
     SYSTEM_ACTIONS,

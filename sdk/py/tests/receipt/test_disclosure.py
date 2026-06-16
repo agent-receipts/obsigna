@@ -13,14 +13,14 @@ from typing import Any, cast
 
 import pytest
 
-from agent_receipts.receipt.disclosure import (
+from obsigna.receipt.disclosure import (
     DisclosureEnvelope,
     _encrypt_disclosure_with_seed,
     decrypt_disclosure,
     encrypt_disclosure,
     generate_forensic_key_pair,
 )
-from agent_receipts.receipt.hash import canonicalize
+from obsigna.receipt.hash import canonicalize
 
 # RFC 7748 §6.1 well-known X25519 test keys. Published IETF test vectors — not
 # real secrets. Verified: X25519(alicePriv, basepoint) === alicePub.

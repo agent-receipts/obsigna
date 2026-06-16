@@ -1,19 +1,19 @@
 <div align="center">
 
-# agent-receipts
+# obsigna
 
 ### Python SDK for the Agent Receipts protocol
 
-[![PyPI](https://img.shields.io/pypi/v/agent-receipts)](https://pypi.org/project/agent-receipts/)
+[![PyPI](https://img.shields.io/pypi/v/obsigna)](https://pypi.org/project/obsigna/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![CI](https://github.com/agent-receipts/ar/actions/workflows/sdk-py.yml/badge.svg)](https://github.com/agent-receipts/ar/actions/workflows/sdk-py.yml)
+[![CI](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-py.yml/badge.svg)](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-py.yml)
 
 ---
 
 Create, sign, hash-chain, store, and verify cryptographically signed audit trails for AI agent actions.
 
-[Spec](https://github.com/agent-receipts/spec) &bull; [TypeScript SDK](https://github.com/agent-receipts/ar/tree/main/sdk/ts) &bull; [Reference Implementation](https://github.com/ojongerius/attest)
+[Spec](https://github.com/agent-receipts/spec) &bull; [TypeScript SDK](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) &bull; [Reference Implementation](https://github.com/ojongerius/attest)
 
 </div>
 
@@ -46,23 +46,23 @@ The protocol is designed for receipts to travel — publishing to a shared ledge
 The Python SDK is on PyPI:
 
 ```sh
-pip install agent-receipts
+pip install obsigna
 ```
 
-Receipts are signed by a separate `agent-receipts-daemon` process, which also
+Receipts are signed by a separate `obsigna-daemon` process, which also
 ships the `agent-receipts` CLI (including the `verify` command). Install it on
 Linux or macOS (Windows is not supported yet) — see the
 [Daemon Setup guide](https://agentreceipts.ai/getting-started/daemon-setup/).
 
 ## Quick start
 
-Agent Receipts are signed by a separate `agent-receipts-daemon` process, not by
+Agent Receipts are signed by a separate `obsigna-daemon` process, not by
 your application. Your code sends tool-call *events* over a local Unix socket;
 the daemon holds the Ed25519 signing key, builds the receipt, signs it, and
 appends it to the hash-chained store. The signing key never enters your process —
 so the audit trail holds up even if the agent is compromised. This is the
 canonical deployment shape
-([ADR-0022](https://github.com/agent-receipts/ar/blob/main/docs/adr/0022-canonical-deployment-shape.md))
+([ADR-0022](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0022-canonical-deployment-shape.md))
 and the first thing you should reach for. To learn the receipt API without a
 daemon, see [the in-process appendix](#appendix-in-process-signing-tutorial-and-testing-only).
 
@@ -74,8 +74,8 @@ default socket — see the
 socket paths and running it as a service.
 
 ```sh
-agent-receipts-daemon --init   # one-time: creates the signing key
-agent-receipts-daemon          # start the daemon (leave it running)
+obsigna-daemon --init   # one-time: creates the signing key
+obsigna-daemon          # start the daemon (leave it running)
 ```
 
 ### 2. Emit a receipt
@@ -91,7 +91,7 @@ constructor argument, not an `emit()` argument.
 
 <!-- snippet-check: no-run -->
 ```python
-from agent_receipts import DaemonEmitter
+from obsigna import DaemonEmitter
 
 with DaemonEmitter() as e:  # uses AGENTRECEIPTS_SOCKET or the per-OS default
     e.emit(
@@ -128,7 +128,7 @@ mappings from a JSON config (`{ "mappings": [...] }`), and `resolve_action_type`
 looks up a single action type's metadata.
 
 ```python
-from agent_receipts import classify_tool_call, load_taxonomy_config
+from obsigna import classify_tool_call, load_taxonomy_config
 
 mappings = load_taxonomy_config("taxonomy.json")
 result = classify_tool_call("read_file", mappings)
@@ -138,11 +138,11 @@ print(result.action_type, result.risk_level)
 ## Delivering receipts to a remote collector
 
 When the agent host and the receipt-storage host differ, sign receipts
-client-side and POST them to an `agent-receipts-collector` over HTTPS. This is an
+client-side and POST them to an `obsigna-collector` over HTTPS. This is an
 enterprise / multi-host shape, not the first-run path — the daemon above is what
 most adopters want.
 
-`agent_receipts.emitters` (re-exported at the package top level) provides the
+`obsigna.emitters` (re-exported at the package top level) provides the
 building blocks below, all delivering signed `AgentReceipt` values — the receipts
 you sign with `sign_receipt`, shown in the [in-process appendix](#appendix-in-process-signing-tutorial-and-testing-only):
 
@@ -165,7 +165,7 @@ you sign with `sign_receipt`, shown in the [in-process appendix](#appendix-in-pr
 
 <!-- snippet-check: no-run -->
 ```python
-from agent_receipts import (
+from obsigna import (
     AgentReceipt,
     FileWal,
     HttpEmitter,
@@ -194,12 +194,12 @@ most security reviews. The optional `aws` extra provides a `Signer` whose key
 never leaves AWS KMS:
 
 ```sh
-pip install "agent-receipts[aws]"
+pip install "obsigna[aws]"
 ```
 
 <!-- snippet-check: no-run -->
 ```python
-from agent_receipts.aws import KMSSigner
+from obsigna.aws import KMSSigner
 
 # keyId: a key ID, key ARN, alias name, or alias ARN. The key must be an
 # ECC_NIST_EDWARDS25519 (Ed25519) key with SIGN_VERIFY usage. Credentials come
@@ -239,14 +239,14 @@ block until the in-flight one completes, and the first overlap logs a one-shot
 warning so the misuse is visible.
 
 ```python
-from agent_receipts import (
+from obsigna import (
     ChainEmitInput,
     InMemoryEmitter,
     ReceiptChain,
     generate_key_pair,
 )
-from agent_receipts.receipt.create import ActionInput
-from agent_receipts.receipt.types import Issuer, Outcome, Principal
+from obsigna.receipt.create import ActionInput
+from obsigna.receipt.types import Issuer, Outcome, Principal
 
 keys = generate_key_pair()
 
@@ -292,7 +292,7 @@ should not depend on a running daemon.
 ### Create and sign a receipt
 
 ```python
-from agent_receipts import (
+from obsigna import (
     ActionInput,
     Chain,
     CreateReceiptInput,
@@ -333,7 +333,7 @@ receipt_hash = hash_receipt(receipt)
 
 <!-- snippet-check: continues -->
 ```python
-from agent_receipts import verify_chain, verify_receipt
+from obsigna import verify_chain, verify_receipt
 
 valid = verify_receipt(receipt, keys.public_key)
 print(f"Signature valid: {valid}")  # True
@@ -364,7 +364,7 @@ A [W3C Verifiable Credential](https://www.w3.org/TR/vc-data-model-2.0/) signed w
 ### Receipt creation and signing
 
 ```python
-from agent_receipts import (
+from obsigna import (
     ActionInput,          # Action fields for CreateReceiptInput
     CreateReceiptInput,   # Input bundle for create_receipt
     create_receipt,       # Build an unsigned receipt from input fields
@@ -377,7 +377,7 @@ from agent_receipts import (
 ### Hashing and canonicalization
 
 ```python
-from agent_receipts import (
+from obsigna import (
     canonicalize,         # RFC 8785 JSON canonicalization
     hash_receipt,         # Hash receipt (excluding proof) -> "sha256:<hex>"
     sha256,               # Hash arbitrary data -> "sha256:<hex>"
@@ -387,7 +387,7 @@ from agent_receipts import (
 ### Chain verification
 
 ```python
-from agent_receipts import (
+from obsigna import (
     verify_chain,         # Verify signatures, hash links, and sequence numbering
 )
 ```
@@ -395,7 +395,7 @@ from agent_receipts import (
 ### Types (Pydantic v2 models)
 
 ```python
-from agent_receipts import (
+from obsigna import (
     AgentReceipt,         # Signed receipt with proof
     UnsignedAgentReceipt,  # Receipt before signing
     Action, ActionTarget, Authorization, Chain,
@@ -410,9 +410,9 @@ backwards compatibility — prefer `AgentReceipt` / `UnsignedAgentReceipt`.
 ### Subpackage imports
 
 ```python
-from agent_receipts.receipt import create_receipt, sign_receipt
-from agent_receipts.receipt.hash import canonicalize
-from agent_receipts.receipt.types import CONTEXT, CREDENTIAL_TYPE
+from obsigna.receipt import create_receipt, sign_receipt
+from obsigna.receipt.hash import canonicalize
+from obsigna.receipt.types import CONTEXT, CREDENTIAL_TYPE
 ```
 
 ### TypeScript SDK compatibility
@@ -420,7 +420,7 @@ from agent_receipts.receipt.types import CONTEXT, CREDENTIAL_TYPE
 camelCase aliases are available for users coming from the TS SDK:
 
 ```python
-from agent_receipts import (
+from obsigna import (
     createReceipt,    # = create_receipt
     generateKeyPair,  # = generate_key_pair
     signReceipt,      # = sign_receipt
@@ -432,7 +432,7 @@ from agent_receipts import (
 
 ## Cross-language compatibility
 
-This SDK produces **byte-identical** output to [`@agnt-rcpt/sdk-ts`](https://github.com/agent-receipts/ar/tree/main/sdk/ts):
+This SDK produces **byte-identical** output to [`@obsigna/sdk-ts`](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts):
 
 - RFC 8785 canonical JSON matches exactly
 - SHA-256 hashes are identical
@@ -443,7 +443,7 @@ Cross-language compatibility is verified by test vectors generated from the Type
 ## Project structure
 
 ```
-src/agent_receipts/
+src/obsigna/
   receipt/
     types.py       # Pydantic models for all receipt types
     create.py      # Receipt creation with auto-generated IDs
@@ -474,11 +474,11 @@ uv run pyright             # type check
 
 | Component | Description |
 |:---|:---|
-| [agent-receipts/ar](https://github.com/agent-receipts/ar) | Monorepo: spec, SDKs, daemon, MCP proxy, hook |
-| **[Python SDK](https://github.com/agent-receipts/ar/tree/main/sdk/py)** (this package) | [PyPI](https://pypi.org/project/agent-receipts/) |
-| [TypeScript SDK](https://github.com/agent-receipts/ar/tree/main/sdk/ts) | [npm](https://www.npmjs.com/package/@agnt-rcpt/sdk-ts) |
-| [Go SDK](https://github.com/agent-receipts/ar/tree/main/sdk/go) | `go get github.com/agent-receipts/ar/sdk/go` |
-| [agent-receipts-daemon](https://github.com/agent-receipts/ar/tree/main/daemon) | Out-of-process signer + `agent-receipts` verify CLI (canonical deployment) |
+| [agent-receipts/obsigna](https://github.com/agent-receipts/obsigna) | Monorepo: spec, SDKs, daemon, MCP proxy, hook |
+| **[Python SDK](https://github.com/agent-receipts/obsigna/tree/main/sdk/py)** (this package) | [PyPI](https://pypi.org/project/obsigna/) |
+| [TypeScript SDK](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) | [npm](https://www.npmjs.com/package/@obsigna/sdk-ts) |
+| [Go SDK](https://github.com/agent-receipts/obsigna/tree/main/sdk/go) | `go get github.com/agent-receipts/ar/sdk/go` |
+| [obsigna-daemon](https://github.com/agent-receipts/obsigna/tree/main/daemon) | Out-of-process signer + `agent-receipts` verify CLI (canonical deployment) |
 | [agent-receipts/spec](https://github.com/agent-receipts/spec) | Protocol specification, JSON Schemas, canonical taxonomy |
 | [ojongerius/attest](https://github.com/ojongerius/attest) | MCP proxy + CLI (reference implementation) |
 

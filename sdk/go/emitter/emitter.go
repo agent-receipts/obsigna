@@ -64,6 +64,11 @@ const MaxFrameSize = 1 << 20
 // before the write rather than as silent daemon-side rejections.
 const MaxIdentityFieldLen = 256
 
+// MaxTargetResourceLen is the maximum byte length of Target.Resource. File
+// paths can reach 4096 bytes on Linux (PATH_MAX), so a wider cap is used
+// rather than MaxIdentityFieldLen. The daemon enforces the same limit.
+const MaxTargetResourceLen = 4096
+
 // SupportedFrameVersion mirrors the daemon's pipeline.SupportedFrameVersion.
 // The wire format is versioned; bumping it requires a daemon-side
 // translator, so a single supported value is the only safe contract.
@@ -106,6 +111,14 @@ var ErrTransport = errors.New("emitter: transport failure")
 type Tool struct {
 	Server string
 	Name   string
+}
+
+// Target identifies the system and resource the action operates on.
+// System names a resource domain (e.g. "filesystem"); Resource is the
+// path or identifier within that domain (e.g. a file path).
+type Target struct {
+	System   string
+	Resource string
 }
 
 // Event is one tool invocation forwarded to the daemon. Input and Output
@@ -151,6 +164,30 @@ type Event struct {
 	// AgentType is the runtime-reported agent type label (Claude Code:
 	// agent_type, e.g. "general-purpose"). Optional; omitted when empty.
 	AgentType string
+
+	// Model is the model the runtime observed producing this tool call (Claude
+	// Code: derived from the session transcript). The daemon stamps it onto
+	// issuer.runtime.model — observability metadata distinct from IssuerModel,
+	// which populates the identity-bearing issuer.model. Optional; omitted when
+	// empty.
+	Model string
+
+	// Usage is the token-usage object exactly as the runtime reported it
+	// (input/output/cache tokens), forwarded verbatim to issuer.runtime.usage.
+	// Must be valid JSON or nil; a non-nil empty slice is rejected at Emit.
+	// Optional; omitted when nil.
+	Usage json.RawMessage
+
+	// CaptureMethod records how Model/Usage were captured (Claude Code:
+	// "transcript"), stamped onto issuer.runtime.capture_method so transcript-
+	// derived receipts are distinguishable from other ingesters. Optional;
+	// omitted when empty.
+	CaptureMethod string
+
+	// Target identifies the resource the action operates on (e.g. a file path
+	// for filesystem tools). Optional; omitted from the frame when System and
+	// Resource are both empty.
+	Target Target
 }
 
 // Option configures an Emitter at construction.
@@ -313,6 +350,11 @@ type frame struct {
 	CorrelationID  string          `json:"correlation_id,omitempty"`
 	AgentID        string          `json:"agent_id,omitempty"`
 	AgentType      string          `json:"agent_type,omitempty"`
+	Model          string          `json:"model,omitempty"`
+	Usage          json.RawMessage `json:"usage,omitempty"`
+	CaptureMethod  string          `json:"capture_method,omitempty"`
+	TargetSystem   string          `json:"target_system,omitempty"`
+	TargetResource string          `json:"target_resource,omitempty"`
 }
 
 type frameTool struct {
@@ -354,8 +396,11 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 	if ev.Output != nil && len(ev.Output) == 0 {
 		return fmt.Errorf("emitter: Output is a non-nil empty slice; pass nil to indicate no payload")
 	}
-	if len(ev.Input)+len(ev.Output) > MaxFrameSize {
-		return fmt.Errorf("emitter: combined Input+Output payload exceeds MaxFrameSize (%d bytes)", MaxFrameSize)
+	if ev.Usage != nil && len(ev.Usage) == 0 {
+		return fmt.Errorf("emitter: Usage is a non-nil empty slice; pass nil to indicate no usage")
+	}
+	if len(ev.Input)+len(ev.Output)+len(ev.Usage) > MaxFrameSize {
+		return fmt.Errorf("emitter: combined Input+Output+Usage payload exceeds MaxFrameSize (%d bytes)", MaxFrameSize)
 	}
 	// json.Valid only checks lexical syntax — `1e400` parses as a token but
 	// overflows float64, so the daemon's RFC 8785 canonicalisation (which
@@ -370,6 +415,14 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 	if len(ev.Output) > 0 {
 		if err := json.Unmarshal(ev.Output, new(interface{})); err != nil {
 			return fmt.Errorf("emitter: Output is not valid or representable JSON: %w", err)
+		}
+	}
+	// Usage is forwarded verbatim into the receipt; gate it on the same
+	// representable-JSON check as Input/Output so a malformed token object
+	// fails fast at the caller rather than on the daemon's canonicalisation.
+	if len(ev.Usage) > 0 {
+		if err := json.Unmarshal(ev.Usage, new(interface{})); err != nil {
+			return fmt.Errorf("emitter: Usage is not valid or representable JSON: %w", err)
 		}
 	}
 
@@ -403,9 +456,26 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 		e.dropCount.Add(pendingDrops)
 		return fmt.Errorf("emitter: operator_name requires operator_id")
 	}
+	// Target.System and Target.Resource must both be set or both empty.
+	// A half-populated Target produces ActionTarget{System:""} or
+	// ActionTarget{Resource:""} in the signed receipt — the daemon enforces
+	// the same rule in validateFrame; catching it here surfaces a clear error
+	// at the call site before the write.
+	if (ev.Target.System != "") != (ev.Target.Resource != "") {
+		e.dropCount.Add(pendingDrops)
+		return fmt.Errorf("emitter: Target.System and Target.Resource must both be set or both empty")
+	}
+	if len(ev.Target.System) > MaxIdentityFieldLen {
+		e.dropCount.Add(pendingDrops)
+		return fmt.Errorf("emitter: target_system exceeds %d bytes (got %d)", MaxIdentityFieldLen, len(ev.Target.System))
+	}
+	if len(ev.Target.Resource) > MaxTargetResourceLen {
+		e.dropCount.Add(pendingDrops)
+		return fmt.Errorf("emitter: target_resource exceeds %d bytes (got %d)", MaxTargetResourceLen, len(ev.Target.Resource))
+	}
 	// Mirror the daemon's per-field length cap so oversized values are caught
 	// at the emitter rather than silently rejected by the daemon after the write.
-	for _, f := range [7]struct{ name, val string }{
+	for _, f := range [9]struct{ name, val string }{
 		{"issuer_name", issuerName},
 		{"issuer_model", issuerModel},
 		{"operator_id", operatorID},
@@ -413,6 +483,8 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 		{"idempotency_key", ev.IdempotencyKey},
 		{"correlation_id", ev.CorrelationID},
 		{"agent_id", ev.AgentID},
+		{"model", ev.Model},
+		{"capture_method", ev.CaptureMethod},
 	} {
 		if len(f.val) > MaxIdentityFieldLen {
 			e.dropCount.Add(pendingDrops)
@@ -439,6 +511,11 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 		CorrelationID:  ev.CorrelationID,
 		AgentID:        ev.AgentID,
 		AgentType:      ev.AgentType,
+		Model:          ev.Model,
+		Usage:          ev.Usage,
+		CaptureMethod:  ev.CaptureMethod,
+		TargetSystem:   ev.Target.System,
+		TargetResource: ev.Target.Resource,
 	})
 	if err != nil {
 		// Marshal failure is a caller bug, not a transient outage. Restore

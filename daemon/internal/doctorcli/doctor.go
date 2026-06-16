@@ -1,4 +1,4 @@
-// Package doctorcli implements the `agent-receipts doctor` subcommand: an
+// Package doctorcli implements the `obsigna doctor` subcommand: an
 // end-to-end health check of the receipts pipeline (emitter → socket → daemon
 // → SQLite → verify) described by ADR-0010. It exists because the failure
 // modes the pipeline can drift into are subtle — tool calls succeed, individual
@@ -117,7 +117,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	socketPath := fs.String("socket", envOr("AGENTRECEIPTS_SOCKET", daemon.DefaultSocketPath()), "Unix-domain socket path the daemon listens on (env: AGENTRECEIPTS_SOCKET)")
 	dbPath := fs.String("db", envOr("AGENTRECEIPTS_DB", daemon.DefaultDBPath()), "SQLite receipt-store path (env: AGENTRECEIPTS_DB)")
 	pubKeyPath := fs.String("public-key", defaultPubKey, "PEM-encoded SPKI public key path (env: AGENTRECEIPTS_PUBLIC_KEY)")
-	chainID := fs.String("chain-id", envOr("AGENTRECEIPTS_CHAIN_ID", time.Now().UTC().Format("2006-01-02")), "Chain id to inspect (env: AGENTRECEIPTS_CHAIN_ID)")
+	chainID := fs.String("chain-id", "", "Chain id to inspect; when unset, doctor auto-detects the daemon's active root chain from the store and falls back to today's UTC date if the store is empty (env: AGENTRECEIPTS_CHAIN_ID)")
 	asJSON := fs.Bool("json", false, "Emit structured JSON instead of human-readable lines")
 	noRoundtrip := fs.Bool("no-roundtrip", false, "Skip the synthetic round-trip check (no event is written to the chain)")
 	warnAsError := fs.Bool("warn-as-error", false, "Exit non-zero when any check warns, not only on failures")
@@ -129,15 +129,28 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		return ExitUsageError
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(stderr, "agent-receipts doctor: unexpected positional argument(s): %v\n", fs.Args())
+		fmt.Fprintf(stderr, "obsigna doctor: unexpected positional argument(s): %v\n", fs.Args())
 		return ExitUsageError
+	}
+
+	// Resolve the chain id to inspect. An explicit flag wins, then the env var,
+	// then the daemon's active root chain discovered from the store. The bare
+	// UTC date is only a last-resort fallback for an empty store: the daemon
+	// pins its chain id at startup (config or per-OS default) and rolls a "-N"
+	// suffix across restarts, so today's date rarely names the live chain.
+	resolvedChainID := *chainID
+	if resolvedChainID == "" {
+		resolvedChainID = envLookup("AGENTRECEIPTS_CHAIN_ID")
+	}
+	if resolvedChainID == "" {
+		resolvedChainID = resolveChainID(*dbPath)
 	}
 
 	cfg := config{
 		socketPath: *socketPath,
 		dbPath:     *dbPath,
 		pubKeyPath: *pubKeyPath,
-		chainID:    *chainID,
+		chainID:    resolvedChainID,
 	}
 
 	results := runChecks(cfg, envLookup, *noRoundtrip, *roundtripTimeout)
@@ -148,7 +161,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(report); err != nil {
-			fmt.Fprintf(stderr, "agent-receipts doctor: encode JSON: %v\n", err)
+			fmt.Fprintf(stderr, "obsigna doctor: encode JSON: %v\n", err)
 			return ExitUsageError
 		}
 	} else {
@@ -214,7 +227,7 @@ func checkDaemonProcess(socketPath string) Result {
 			Check:  name,
 			Status: StatusFail,
 			Reason: fmt.Sprintf("no daemon listening on %s (%v)", socketPath, err),
-			Fix:    "start the daemon: agent-receipts-daemon",
+			Fix:    "start the daemon: obsigna daemon run",
 		}
 	}
 	_ = conn.Close()
@@ -231,7 +244,7 @@ func checkSocket(socketPath string) Result {
 	info, err := os.Lstat(socketPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Result{Check: name, Status: StatusFail, Reason: fmt.Sprintf("%s does not exist", socketPath), Fix: "start the daemon: agent-receipts-daemon"}
+			return Result{Check: name, Status: StatusFail, Reason: fmt.Sprintf("%s does not exist", socketPath), Fix: "start the daemon: obsigna daemon run"}
 		}
 		return Result{Check: name, Status: StatusFail, Reason: fmt.Sprintf("stat %s: %v", socketPath, err)}
 	}
@@ -297,7 +310,7 @@ func checkDBPermissions(dbPath string) Result {
 	info, err := os.Lstat(dbPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Result{Check: name, Status: StatusFail, Reason: fmt.Sprintf("%s does not exist (has the daemon ever run?)", dbPath), Fix: "start the daemon: agent-receipts-daemon"}
+			return Result{Check: name, Status: StatusFail, Reason: fmt.Sprintf("%s does not exist (has the daemon ever run?)", dbPath), Fix: "start the daemon: obsigna daemon run"}
 		}
 		return Result{Check: name, Status: StatusFail, Reason: fmt.Sprintf("stat %s: %v", dbPath, err)}
 	}
@@ -442,6 +455,9 @@ func checkChainHead(dbPath, pubKeyPath, chainID string) Result {
 	reason := fmt.Sprintf("chain %q VALID (%d receipts), status %s", chainID, result.Length, result.Status)
 	if result.IncompleteToolRoundtrip {
 		reason += "; advisory: final tool call has no result receipt"
+	}
+	if result.IncompleteSession {
+		reason += "; advisory: PTY session open/close imbalance"
 	}
 	return Result{Check: name, Status: StatusOK, Reason: reason}
 }
@@ -606,6 +622,40 @@ func pollForRoundtrip(dbPath, chainID, sessionID string, timeout time.Duration) 
 	}
 }
 
+// resolveChainID picks the chain id doctor inspects when the operator did not
+// name one explicitly: the daemon's active root chain if the store has one,
+// otherwise today's UTC date. The date fallback only matters for a brand-new,
+// empty store — once any receipt exists, detectActiveRootChain names the live
+// chain the daemon is actually appending to (see daemon advanceChainID).
+func resolveChainID(dbPath string) string {
+	if cid := detectActiveRootChain(dbPath); cid != "" {
+		return cid
+	}
+	return time.Now().UTC().Format("2006-01-02")
+}
+
+// detectActiveRootChain returns the chain id of the most recently written root
+// receipt — the chain the daemon is actively appending to — or "" when the
+// store is empty/unreadable. The store excludes agent sub-chains and orders by
+// write recency (see store.LatestRootChainID); doctor's chain-head and
+// round-trip checks must target that root chain. Read-only access keeps doctor
+// safe to run against a live daemon (the sole writer).
+func detectActiveRootChain(dbPath string) string {
+	if dbPath == "" {
+		return ""
+	}
+	s, err := store.OpenReadOnly(dbPath)
+	if err != nil {
+		return ""
+	}
+	defer s.Close()
+	chainID, found, err := s.LatestRootChainID()
+	if err != nil || !found {
+		return ""
+	}
+	return chainID
+}
+
 // publicKeyFingerprint parses an Ed25519 SPKI public key from a PEM file and
 // returns a short "sha256:<hex>" fingerprint over the DER bytes. It rejects
 // non-Ed25519 keys: Ed25519 is the only signing algorithm the protocol
@@ -636,7 +686,7 @@ func publicKeyFingerprint(path string) (string, error) {
 
 // writeHuman renders the report as one line per check plus a summary line.
 func writeHuman(w io.Writer, results []Result, warnAsError bool) {
-	fmt.Fprintln(w, "agent-receipts doctor — pipeline health")
+	fmt.Fprintln(w, "obsigna doctor — pipeline health")
 	fmt.Fprintln(w)
 	var ok, warn, fail int
 	for _, r := range results {

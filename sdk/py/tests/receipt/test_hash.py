@@ -2,7 +2,7 @@
 
 import pytest
 
-from agent_receipts.receipt.hash import canonicalize, hash_receipt, sha256
+from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
 from tests.conftest import make_receipt
 
 

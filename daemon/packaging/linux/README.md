@@ -16,7 +16,7 @@ Runs as the logged-in user. No root or dedicated system user needed. Data lives 
 ### Quick install (Linux only)
 
 ```sh
-curl -fsSL https://github.com/agent-receipts/ar/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/agent-receipts/obsigna/releases/latest/download/install.sh | sh
 ```
 
 Handles binary download, key generation, unit install, and service start in one step. See [`daemon/install.sh`](../../install.sh) for details.
@@ -31,12 +31,12 @@ Install the binary (pick one):
 
 ```sh
 # Build from source (go install @latest is not yet supported — see daemon/README.md):
-git clone https://github.com/agent-receipts/ar
-cd ar/daemon
-go build -o ~/.local/bin/agent-receipts-daemon ./cmd/agent-receipts-daemon
+git clone https://github.com/agent-receipts/obsigna
+cd obsigna/daemon
+go build -o ~/.local/bin/obsigna-daemon ./cmd/obsigna-daemon
 ```
 
-The unit file assumes `~/.local/bin/agent-receipts-daemon` (`%h/.local/bin/…`). If the binary is elsewhere, edit `ExecStart` before installing the unit.
+The unit file assumes `~/.local/bin/obsigna-daemon` (`%h/.local/bin/…`). If the binary is elsewhere, edit `ExecStart` before installing the unit.
 
 #### 1 — Generate the signing key (once, optional)
 
@@ -46,7 +46,7 @@ does not already exist, so this step is optional for most installs.
 To generate it manually before enabling the service:
 
 ```sh
-agent-receipts-daemon -init
+obsigna-daemon -init
 ```
 
 This creates `~/.local/share/agent-receipts/signing.key` (0600) and
@@ -97,7 +97,7 @@ Install the binary to `/usr/local/bin/`:
 
 ```sh
 # Build from source, then:
-install -m 0755 agent-receipts-daemon /usr/local/bin/
+install -m 0755 obsigna-daemon /usr/local/bin/
 ```
 
 ### 1 — Create the `agentreceipts` user/group
@@ -138,7 +138,7 @@ install -d -m 0750 -o root -g agentreceipts /etc/agentreceipts
 # can write into it; the service user can traverse but not create files.
 # -public-key points the pub file to the writable StateDirectory so that
 # /etc/agentreceipts can be mounted read-only by the service unit.
-agent-receipts-daemon \
+obsigna-daemon \
   -init \
   -key /etc/agentreceipts/signing.key \
   -public-key /var/lib/agentreceipts/signing.key.pub \
@@ -193,9 +193,9 @@ Override at runtime:
 
 ```sh
 # Daemon side:
-agent-receipts-daemon -socket /custom/path/events.sock
+obsigna-daemon -socket /custom/path/events.sock
 # or:
-AGENTRECEIPTS_SOCKET=/custom/path/events.sock agent-receipts-daemon
+AGENTRECEIPTS_SOCKET=/custom/path/events.sock obsigna-daemon
 
 # Emitter side (mcp-proxy or SDK):
 AGENTRECEIPTS_SOCKET=/custom/path/events.sock mcp-proxy ...

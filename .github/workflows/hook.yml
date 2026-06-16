@@ -30,13 +30,76 @@ jobs:
 
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
-          go-version: "1.26"
+          # Pin to the patch recorded in hook/go.mod (ADR-0036) so CI stops
+          # floating to the latest 1.26.x — a moving toolchain would defeat the
+          # reproducible-build attestation Gate B asserts.
+          go-version-file: hook/go.mod
 
       - name: Vet
         run: go vet ./...
 
       - name: Build
-        run: go build ./cmd/agent-receipts-hook
+        # -trimpath mirrors the release build (daemon/.goreleaser.yaml, the
+        # unified obsigna train): CI must exercise the same flags the attestation
+        # depends on (ADR-0036/0034).
+        # ./cmd/... covers both the obsigna-hook binary and the agent-receipts-hook shim.
+        run: go build -trimpath ./cmd/...
 
       - name: Test
         run: go test ./... -v
+
+  # Gate A (ADR-0036): obsigna-hook stays a thin forwarder — its import graph must
+  # never reach the receipt store, a SQLite driver, receipt signing, the daemon
+  # library, or operator CLI packages, all of which are writer responsibilities
+  # ADR-0010 reserves for the daemon. The rule lives in a Go test next to the code
+  # (cmd/obsigna-hook/import_guard_test.go) so it is enforced locally too and
+  # auto-catches any future reintroduction of a local store; this job just runs it.
+  import-graph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: hook/go.mod
+      - name: Assert obsigna-hook stays a thin forwarder
+        working-directory: hook
+        run: go test -run '^TestImportGraphIsThinForwarder$' ./cmd/obsigna-hook -v
+
+  # Gate B (ADR-0036): reproducible build. Build obsigna-hook twice from two
+  # working-directory paths of different lengths and assert byte-identical
+  # sha256. This is what proves -trimpath actually took: without it the absolute
+  # build path is baked into the binary and the two hashes diverge. The release
+  # workflow extends this to an independent rebuild that must match the published
+  # artifact (release-obsigna.yml), which is the auditor-facing attestation.
+  reproducible-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: hook/go.mod
+      - name: Build from two different paths, assert identical sha256
+        run: |
+          set -euo pipefail
+          # Export the tracked tree (no .git, no untracked worktrees) into two
+          # parent dirs whose paths differ in length, then build the hook in
+          # each via the shared reproducible-build script (same determinism flags
+          # the release attestation uses). The workspace (go.work) is exported
+          # too, so both builds resolve the in-tree sdk/go identically; the only
+          # difference between them is the absolute build path.
+          a=/tmp/p1
+          b=/tmp/path-two-longer-than-one
+          mkdir -p "$a/repo" "$b/repo"
+          git archive --format=tar HEAD | tar -x -C "$a/repo"
+          git archive --format=tar HEAD | tar -x -C "$b/repo"
+          "$a/repo/scripts/reproducible-build.sh" "$a/repo/hook" /tmp/hook-a ./cmd/obsigna-hook
+          "$b/repo/scripts/reproducible-build.sh" "$b/repo/hook" /tmp/hook-b ./cmd/obsigna-hook
+          h1="$(sha256sum /tmp/hook-a | awk '{print $1}')"
+          h2="$(sha256sum /tmp/hook-b | awk '{print $1}')"
+          echo "path-a sha256=$h1"
+          echo "path-b sha256=$h2"
+          if [ "$h1" != "$h2" ]; then
+            echo "::error::obsigna-hook is not reproducible across build paths ($h1 vs $h2); -trimpath is not taking effect."
+            exit 1
+          fi
+          echo "ok: byte-identical obsigna-hook from two different build paths ($h1)"

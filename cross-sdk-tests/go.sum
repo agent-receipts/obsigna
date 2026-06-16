@@ -1,5 +1,5 @@
-github.com/agent-receipts/ar/sdk/go v0.15.0 h1:kMix5RHLn1dhdvPr5CrajluoUHEQVMW4xxKNLQ/PVDs=
-github.com/agent-receipts/ar/sdk/go v0.15.0/go.mod h1:beOZmNsSk/I9KrU46xJcegIFN3Fo0bdXo8luHhUmeuc=
+github.com/agent-receipts/ar/sdk/go v0.19.0 h1:4N5qohfN8B9n3ygimCuw2nLMV9LK8W39U6YC7TVtauA=
+github.com/agent-receipts/ar/sdk/go v0.19.0/go.mod h1:aMH5iT4D4SdVbd16/+6+w0fSsmmfPU/ab5yhPRTmpN0=
 github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg8=
 github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=

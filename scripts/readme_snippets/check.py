@@ -48,8 +48,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import extract  # noqa: E402
 
 GO_MODULE = "github.com/agent-receipts/ar/sdk/go"
-TS_PACKAGE = "@agnt-rcpt/sdk-ts"
-PY_PACKAGE = "agent-receipts"
+TS_PACKAGE = "@obsigna/sdk-ts"
+PY_PACKAGE = "obsigna"
 MYPY_VERSION = "mypy==2.1.0"
 
 
@@ -244,7 +244,7 @@ def _read_ts_dev_deps(repo_root: str) -> dict[str, str]:
 
 
 def _ts_dep_spec(source: str, version: str | None, repo_root: str) -> str:
-    """The `@agnt-rcpt/sdk-ts` dependency spec: in-tree file: install or version."""
+    """The `@obsigna/sdk-ts` dependency spec: in-tree file: install or version."""
     if source == "local":
         return f"file:{os.path.join(repo_root, 'sdk', 'ts')}"
     return version or ""
@@ -380,7 +380,7 @@ def check_py(units: list[extract.Unit], source: str, version: str | None, repo_r
         return 1
 
     # mypy's default errors on a missing/renamed import and on a non-existent
-    # attribute of a typed object (agent-receipts ships py.typed), catching all
+    # attribute of a typed object (obsigna ships py.typed), catching all
     # three drift classes without executing the snippet.
     return _run([py, "-m", "mypy", *files], cwd=workdir)
 

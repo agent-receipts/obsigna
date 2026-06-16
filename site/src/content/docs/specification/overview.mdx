@@ -7,12 +7,12 @@ import { Aside, Badge } from "@astrojs/starlight/components";
 
 <Badge text="v0.5.0" variant="note" /> <Badge text="Draft" variant="caution" />
 
-The Agent Receipt Protocol defines a standard format for cryptographically signed records of AI agent actions. This page covers the design principles and core concepts. For the full specification, see the [spec source on GitHub](https://github.com/agent-receipts/ar/tree/main/spec).
+The Agent Receipt Protocol defines a standard format for cryptographically signed records of AI agent actions. This page covers the design principles and core concepts. For the full specification, see the [spec source on GitHub](https://github.com/agent-receipts/obsigna/tree/main/spec).
 
 <Aside type="note" title="What's new in v0.5.0">
-- `issuer.runtime` — optional **open** container for runtime/observability metadata the issuing runtime attaches to an action. Initial members are `runtime.agent_id` (the sub-agent that issued the receipt) and `runtime.agent_type` (e.g. `"general-purpose"`); the root agent omits `runtime` entirely. Unlike the other issuer fields it is intentionally extensible — typed `@json` in the JSON-LD context and not `additionalProperties: false` in the schema — so future runtime keys (e.g. trace-context identifiers) need no protocol-version bump. See [ADR-0026](https://github.com/agent-receipts/ar/blob/main/docs/adr/0026-issuer-runtime-open-metadata.md).
+- `issuer.runtime` — optional **open** container for runtime/observability metadata the issuing runtime attaches to an action. Initial members are `runtime.agent_id` (the sub-agent that issued the receipt) and `runtime.agent_type` (e.g. `"general-purpose"`); the root agent omits `runtime` entirely. Unlike the other issuer fields it is intentionally extensible — typed `@json` in the JSON-LD context and not `additionalProperties: false` in the schema — so future runtime keys (e.g. trace-context identifiers) need no protocol-version bump. See [ADR-0026](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0026-issuer-runtime-open-metadata.md).
 - JSON-LD **context v2** (`https://agentreceipts.ai/context/v2`) adds the `runtime` term. Receipts at `0.5.0` reference context v2; `0.1.0`–`0.4.0` keep context v1 permanently.
-- `version` field now accepts `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, or `"0.5.0"`. Verifiers MUST accept all six; new receipts SHOULD use `"0.5.0"`. See the [full changelog](https://github.com/agent-receipts/ar/blob/main/spec/CHANGELOG.md).
+- `version` field now accepts `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, or `"0.5.0"`. Verifiers MUST accept all six; new receipts SHOULD use `"0.5.0"`. See the [full changelog](https://github.com/agent-receipts/obsigna/blob/main/spec/CHANGELOG.md).
 </Aside>
 
 ## Design principles

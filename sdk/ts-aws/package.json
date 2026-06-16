@@ -1,12 +1,12 @@
 {
-	"name": "@agnt-rcpt/sdk-ts-aws",
+	"name": "@obsigna/sdk-ts-aws",
 	"version": "0.1.0",
 	"description": "AWS KMS Signer for the Agent Receipts TypeScript SDK",
 	"license": "Apache-2.0",
 	"author": "Otto Jongerius",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/agent-receipts/ar.git",
+		"url": "git+https://github.com/agent-receipts/obsigna.git",
 		"directory": "sdk/ts-aws"
 	},
 	"type": "module",

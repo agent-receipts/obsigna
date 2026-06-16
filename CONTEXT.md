@@ -10,7 +10,7 @@
 It is a **protocol first, library second**. Wire-format decisions outrank ergonomic API decisions.
 Implementations exist in three languages (TypeScript, Python, Go) and must agree byte-for-byte on the wire.
 
-The canonical home is `agentreceipts.ai`. The reference monorepo is `github.com/agent-receipts/ar`.
+The canonical home is `agentreceipts.ai`. The reference monorepo is `github.com/agent-receipts/obsigna`.
 
 ## Core domain terms
 

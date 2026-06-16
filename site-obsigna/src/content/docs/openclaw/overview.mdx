@@ -1,0 +1,84 @@
+---
+title: OpenClaw
+description: OpenClaw plugin for Agent Receipts — automatic cryptographically signed receipts for every tool call an OpenClaw agent makes.
+---
+
+[OpenClaw](https://github.com/openclaw) is an open-source framework for managing and orchestrating AI agents, providing routing, session management, and access control for multi-agent workflows.
+
+The `@agnt-rcpt/openclaw` plugin integrates the Agent Receipt Protocol with OpenClaw, enabling automatic receipt generation for every tool call an OpenClaw-managed agent makes.
+
+**Repository:** [agent-receipts/openclaw](https://github.com/agent-receipts/openclaw)
+
+## What it does
+
+- Intercepts every tool call routed through OpenClaw via lifecycle hooks
+- Classifies each call using the bundled action taxonomy (filesystem, system, browser, and more)
+- Signs a W3C Verifiable Credential receipt with an Ed25519 key (in-process by default; set `daemonForwarding: true` to move signing to `obsigna-daemon`)
+- Hash-chains receipts into a tamper-evident sequence per session
+- Stores receipts in a local SQLite database
+- Exposes two agent tools (`ar_query_receipts`, `ar_verify_chain`) for querying and verifying the local audit trail
+
+See [Installation](/openclaw/installation/) to get started.
+
+## How it works
+
+```
+OpenClaw agent makes a tool call
+    |
+    v
+ before_tool_call hook
+    |  - classify action type and risk level
+    |  - hash parameters
+    |
+    v
+ Tool executes
+    |
+    v
+ after_tool_call hook
+    |  - record outcome (success / failure)
+    |  - sign receipt (Ed25519, using keyPath key — or forward to obsigna-daemon if daemonForwarding: true)
+    |  - chain to previous receipt (SHA-256 hash link)
+    |  - store in SQLite
+    v
+ Receipt written to SQLite (default: ~/.openclaw/agent-receipts/receipts.db; configurable via `dbPath`)
+```
+
+The two lifecycle hooks — `before_tool_call` and `after_tool_call` — bookend every call. The `before` hook classifies the action; the `after` hook records the outcome, signs the credential, and persists it.
+
+## What it looks like
+
+After a session, `ar_query_receipts` returns a summary with per-risk, per-status, and per-action breakdowns:
+
+```json
+{
+  "total_receipts": 5,
+  "total_chains": 1,
+  "by_risk": { "low": 4, "high": 1 },
+  "by_status": { "success": 4, "failure": 1 },
+  "by_action": {
+    "filesystem.file.read": 2,
+    "filesystem.file.create": 1,
+    "system.command.execute": 1,
+    "system.browser.navigate": 1
+  },
+  "results": [
+    { "id": "rec-…01", "timestamp": "2026-04-01T02:10:01Z", "action": "filesystem.file.read",    "risk": "low",  "target": "read_file",        "status": "success", "sequence": 1 },
+    { "id": "rec-…02", "timestamp": "2026-04-01T02:10:02Z", "action": "filesystem.file.read",    "risk": "low",  "target": "read_file",        "status": "failure", "sequence": 2 },
+    { "id": "rec-…03", "timestamp": "2026-04-01T02:10:03Z", "action": "system.command.execute",  "risk": "high", "target": "run_command",      "status": "success", "sequence": 3 },
+    { "id": "rec-…04", "timestamp": "2026-04-01T02:10:04Z", "action": "system.browser.navigate", "risk": "low",  "target": "browser_navigate", "status": "success", "sequence": 4 },
+    { "id": "rec-…05", "timestamp": "2026-04-01T02:10:05Z", "action": "filesystem.file.create",  "risk": "low",  "target": "write_file",       "status": "success", "sequence": 5 }
+  ]
+}
+```
+
+The same data is available from the CLI outside of agent sessions — see [CLI Reference](/openclaw/cli-reference/).
+
+## Use cases
+
+**Post-incident review** — after an agent produces an unexpected result, query its receipt chain to replay every tool call in order, see which step failed, and confirm what parameters were used.
+
+**Compliance** — export signed receipts as W3C Verifiable Presentations for record-keeping. Every receipt includes a cryptographic proof that it was produced by a specific key at a specific time, and that it has not been tampered with since.
+
+**Multi-agent trust** — in workflows where one agent invokes another, each agent maintains its own receipt chain. The hash links within each chain let a downstream verifier confirm that no receipt was inserted, removed, or modified after the fact.
+
+**Cost and activity tracking** — the action taxonomy and risk classifications in the receipts give a structured breakdown of what the agent actually did: how many reads vs. writes, how many high-risk calls, which tools were used most.

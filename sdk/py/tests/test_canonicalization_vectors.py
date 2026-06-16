@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_receipts.receipt.hash import canonicalize, hash_receipt
+from obsigna.receipt.hash import canonicalize, hash_receipt
 
 VECTORS_PATH = (
     Path(__file__).parent.parent.parent.parent
@@ -138,7 +138,7 @@ def test_receipt_hash_vector(
 
     Also asserts mustContainSubstring when set on the vector.
     """
-    from agent_receipts.receipt.hash import _strip_optional_nulls
+    from obsigna.receipt.hash import _strip_optional_nulls
 
     # Build canonical for substring check — apply same normalisation as hash_receipt.
     d = _strip_optional_nulls(dict(receipt))

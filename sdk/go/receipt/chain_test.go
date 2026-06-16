@@ -1420,6 +1420,135 @@ func TestIncompleteToolRoundtripEmptyChain(t *testing.T) {
 	}
 }
 
+// buildPTYChain builds a chain with a pty.open receipt followed optionally by
+// a pty.close receipt. Used for IncompleteSession tests.
+func buildPTYChain(t *testing.T, kp KeyPair, withClose bool) []AgentReceipt {
+	t.Helper()
+	chain := buildChain(t, kp, 2) // two ordinary receipts first
+	prevHash, err := HashReceipt(chain[len(chain)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	openUnsigned := Create(CreateInput{
+		Issuer:    Issuer{ID: "did:agent:test"},
+		Principal: Principal{ID: "did:user:test"},
+		Action:    Action{Type: ActionTypePTYOpen, RiskLevel: RiskCritical},
+		Outcome:   Outcome{Status: StatusSuccess},
+		Chain:     Chain{Sequence: 3, PreviousReceiptHash: &prevHash, ChainID: "chain-1"},
+	})
+	openSigned, err := Sign(openUnsigned, kp.PrivateKey, "did:agent:test#key-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain = append(chain, openSigned)
+
+	if withClose {
+		openHash, err := HashReceipt(openSigned)
+		if err != nil {
+			t.Fatal(err)
+		}
+		closeUnsigned := Create(CreateInput{
+			Issuer:    Issuer{ID: "did:agent:test"},
+			Principal: Principal{ID: "did:user:test"},
+			Action:    Action{Type: ActionTypePTYClose, RiskLevel: RiskHigh},
+			Outcome:   Outcome{Status: StatusSuccess},
+			Chain:     Chain{Sequence: 4, PreviousReceiptHash: &openHash, ChainID: "chain-1"},
+		})
+		closeSigned, err := Sign(closeUnsigned, kp.PrivateKey, "did:agent:test#key-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		chain = append(chain, closeSigned)
+	}
+	return chain
+}
+
+func TestIncompleteSessionFlagsMissingClose(t *testing.T) {
+	kp, _ := GenerateKeyPair()
+	chain := buildPTYChain(t, kp, false)
+
+	result := VerifyChain(chain, kp.PublicKey)
+	if !result.Valid {
+		t.Errorf("missing pty.close must not break verification; broken at %d: %s", result.BrokenAt, result.Error)
+	}
+	if !result.IncompleteSession {
+		t.Error("expected IncompleteSession=true when pty.open has no pty.close")
+	}
+}
+
+func TestIncompleteSessionClearedByClose(t *testing.T) {
+	kp, _ := GenerateKeyPair()
+	chain := buildPTYChain(t, kp, true)
+
+	result := VerifyChain(chain, kp.PublicKey)
+	if result.IncompleteSession {
+		t.Error("expected IncompleteSession=false when pty.open is matched by pty.close")
+	}
+}
+
+func TestIncompleteSessionNoPTYReceipts(t *testing.T) {
+	kp, _ := GenerateKeyPair()
+	chain := buildChain(t, kp, 4)
+
+	result := VerifyChain(chain, kp.PublicKey)
+	if result.IncompleteSession {
+		t.Error("expected IncompleteSession=false when chain has no PTY receipts")
+	}
+}
+
+func TestIncompleteSessionEmptyChain(t *testing.T) {
+	result := VerifyChain(nil, "")
+	if result.IncompleteSession {
+		t.Error("expected IncompleteSession=false for empty chain")
+	}
+}
+
+func TestIncompleteSessionIsAdvisory(t *testing.T) {
+	kp, _ := GenerateKeyPair()
+	chain := buildPTYChain(t, kp, false)
+
+	result := VerifyChain(chain, kp.PublicKey)
+	if !result.Valid {
+		t.Errorf("IncompleteSession must not affect Valid; got Valid=false: %s", result.Error)
+	}
+	if !result.IncompleteSession {
+		t.Error("expected IncompleteSession=true")
+	}
+}
+
+func TestIncompleteSessionOrphanedClose(t *testing.T) {
+	// A chain with a pty.close but no prior pty.open (e.g. a replayed close
+	// receipt or a chain viewed after its open was truncated) must also be
+	// flagged — closes > opens is equally anomalous to opens > closes.
+	kp, _ := GenerateKeyPair()
+	chain := buildChain(t, kp, 2)
+	prevHash, err := HashReceipt(chain[len(chain)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeUnsigned := Create(CreateInput{
+		Issuer:    Issuer{ID: "did:agent:test"},
+		Principal: Principal{ID: "did:user:test"},
+		Action:    Action{Type: ActionTypePTYClose, RiskLevel: RiskHigh},
+		Outcome:   Outcome{Status: StatusSuccess},
+		Chain:     Chain{Sequence: 3, PreviousReceiptHash: &prevHash, ChainID: "chain-1"},
+	})
+	closeSigned, err := Sign(closeUnsigned, kp.PrivateKey, "did:agent:test#key-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain = append(chain, closeSigned)
+
+	result := VerifyChain(chain, kp.PublicKey)
+	if !result.Valid {
+		t.Errorf("orphaned close must not break verification; broken at %d: %s", result.BrokenAt, result.Error)
+	}
+	if !result.IncompleteSession {
+		t.Error("expected IncompleteSession=true for closes > opens (orphaned close)")
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || len(sub) == 0 || findStr(s, sub))
 }

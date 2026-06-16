@@ -48,6 +48,12 @@ type ChainVerification struct {
 	// surfaced separately from a generic chain break so callers can report
 	// "incomplete tool roundtrip" specifically.
 	IncompleteToolRoundtrip bool `json:"incomplete_tool_roundtrip,omitempty"`
+	// IncompleteSession is true when PTY session accounting is imbalanced:
+	// more opens than closes (session force-terminated without a close receipt)
+	// or more closes than opens (orphaned close from a replay or truncated
+	// chain). Advisory only: it does NOT by itself set Valid=false. Analogous
+	// to IncompleteToolRoundtrip for session-scope pairs (ADR-0027 §/pty).
+	IncompleteSession bool `json:"incomplete_session,omitempty"`
 }
 
 // classifyTerminationStatus inspects the wire form of the final receipt and
@@ -122,6 +128,23 @@ func isIncompleteToolRoundtrip(receipts []AgentReceipt) bool {
 	return last.CredentialSubject.Outcome.Status == StatusPending
 }
 
+// isIncompleteSession reports whether PTY session accounting is imbalanced:
+// more opens than closes (session force-terminated without a close receipt) or
+// more closes than opens (orphaned close from a replay or truncated chain).
+// Count-based; advisory only; independent of chain validity. ADR-0027 §/pty.
+func isIncompleteSession(receipts []AgentReceipt) bool {
+	var opens, closes int
+	for _, r := range receipts {
+		switch r.CredentialSubject.Action.Type {
+		case ActionTypePTYOpen:
+			opens++
+		case ActionTypePTYClose:
+			closes++
+		}
+	}
+	return opens != closes
+}
+
 // ChainVerifyOptions holds optional parameters for VerifyChain.
 // Zero value means "use defaults" — behaviour is identical to v0.1 with no options.
 type ChainVerifyOptions struct {
@@ -182,6 +205,7 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 	// Computed once and stamped onto every returned ChainVerification below;
 	// advisory and never affects Valid.
 	incompleteToolRoundtrip := isIncompleteToolRoundtrip(receipts)
+	incompleteSession := isIncompleteSession(receipts)
 
 	if len(receipts) == 0 {
 		// Handle ExpectedLength=0 edge case: empty chain with ExpectedLength=0 is valid.
@@ -193,9 +217,10 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 				BrokenAt:                0,
 				Error:                   "expected chain length does not match: expected " + strconv.Itoa(*opt.ExpectedLength) + ", got 0",
 				IncompleteToolRoundtrip: incompleteToolRoundtrip,
+				IncompleteSession:       incompleteSession,
 			}
 		}
-		return ChainVerification{Valid: true, Length: 0, Status: ChainStatusUnknown, BrokenAt: -1, IncompleteToolRoundtrip: incompleteToolRoundtrip}
+		return ChainVerification{Valid: true, Length: 0, Status: ChainStatusUnknown, BrokenAt: -1, IncompleteToolRoundtrip: incompleteToolRoundtrip, IncompleteSession: incompleteSession}
 	}
 
 	status := classifyTerminationStatus(receipts)
@@ -208,10 +233,17 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 	brokenAt := -1
 	var firstSigErr string
 	var firstSigErrAt int = -1
+	var firstRotationErr string
+	var firstRotationErrAt int = -1
 	var firstHashComputeErr string
 	var firstHashComputeErrAt int = -1
 	var schemaErr string
 	var schemaErrAt int = -1
+
+	// activeKeyPEM is the public key that the current receipt must verify
+	// against. It starts as the caller-supplied genesis key and is replaced by
+	// the incoming key after each verified key_rotated receipt (spec §7.3.7).
+	activeKeyPEM := publicKeyPEM
 
 	for i, r := range receipts {
 		chain := r.CredentialSubject.Chain
@@ -239,7 +271,7 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 			}
 		}
 
-		sigValid, sigErr := verifyReceipt(r, publicKeyPEM)
+		sigValid, sigErr := verifyReceipt(r, activeKeyPEM)
 		if sigErr != nil {
 			sigValid = false
 			if firstSigErr == "" {
@@ -285,6 +317,28 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 		if brokenAt == -1 && schemaErrAt == i {
 			brokenAt = i
 		}
+
+		// Key-rotation traversal (ADR-0015 / spec §7.3.7). A key_rotated receipt
+		// is signed with the OUTGOING (currently active) key; once that signature
+		// and the rotation-event fields check out, the incoming key carried inline
+		// takes over for every subsequent receipt until the next rotation.
+		if kr := r.CredentialSubject.KeyRotation; kr != nil {
+			newKeyPEM, rotErr := verifyRotationEvent(activeKeyPEM, kr)
+			if rotErr != nil {
+				if firstRotationErr == "" {
+					firstRotationErr = "key rotation invalid at index " + strconv.Itoa(i) + ": " + rotErr.Error()
+					firstRotationErrAt = i
+				}
+				if brokenAt == -1 {
+					brokenAt = i
+				}
+			} else if sigValid {
+				// Only adopt the incoming key when the rotation receipt itself
+				// verified under the outgoing key; otherwise the binding of
+				// new_public_key to the prior chain segment is not trustworthy.
+				activeKeyPEM = newKeyPEM
+			}
+		}
 	}
 
 	// Pick whichever compute / schema error occurred first in the chain.
@@ -301,6 +355,7 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 		at  int
 	}{
 		{firstSigErr, firstSigErrAt},
+		{firstRotationErr, firstRotationErrAt},
 		{firstHashComputeErr, firstHashComputeErrAt},
 		{schemaErr, schemaErrAt},
 	}
@@ -334,9 +389,10 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 				Receipts: results,
 				BrokenAt: i,
 				Error: "chain_id mismatch at index " + strconv.Itoa(i) +
-					`: expected "` + expectedChainID + `", got "` + observed + `"`,
+					": expected \"" + expectedChainID + "\", got \"" + observed + "\"",
 				Warnings:                warnings,
 				IncompleteToolRoundtrip: incompleteToolRoundtrip,
+				IncompleteSession:       incompleteSession,
 			}
 		}
 	}
@@ -367,6 +423,7 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 					Error:                   errMsg,
 					Warnings:                warnings,
 					IncompleteToolRoundtrip: incompleteToolRoundtrip,
+					IncompleteSession:       incompleteSession,
 				}
 			}
 		}
@@ -381,6 +438,7 @@ func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVeri
 		Error:                   loopErr,
 		Warnings:                warnings,
 		IncompleteToolRoundtrip: incompleteToolRoundtrip,
+		IncompleteSession:       incompleteSession,
 	}
 
 	// Response-hash verification (spec §4.3.2).

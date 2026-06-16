@@ -1,0 +1,240 @@
+---
+title: CLI Commands
+description: Command reference for the Agent Receipts CLI tools — the mcp-proxy policy proxy, the obsigna read/verify CLI, and obsigna-hook.
+---
+
+This page covers three binaries:
+
+- **`mcp-proxy`** — wraps an MCP server, enforces policy, and forwards completed tool-call events to `obsigna-daemon`. Since v0.9.0 the proxy holds **no store of its own** — signing, chaining, and persistence are the daemon's job ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). It has no signing key and no `list`/`verify` subcommands.
+- **`obsigna`** — the daemon's read-side companion CLI. Lists, shows, and verifies receipts from the daemon-written store. Installed alongside `obsigna-daemon` (Homebrew installs both). The legacy `agent-receipts` command still works as a thin deprecation shim (ADR-0030).
+- **`obsigna-hook`** — the PostToolUse hook binary that captures native host tool calls (formerly `agent-receipts-hook`, which still works as a deprecation shim).
+
+> The `obsigna` `--db` and `--public-key` defaults resolve via the same per-user paths the daemon uses (`$XDG_DATA_HOME/agent-receipts/`, falling back to `~/.local/share/agent-receipts/`). See [Daemon Setup](/getting-started/daemon-setup/) for how those paths are chosen and how to override them.
+
+## `mcp-proxy`
+
+`mcp-proxy` has three subcommands — `serve` (the default), `doctor`, and `init` — plus `-version`. There are no audit subcommands on the proxy; querying and verifying receipts is done with [`obsigna`](#obsigna).
+
+### `mcp-proxy -version`
+
+Print the version and exit.
+
+```bash
+mcp-proxy -version
+# mcp-proxy vX.Y.Z
+```
+
+### `mcp-proxy serve`
+
+Wrap an MCP server. `serve` is the default, so the subcommand token is optional — `mcp-proxy <command>` and `mcp-proxy serve <command>` are equivalent. The proxy scores and classifies each tool call, applies policy, and forwards completed events to the daemon over `--socket`.
+
+```bash
+mcp-proxy -name github -issuer-name "Claude Code" github-mcp-server stdio
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-rules` | (built-in defaults) | Policy rules YAML file |
+| `-name` | (inferred from command) | Server name for the audit trail |
+| `-http` | `none` | HTTP address for the approval listener. Off by default. Pass `127.0.0.1:0` for a random free port or `127.0.0.1:<port>` to pin one. See [Approval Server](/mcp-proxy/approval-ui/). |
+| `-approval-timeout` | `1m0s` | Maximum time to wait for HTTP approval before a paused call is auto-denied |
+| `-socket` | platform default | Unix-domain socket for `obsigna-daemon` (env: `AGENTRECEIPTS_SOCKET`). Pass `--socket=""` to disable emission entirely. Emit errors are logged but do not block tool calls. |
+| `-issuer-name` | (auto-detected) | Issuer name, e.g. `Claude Code` (env: `AGENTRECEIPTS_ISSUER_NAME`) |
+| `-issuer-model` | (none) | AI model identifier, e.g. `claude-sonnet-4-6` (env: `AGENTRECEIPTS_ISSUER_MODEL`) |
+| `-operator-id` | (none) | Operator DID (organisation running the agent), e.g. `did:web:anthropic.com` (env: `AGENTRECEIPTS_OPERATOR_ID`) |
+| `-operator-name` | (none) | Operator name, e.g. `Anthropic` (env: `AGENTRECEIPTS_OPERATOR_NAME`) |
+
+`-operator-name` requires `-operator-id`. See [Configuration](/mcp-proxy/configuration/) for policy rules, risk scoring, and the approval workflow.
+
+### `mcp-proxy doctor`
+
+Diagnose proxy configuration: load and validate the policy rules file, summarise enabled rules by action (`pause`, `block`, `flag`), and optionally probe an approver URL for reachability.
+
+```bash
+mcp-proxy doctor                                    # validate built-in defaults
+mcp-proxy doctor -rules /path/to/rules.yaml         # validate a custom rules file
+mcp-proxy doctor -approver http://127.0.0.1:7778    # probe an approver URL
+mcp-proxy doctor -json                              # JSON output
+```
+
+| Flag | Description |
+|------|-------------|
+| `-rules` | Policy rules YAML to validate (default: built-in) |
+| `-approver` | Approver URL to probe for reachability (default: none) |
+| `-json` | Output as JSON |
+
+**Exit codes:** `0` if the configuration is healthy; `1` if any issues are reported; `2` on flag/usage errors.
+
+### `mcp-proxy init`
+
+One-command bootstrap: creates the data directory (`~/.local/share/agent-receipts/`, respecting `$XDG_DATA_HOME`) and prints a `claude_desktop_config.json` snippet to stdout with placeholders for your MCP server command. It does **not** generate a signing key — keys belong to the daemon (`obsigna-daemon --init`, see [Daemon Setup](/getting-started/daemon-setup/)). Safe to re-run.
+
+```bash
+mcp-proxy init                              # default instance name
+mcp-proxy init -name github                 # custom instance name
+mcp-proxy init -no-approval                 # omit -http from the printed snippet
+mcp-proxy init -http-port 9000              # custom approval listener port in snippet
+```
+
+| Flag | Description |
+|------|-------------|
+| `-name` | Name for this proxy instance, used as the snippet key (default: `default`) |
+| `-no-approval` | Omit `-http` from the printed config snippet (no approval server) |
+| `-http-port` | Approval listener port written into the config snippet (default: `7778`) |
+
+**Exit codes:** `0` on success; `1` on setup errors (home directory resolve, directory create); `2` on invalid arguments (out-of-range `-http-port`, invalid `-name`) or flag/usage errors.
+
+## `obsigna`
+
+The daemon's read-side CLI. `obsigna receipt list`, `show`, `verify`, and `verify-event` open the store **read-only** — safe to run while the daemon is the active writer, and verification does not require the daemon socket to be reachable. `obsigna doctor` is the exception: by default it writes a synthetic round-trip event to confirm the full pipeline is live; pass `--no-roundtrip` to skip the write. Subcommands: `receipt list`, `receipt show`, `receipt verify`, `receipt verify-event`, `receipt disclose`, `doctor`.
+
+> The legacy `agent-receipts` command still works as a thin deprecation shim (ADR-0030): it forwards each subcommand to `obsigna` and prints a one-line notice to stderr. Use `obsigna` for new work.
+
+### `obsigna receipt list`
+
+List recent receipts, newest first. Default limit is 50.
+
+```bash
+obsigna receipt list                  # latest 50 receipts, newest first
+obsigna receipt list -limit 100       # raise the limit
+obsigna receipt list -json            # raw JSON array
+obsigna receipt list -db /path/to/receipts.db
+```
+
+| Flag | Description |
+|------|-------------|
+| `-db` | Receipt-store path (default: per-user path; env: `AGENTRECEIPTS_DB`) |
+| `-limit` | Maximum number of receipts to return (default: `50`) |
+| `-json` | Output as a raw JSON array (includes issuer/operator identity and all fields) |
+
+#### Example output
+
+```
+$ obsigna receipt list
+SEQ  TIMESTAMP             CHAIN       TOOL / ACTION TYPE
+8    2026-04-24T02:05:19Z  2026-04-24  getJiraIssue
+7    2026-04-24T01:58:45Z  2026-04-24  issue_write
+6    2026-04-24T01:56:12Z  2026-04-24  searchJiraIssuesUsingJql
+5    2026-04-24T01:45:07Z  2026-04-24  list_issues
+```
+
+The tabular view shows the chain sequence, timestamp, chain id, and the tool name (falling back to the action type when a tool name is absent). Issuer and operator identity are not in the tabular view — use `-json` to see them.
+
+### `obsigna receipt show`
+
+Print the full fields of a single receipt by its chain sequence number (1-indexed) — issuer, chain id, action type and tool, parameters hash, outcome, signature, and any action-specific payload.
+
+```bash
+obsigna receipt show 42               # human-readable table
+obsigna receipt show 42 --json        # raw receipt JSON
+```
+
+| Flag | Description |
+|------|-------------|
+| `-db` | Receipt-store path (default: per-user path; env: `AGENTRECEIPTS_DB`) |
+| `-chain-id` | Chain to read from (env: `AGENTRECEIPTS_CHAIN_ID`); required only when the store holds more than one chain |
+| `-json` | Output the raw receipt JSON instead of the human-readable table |
+
+`--chain-id` is auto-detected with a single chain. On a multi-chain store, omitting it lists the available chain ids and exits with a usage error.
+
+**Exit codes:** `0` when the receipt is found and printed; `1` when there is no receipt at the requested sequence (or the store is empty); `2` on a usage error (bad flags, ambiguous chain, unreadable database).
+
+### `obsigna receipt verify`
+
+Verify the integrity of a stored chain — signatures, hash linkage, and sequence numbers — against the daemon's published public key.
+
+```bash
+obsigna receipt verify \
+  --public-key ~/.local/share/agent-receipts/signing.key.pub
+```
+
+| Flag | Description |
+|------|-------------|
+| `-db` | Receipt-store path (default: per-user path; env: `AGENTRECEIPTS_DB`) |
+| `-public-key` | PEM-encoded SPKI public key path (env: `AGENTRECEIPTS_PUBLIC_KEY`; defaults to `<key>.pub` derived from `AGENTRECEIPTS_KEY`) |
+| `-chain-id` | Chain id to verify (default: the current UTC date, e.g. `2026-06-13`, matching the daemon's per-day chain id; env: `AGENTRECEIPTS_CHAIN_ID`) |
+
+A successful run prints `Chain <id>: VALID (<n> receipts)` (or `receipt` when n=1). A tampered chain prints `Chain <id>: BROKEN at receipt <n>` with the failing cause and per-receipt status (`BAD SIGNATURE`, `BAD HASH LINK`, `BAD SEQUENCE`).
+
+**Exit codes:** `0` chain verified; `1` chain failed verification; `2` bad flags or an unreadable DB/key file.
+
+### `obsigna receipt verify-event`
+
+Verify a single historical receipt's end-to-end pipeline provenance. Select the receipt by id, by chain head, or by a trailing time window.
+
+```bash
+obsigna receipt verify-event --id urn:receipt:a72ee10b...     # one receipt by id
+obsigna receipt verify-event --chain-head                     # the most recent receipt
+obsigna receipt verify-event --since 24h                      # every receipt in the last day
+```
+
+| Flag | Description |
+|------|-------------|
+| `-id` | Select the receipt with this receipt id |
+| `-chain-head` | Select the most recent receipt in the chain |
+| `-since` | Select every receipt issued within the trailing window (e.g. `10m`, `24h`) |
+| `-db` | Receipt-store path (env: `AGENTRECEIPTS_DB`) |
+| `-public-key` | Public key path (env: `AGENTRECEIPTS_PUBLIC_KEY`) |
+| `-chain-id` | Chain id; selects/filters the chain (env: `AGENTRECEIPTS_CHAIN_ID`) |
+| `-emitter-allowlist` | Comma-separated `exe_path` allowlist of expected emitters (env: `AGENTRECEIPTS_EMITTER_ALLOWLIST`); mismatches warn, never fail |
+| `-json` | Machine-readable JSON output |
+
+### `obsigna receipt disclose`
+
+Decrypt the `parameters_disclosure` envelope of a single stored receipt using the operator's X25519 forensic private key, and print the recovered plaintext parameters. This is the headless counterpart to the dashboard's inline forensic decryption — the privacy model hashes parameters by default; `disclose` is the controlled "break the glass" path for an operator who holds the forensic key.
+
+```bash
+obsigna receipt disclose 42                          # human-readable key/value table
+obsigna receipt disclose 42 --json                   # decrypted parameters as JSON
+obsigna receipt disclose 42 --key ~/forensic.key     # explicit forensic key path
+```
+
+| Flag | Description |
+|------|-------------|
+| `-db` | Receipt-store path (default: per-user path; env: `AGENTRECEIPTS_DB`) |
+| `-chain-id` | Chain to read from (env: `AGENTRECEIPTS_CHAIN_ID`); required only when the store holds more than one chain |
+| `-key` | Forensic private-key path — raw 32-byte X25519, hex, standard/URL-safe base64, or PKCS#8 PEM (default: per-user path; env: `AGENTRECEIPTS_FORENSIC_KEY`) |
+| `-json` | Output the decrypted parameters as JSON |
+
+The key never leaves the machine, and its in-memory buffers are zeroed after use on a best-effort basis (Go's runtime may still retain copies). A receipt with no `parameters_disclosure` is reported and exits successfully.
+
+**Exit codes:** `0` parameters decrypted and printed (or the receipt carries no disclosure); `1` no receipt at the requested sequence; `2` usage error (bad flags, ambiguous chain, unreadable database); `3` decryption error — the key is missing, does not match any recipient in the envelope, or the envelope is corrupt.
+
+### `obsigna doctor`
+
+Diagnose pipeline health end-to-end (emitter → socket → daemon → DB → verify), optionally writing a synthetic round-trip event to confirm the full path is live.
+
+```bash
+obsigna doctor                  # full health check
+obsigna doctor --no-roundtrip   # skip the synthetic write
+obsigna doctor --json
+```
+
+| Flag | Description |
+|------|-------------|
+| `-socket` | Daemon socket path (env: `AGENTRECEIPTS_SOCKET`) |
+| `-db` | Receipt-store path (env: `AGENTRECEIPTS_DB`) |
+| `-public-key` | Public key path (env: `AGENTRECEIPTS_PUBLIC_KEY`) |
+| `-chain-id` | Chain id to inspect (default: auto-detect the daemon's active chain, falling back to the current UTC date for an empty store; env: `AGENTRECEIPTS_CHAIN_ID`) |
+| `-no-roundtrip` | Skip the synthetic round-trip check (no event is written to the chain) |
+| `-roundtrip-timeout` | How long to wait for the synthetic event to land in the DB (default: `3s`) |
+| `-warn-as-error` | Exit non-zero when any check warns, not only on failures |
+| `-json` | Structured JSON output |
+
+## `obsigna-hook`
+
+Short-lived PostToolUse hook binary that captures native host tool calls and forwards them to `obsigna-daemon`. Invoked automatically by agent runtimes that support PostToolUse hooks — not meant to be run interactively. Renamed from `agent-receipts-hook` (ADR-0036); the old name still works as a thin deprecation shim that forwards to `obsigna-hook`.
+
+```bash
+obsigna-hook [--format=<name>]
+```
+
+| Flag | Description |
+|---|---|
+| `--format` | Force a specific input format (default: auto-detected from the stdin frame's `hook_event_name` or the `CLAUDE_SESSION_ID` environment variable). Currently supported: `claude-code`. |
+
+**Exit behaviour:** Exits 0 silently when the stdin frame is unreadable or the calling runtime isn't recognised (the event isn't ours). Once the runtime is identified, a failure to record the receipt (daemon not running, socket missing, malformed frame) exits 1 with a message on stderr — surfacing a broken audit pipeline rather than silently losing receipts. The hook never pauses or modifies the tool call itself.
+
+**Auto-detection:** When `--format` is omitted, the binary identifies the calling runtime from two signals: the `CLAUDE_SESSION_ID` environment variable, or the stdin frame's `hook_event_name` (`PostToolUse` / `PreToolUse`). Either resolves to the `claude-code` format — Claude Code itself uses the stdin `hook_event_name` route, since it does not set `CLAUDE_SESSION_ID` in the environment.
+
+See [Hook: Claude Code](/hook/claude-code/) for wiring instructions.

@@ -110,7 +110,7 @@ jobs:
         run: python3 scripts/readme_snippets/check.py --lang ts --source published README.md sdk/ts/README.md
 
   # Gate #2: verify npm resolved exactly the tagged version.
-  # Asserts version identity: `npm install @agnt-rcpt/sdk-ts@X.Y.Z` returns
+  # Asserts version identity: `npm install @obsigna/sdk-ts@X.Y.Z` returns
   # exactly X.Y.Z, not a redirect or dist-tag mismatch.
   release-verify:
     needs: release

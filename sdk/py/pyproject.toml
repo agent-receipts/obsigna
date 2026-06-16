@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agent-receipts"
-version = "0.12.0"
+name = "obsigna"
+version = "0.13.0"
 description = "Python SDK for the Agent Receipts protocol"
 readme = "README.md"
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Otto Jongerius" }]
 keywords = ["ai", "agent", "audit", "receipts", "verifiable-credentials"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
@@ -27,9 +27,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/agent-receipts/ar"
-Repository = "https://github.com/agent-receipts/ar"
-Issues = "https://github.com/agent-receipts/ar/issues"
+Homepage = "https://github.com/agent-receipts/obsigna"
+Repository = "https://github.com/agent-receipts/obsigna"
+Issues = "https://github.com/agent-receipts/obsigna/issues"
 Spec = "https://github.com/agent-receipts/spec"
 
 [project.optional-dependencies]
@@ -44,7 +44,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agent_receipts"]
+packages = ["src/obsigna"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -3,10 +3,13 @@ package receipt
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var reversalOfPattern = regexp.MustCompile(`^urn:receipt:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // CreateInput holds the inputs for creating an unsigned receipt.
 type CreateInput struct {
@@ -67,6 +70,13 @@ func Create(input CreateInput) UnsignedAgentReceipt {
 		Authorization: input.Authorization,
 		CorrelationID: input.CorrelationID,
 		Delegation:    input.Delegation,
+	}
+
+	// Panic on malformed reversal_of: a non-empty value that doesn't match the
+	// URN format is a programming error (the caller is constructing an
+	// invalid receipt). Silent omission would let bad data reach the chain.
+	if input.Outcome.ReversalOf != "" && !reversalOfPattern.MatchString(input.Outcome.ReversalOf) {
+		panic(fmt.Sprintf("receipt.Create: Outcome.ReversalOf is not a valid receipt URN: %q", input.Outcome.ReversalOf))
 	}
 
 	// Compute response_hash when a response body is supplied.

@@ -10,7 +10,7 @@ Validate and push the git tag for a module in this monorepo.
 The script tags only. Each module has a dedicated per-module release
 workflow in .github/workflows/release-<module>.yml that triggers on the
 tag, runs CI tests in a clean environment, and creates the GitHub Release.
-For modules with binaries (hook, mcp-proxy, daemon, collector) it also
+For modules with binaries (hook, mcp-proxy, obsigna, collector) it also
 builds artifacts via GoReleaser and publishes a Homebrew formula.
 
 Modules:
@@ -19,7 +19,7 @@ Modules:
   sdk-py       Python SDK             (tag: sdk-py-vVERSION)
   hook         agent-receipts-hook    (tag: hook/vVERSION)
   mcp-proxy    MCP proxy              (tag: mcp-proxy/vVERSION)
-  daemon       agent-receipts daemon  (tag: daemon/vVERSION)
+  obsigna      obsigna toolset        (tag: obsigna/vVERSION)
   collector    reference collector    (tag: collector/vVERSION)
 
 Flags:
@@ -34,7 +34,7 @@ Notes:
 Examples:
   $(basename "$0") sdk-go 0.2.0
   $(basename "$0") --dry-run mcp-proxy 0.8.0-alpha.1
-  $(basename "$0") daemon 0.8.0-alpha.1
+  $(basename "$0") obsigna 0.8.0-alpha.1
   $(basename "$0") collector 0.13.0
 EOF
   exit 1
@@ -64,7 +64,7 @@ VERSION="${ARGS[1]}"
 
 # Validate version format. PEP 440 pre-release form (e.g. 0.8.0a1) is
 # accepted only for sdk-py because PyPI rejects SemVer-style hyphenated
-# pre-releases. Go modules (sdk-go, mcp-proxy, daemon) and the npm
+# pre-releases. Go modules (sdk-go, mcp-proxy, obsigna) and the npm
 # module (sdk-ts) require SemVer; accepting PEP 440 there would silently
 # create tags that go.mod / npm cannot resolve.
 SEMVER_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
@@ -74,7 +74,7 @@ case "$MODULE" in
     [[ "$VERSION" =~ $SEMVER_RE ]] || [[ "$VERSION" =~ $PEP440_PRE_RE ]] || \
       fail "invalid version '$VERSION' for sdk-py — expected SemVer (e.g. 0.5.0, 1.0.0-beta.1) or PEP 440 pre-release (e.g. 0.8.0a1)"
     ;;
-  sdk-go|sdk-ts|hook|mcp-proxy|daemon|collector)
+  sdk-go|sdk-ts|hook|mcp-proxy|obsigna|collector)
     [[ "$VERSION" =~ $SEMVER_RE ]] || \
       fail "invalid version '$VERSION' for $MODULE — expected SemVer (e.g. 0.2.0, 1.0.0-beta.1). PEP 440 form (e.g. 0.8.0a1) is accepted only for sdk-py."
     ;;
@@ -96,7 +96,7 @@ REMOTE=$(git rev-parse origin/main)
 
 # Go modules don't support build metadata in tags
 case "$MODULE" in
-  sdk-go|hook|mcp-proxy|daemon|collector)
+  sdk-go|hook|mcp-proxy|obsigna|collector)
     [[ "$VERSION" != *+* ]] || fail "Go module versions cannot contain build metadata (+...)"
     ;;
 esac
@@ -122,8 +122,10 @@ case "$MODULE" in
     TAG="mcp-proxy/v${VERSION}"
     DIR="mcp-proxy"
     ;;
-  daemon)
-    TAG="daemon/v${VERSION}"
+  obsigna)
+    # The release train is named obsigna (ADR-0034); its sources live in the
+    # daemon/ module directory, which did not move.
+    TAG="obsigna/v${VERSION}"
     DIR="daemon"
     ;;
   collector)
@@ -168,7 +170,7 @@ case "$MODULE" in
     echo "--- Running Go checks in $DIR"
     (cd "$DIR" && go vet ./... && go test ./...)
     ;;
-  daemon)
+  obsigna)
     command -v go >/dev/null 2>&1 || fail "go is not installed"
     echo "--- Checking for replace directive in $DIR/go.mod"
     if grep -Eq '^[[:space:]]*replace[[:space:]]' "$DIR/go.mod"; then

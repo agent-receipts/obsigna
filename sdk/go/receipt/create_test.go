@@ -1,6 +1,7 @@
 package receipt
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -185,4 +186,62 @@ func TestCreateOmitsNilDelegation(t *testing.T) {
 	if strings.Contains(canonical, "delegation") {
 		t.Errorf("canonical JSON contains delegation when nil: %s", canonical)
 	}
+}
+
+func TestCreateReversalOfPreserved(t *testing.T) {
+	validURN := "urn:receipt:00000000-0000-0000-0000-000000000001"
+	r := Create(CreateInput{
+		Issuer:    Issuer{ID: "did:agent:test"},
+		Principal: Principal{ID: "did:user:alice"},
+		Action:    Action{Type: "filesystem.file.write", RiskLevel: RiskMedium},
+		Outcome:   Outcome{Status: StatusSuccess, ReversalOf: validURN},
+		Chain:     Chain{Sequence: 2, ChainID: "chain-1"},
+	})
+
+	if r.CredentialSubject.Outcome.ReversalOf != validURN {
+		t.Errorf("expected ReversalOf %s, got %s", validURN, r.CredentialSubject.Outcome.ReversalOf)
+	}
+
+	// Verify the field serializes to reversal_of in JSON.
+	data, err := json.Marshal(r.CredentialSubject.Outcome)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if !strings.Contains(string(data), `"reversal_of"`) {
+		t.Errorf("expected reversal_of in JSON output, got: %s", data)
+	}
+}
+
+func TestCreateReversalOfEmptyOmitted(t *testing.T) {
+	r := Create(CreateInput{
+		Issuer:    Issuer{ID: "did:agent:test"},
+		Principal: Principal{ID: "did:user:alice"},
+		Action:    Action{Type: "filesystem.file.read", RiskLevel: RiskLow},
+		Outcome:   Outcome{Status: StatusSuccess},
+		Chain:     Chain{Sequence: 1, ChainID: "chain-1"},
+	})
+
+	data, err := json.Marshal(r.CredentialSubject.Outcome)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if strings.Contains(string(data), "reversal_of") {
+		t.Errorf("expected reversal_of absent when empty, got: %s", data)
+	}
+}
+
+func TestCreateReversalOfInvalidPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic on invalid ReversalOf, but none occurred")
+		}
+	}()
+
+	Create(CreateInput{
+		Issuer:    Issuer{ID: "did:agent:test"},
+		Principal: Principal{ID: "did:user:alice"},
+		Action:    Action{Type: "filesystem.file.write", RiskLevel: RiskMedium},
+		Outcome:   Outcome{Status: StatusSuccess, ReversalOf: "not-a-valid-urn"},
+		Chain:     Chain{Sequence: 2, ChainID: "chain-1"},
+	})
 }

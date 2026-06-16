@@ -12,7 +12,7 @@ repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 sdk_py_path = os.path.join(repo_root, "sdk/py/src")
 sys.path.insert(0, sdk_py_path)
 
-from agent_receipts import DaemonEmitter
+from obsigna import DaemonEmitter
 
 def main():
     if len(sys.argv) != 6:

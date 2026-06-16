@@ -5,7 +5,7 @@ on:
   # This workflow cannot publish to npm: the npm trusted publisher is configured
   # for release-sdk-ts.yml, not this file. To publish manually, either push a
   # sdk-ts-v* tag (triggers release-sdk-ts.yml) or temporarily re-add this
-  # workflow as a trusted publisher at https://www.npmjs.com/package/@agnt-rcpt/sdk-ts.
+  # workflow as a trusted publisher at https://www.npmjs.com/package/@obsigna/sdk-ts.
   workflow_dispatch:
 
 permissions:

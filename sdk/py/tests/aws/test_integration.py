@@ -15,7 +15,7 @@ import os
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from agent_receipts.aws import KMSSigner
+from obsigna.aws import KMSSigner
 
 _KEY_ARN = os.environ.get("AGENTRECEIPTS_AWS_KMS_INTEGRATION_KEY_ARN")
 

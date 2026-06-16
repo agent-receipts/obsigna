@@ -20,13 +20,13 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
-from agent_receipts.receipt.create import (
+from obsigna.receipt.create import (
     ActionInput,
     CreateReceiptInput,
     create_receipt,
 )
-from agent_receipts.receipt.signing import generate_key_pair, sign_receipt
-from agent_receipts.receipt.types import Chain, Issuer, Outcome, Principal
+from obsigna.receipt.signing import generate_key_pair, sign_receipt
+from obsigna.receipt.types import Chain, Issuer, Outcome, Principal
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SCHEMA_PATH = REPO_ROOT / "spec" / "schema" / "agent-receipt.schema.json"

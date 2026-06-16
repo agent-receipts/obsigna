@@ -51,9 +51,9 @@ Sidebar order is controlled by `astro.config.mjs`, not by file naming.
 
 | Repository | Description |
 |:---|:---|
-| [agent-receipts/spec](https://github.com/agent-receipts/ar/tree/main/spec) | Protocol specification, JSON Schemas, canonical taxonomy |
-| [agent-receipts/sdk-ts](https://github.com/agent-receipts/ar/tree/main/sdk/ts) | TypeScript SDK ([npm](https://www.npmjs.com/package/@agnt-rcpt/sdk-ts)) |
-| [agent-receipts/sdk-py](https://github.com/agent-receipts/ar/tree/main/sdk/py) | Python SDK ([PyPI](https://pypi.org/project/agent-receipts/)) |
+| [agent-receipts/spec](https://github.com/agent-receipts/obsigna/tree/main/spec) | Protocol specification, JSON Schemas, canonical taxonomy |
+| [agent-receipts/sdk-ts](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) | TypeScript SDK ([npm](https://www.npmjs.com/package/@obsigna/sdk-ts)) |
+| [agent-receipts/sdk-py](https://github.com/agent-receipts/obsigna/tree/main/sdk/py) | Python SDK ([PyPI](https://pypi.org/project/obsigna/)) |
 | [ojongerius/attest](https://github.com/ojongerius/attest) | MCP proxy + CLI (reference implementation) |
 | **agent-receipts/site** (this repo) | Documentation site |
 

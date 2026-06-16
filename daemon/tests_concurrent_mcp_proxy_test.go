@@ -4,9 +4,11 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"net"
 	"sort"
 	"strings"
 	"testing"
@@ -15,6 +17,14 @@ import (
 	"github.com/agent-receipts/ar/sdk/go/emitter"
 	"github.com/agent-receipts/ar/sdk/go/receipt"
 )
+
+// isTransientIOTimeout reports whether err is a network timeout (e.g. a
+// deadline-exceeded write on an AF_UNIX socket). Used to distinguish transport
+// stalls — which are safe to retry after a brief pause — from logic errors.
+func isTransientIOTimeout(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
 
 // TestTwoMCPProxySessionsConcurrent simulates two independent mcp-proxy
 // sessions, each holding a persistent emitter connection, emitting concurrently
@@ -62,15 +72,36 @@ func TestTwoMCPProxySessionsConcurrent(t *testing.T) {
 			for j := 0; j < emitsPerSession; j++ {
 				// Vary tool name per emit so each receipt has a distinct action.type.
 				// Per-session server name makes receipts attributable to their source session.
-				err := em.Emit(context.Background(), emitter.Event{
+				ev := emitter.Event{
 					Channel:  "mcp_proxy",
 					Tool:     emitter.Tool{Name: fmt.Sprintf("op_%d", j), Server: fmt.Sprintf("upstream-%d", session)},
 					Decision: "allowed",
-				})
-				if err != nil {
-					errCh <- fmt.Errorf("session %d emit %d: %w", session, j, err)
+				}
+
+				// Retry transient socket write timeouts (observed on macOS under high
+				// scheduler pressure). The emitter resets its connection after any write
+				// failure, so each retry re-dials a clean conn; the failed partial write
+				// is never seen by the daemon. Only timeout-class transport errors are
+				// retried — logic errors (bad decision, closed emitter, etc.) fail fast.
+				var emitErr error
+				for attempt := 0; attempt < 3; attempt++ {
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					emitErr = em.Emit(ctx, ev)
+					cancel()
+					if emitErr == nil {
+						break
+					}
+					if !isTransientIOTimeout(emitErr) {
+						errCh <- fmt.Errorf("session %d emit %d: %w", session, j, emitErr)
+						return
+					}
+					time.Sleep(time.Duration(10*(attempt+1)) * time.Millisecond)
+				}
+				if emitErr != nil {
+					errCh <- fmt.Errorf("session %d emit %d (retries exhausted): %w", session, j, emitErr)
 					return
 				}
+
 				// Occasional jitter widens the concurrent-write window to increase
 				// the chance of catching a sequence-allocation race.
 				if j%10 == 9 {

@@ -94,7 +94,7 @@ jobs:
         run: python3 scripts/readme_snippets/check.py --lang py --source published README.md sdk/py/README.md
 
   # Gate #2: verify PyPI resolved exactly the tagged version.
-  # Asserts version identity: `pip install agent-receipts==X.Y.Z` returns
+  # Asserts version identity: `pip install obsigna==X.Y.Z` returns
   # exactly X.Y.Z, not a yank-substitute or nearest match.
   release-verify:
     needs: release

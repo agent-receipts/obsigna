@@ -35,7 +35,10 @@ jobs:
 
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
-          go-version: "1.26"
+          # Pin to the patch recorded in daemon/go.mod (ADR-0031) so CI stops
+          # floating to the latest 1.26.x — a moving toolchain would defeat the
+          # reproducible-build attestation Gate B asserts.
+          go-version-file: daemon/go.mod
 
       # Node + pnpm: integration tests spawn the TS emitter helper
       # (daemon/helpers/emit_ts.mjs), which imports
@@ -70,7 +73,9 @@ jobs:
 
       - name: Build
         working-directory: daemon
-        run: go build ./cmd/...
+        # -trimpath mirrors the release build (daemon/.goreleaser.yaml): CI must
+        # exercise the same flags the attestation depends on (ADR-0031).
+        run: go build -trimpath ./cmd/...
 
       - name: Test
         working-directory: daemon
@@ -80,3 +85,60 @@ jobs:
         # `go test ./...` and `go test -tags=integration ./...`
         # separately, without re-running the untagged tests.
         run: go test -race -tags=integration ./... -v
+
+  # Gate A (ADR-0031): the daemon keeps a lean import graph that never reaches
+  # the operator CLI surface. A dependency edge from cmd/obsigna-daemon into the
+  # receipt/keys/doctor/disclose *cli trees would drag operator-only code into
+  # the long-running signing process and break the blast-radius claim the
+  # topology exists to make. The rule lives in a Go test next to the code
+  # (cmd/obsigna-daemon/import_guard_test.go) so it is enforced locally too and
+  # auto-catches any new internal/*cli package; this job just runs it.
+  import-graph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: daemon/go.mod
+      - name: Assert obsigna-daemon excludes the operator CLI surface
+        working-directory: daemon
+        run: go test -run '^TestImportGraphExcludesOperatorSurface$' ./cmd/obsigna-daemon -v
+
+  # Gate B (ADR-0031): reproducible build. Build obsigna-daemon twice from two
+  # working-directory paths of different lengths and assert byte-identical
+  # sha256. This is what proves -trimpath actually took: without it the absolute
+  # build path is baked into the binary and the two hashes diverge. The release
+  # workflow extends this to an independent rebuild that must match the published
+  # artifact (release-obsigna.yml), which is the auditor-facing attestation.
+  reproducible-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: daemon/go.mod
+      - name: Build from two different paths, assert identical sha256
+        run: |
+          set -euo pipefail
+          # Export the tracked tree (no .git, no untracked worktrees) into two
+          # parent dirs whose paths differ in length, then build the daemon in
+          # each via the shared reproducible-build script (same determinism flags
+          # the release attestation uses). The workspace (go.work) is exported
+          # too, so both builds resolve the in-tree sdk/go identically; the only
+          # difference between them is the absolute build path.
+          a=/tmp/p1
+          b=/tmp/path-two-longer-than-one
+          mkdir -p "$a/repo" "$b/repo"
+          git archive --format=tar HEAD | tar -x -C "$a/repo"
+          git archive --format=tar HEAD | tar -x -C "$b/repo"
+          "$a/repo/scripts/reproducible-build.sh" "$a/repo/daemon" /tmp/daemon-a ./cmd/obsigna-daemon
+          "$b/repo/scripts/reproducible-build.sh" "$b/repo/daemon" /tmp/daemon-b ./cmd/obsigna-daemon
+          h1="$(sha256sum /tmp/daemon-a | awk '{print $1}')"
+          h2="$(sha256sum /tmp/daemon-b | awk '{print $1}')"
+          echo "path-a sha256=$h1"
+          echo "path-b sha256=$h2"
+          if [ "$h1" != "$h2" ]; then
+            echo "::error::obsigna-daemon is not reproducible across build paths ($h1 vs $h2); -trimpath is not taking effect."
+            exit 1
+          fi
+          echo "ok: byte-identical obsigna-daemon from two different build paths ($h1)"

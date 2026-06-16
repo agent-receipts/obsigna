@@ -1,4 +1,4 @@
-// Package verifyeventcli implements the `agent-receipts verify-event`
+// Package verifyeventcli implements the `obsigna receipt verify-event`
 // subcommand: end-to-end pipeline-provenance evidence for a single historical
 // receipt. Where `verify` answers "is this chain internally consistent?",
 // verify-event answers the narrower question that matters most for trust: "was
@@ -135,10 +135,10 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	keyPath := envOr("AGENTRECEIPTS_KEY", daemon.DefaultKeyPath())
 	defaultPubKey := envOr("AGENTRECEIPTS_PUBLIC_KEY", daemon.DefaultPublicKeyPath(keyPath))
 
-	fs := flag.NewFlagSet("verify-event", flag.ContinueOnError)
+	fs := flag.NewFlagSet("receipt verify-event", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: agent-receipts verify-event (--id <id> | --chain-head | --since <dur>) [flags]")
+		fmt.Fprintln(stderr, "Usage: obsigna receipt verify-event (--id <id> | --chain-head | --since <dur>) [flags]")
 		fmt.Fprintln(stderr, "\nVerify that a specific historical receipt was produced by the documented")
 		fmt.Fprintln(stderr, "emitter→daemon→chain pipeline, not written to the store by another path.")
 		fmt.Fprintln(stderr, "\nExactly one selector is required:")
@@ -164,7 +164,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		return ExitUsageError
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(stderr, "agent-receipts verify-event: unexpected positional argument(s): %v (use a selector flag)\n", fs.Args())
+		fmt.Fprintf(stderr, "obsigna receipt verify-event: unexpected positional argument(s): %v (use a selector flag)\n", fs.Args())
 		return ExitUsageError
 	}
 
@@ -181,33 +181,33 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		selectors++
 	}
 	if selectors == 0 {
-		fmt.Fprintln(stderr, "agent-receipts verify-event: a selector is required (--id, --chain-head, or --since)")
+		fmt.Fprintln(stderr, "obsigna receipt verify-event: a selector is required (--id, --chain-head, or --since)")
 		return ExitUsageError
 	}
 	if selectors > 1 {
-		fmt.Fprintln(stderr, "agent-receipts verify-event: selectors --id, --chain-head and --since are mutually exclusive")
+		fmt.Fprintln(stderr, "obsigna receipt verify-event: selectors --id, --chain-head and --since are mutually exclusive")
 		return ExitUsageError
 	}
 
 	if *dbPath == "" {
-		fmt.Fprintln(stderr, "agent-receipts verify-event: --db is required (no AGENTRECEIPTS_DB and no home directory)")
+		fmt.Fprintln(stderr, "obsigna receipt verify-event: --db is required (no AGENTRECEIPTS_DB and no home directory)")
 		return ExitUsageError
 	}
 	if *pubKeyPath == "" {
-		fmt.Fprintln(stderr, "agent-receipts verify-event: --public-key is required (set AGENTRECEIPTS_PUBLIC_KEY directly, or AGENTRECEIPTS_KEY so its <KeyPath>.pub default can be derived)")
+		fmt.Fprintln(stderr, "obsigna receipt verify-event: --public-key is required (set AGENTRECEIPTS_PUBLIC_KEY directly, or AGENTRECEIPTS_KEY so its <KeyPath>.pub default can be derived)")
 		return ExitUsageError
 	}
 
 	pubPEM, err := os.ReadFile(*pubKeyPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts verify-event: read public key: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt verify-event: read public key: %v\n", err)
 		return ExitUsageError
 	}
 	// Validate key shape upfront so a malformed key surfaces as a usage error
 	// rather than being routed through per-receipt signature failures, which
 	// would falsely implicate the receipts.
 	if err := validatePublicKeyPEM(pubPEM); err != nil {
-		fmt.Fprintf(stderr, "agent-receipts verify-event: invalid public key at %s: %v\n", *pubKeyPath, err)
+		fmt.Fprintf(stderr, "obsigna receipt verify-event: invalid public key at %s: %v\n", *pubKeyPath, err)
 		return ExitUsageError
 	}
 
@@ -215,7 +215,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 
 	s, err := store.OpenReadOnly(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts verify-event: open store: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt verify-event: open store: %v\n", err)
 		return ExitUsageError
 	}
 	defer s.Close()
@@ -235,7 +235,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		if !ok {
 			chain, err := s.GetChain(t.chainID)
 			if err != nil {
-				fmt.Fprintf(stderr, "agent-receipts verify-event: read chain %q: %v\n", t.chainID, err)
+				fmt.Fprintf(stderr, "obsigna receipt verify-event: read chain %q: %v\n", t.chainID, err)
 				return ExitUsageError
 			}
 			cv := receipt.VerifyChain(chain, string(pubPEM))
@@ -253,7 +253,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 			// The receipt resolved from the store but is absent from its own
 			// chain load — only possible under concurrent deletion or a store
 			// inconsistency. Treat as a usage-level read error, not a verdict.
-			fmt.Fprintf(stderr, "agent-receipts verify-event: receipt %q not found in chain %q\n", t.receiptID, t.chainID)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: receipt %q not found in chain %q\n", t.receiptID, t.chainID)
 			return ExitUsageError
 		}
 		results = append(results, evaluate(ctx, idx, allowlist))
@@ -291,11 +291,11 @@ func resolveTargets(s *store.Store, id string, chainHead bool, since, chainID st
 	case id != "":
 		r, err := s.GetByID(id)
 		if err != nil {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: read receipt %q: %v\n", id, err)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: read receipt %q: %v\n", id, err)
 			return nil, ExitUsageError
 		}
 		if r == nil {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: no receipt with id %q\n", id)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: no receipt with id %q\n", id)
 			return nil, ExitUsageError
 		}
 		return []target{{receiptID: r.ID, chainID: r.CredentialSubject.Chain.ChainID}}, ExitOK
@@ -307,11 +307,11 @@ func resolveTargets(s *store.Store, id string, chainHead bool, since, chainID st
 		}
 		r, err := s.GetChainTailReceipt(resolved)
 		if err != nil {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: read chain head %q: %v\n", resolved, err)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: read chain head %q: %v\n", resolved, err)
 			return nil, ExitUsageError
 		}
 		if r == nil {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: chain %q holds no receipts\n", resolved)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: chain %q holds no receipts\n", resolved)
 			return nil, ExitUsageError
 		}
 		return []target{{receiptID: r.ID, chainID: resolved}}, ExitOK
@@ -319,11 +319,11 @@ func resolveTargets(s *store.Store, id string, chainHead bool, since, chainID st
 	default: // since
 		d, err := time.ParseDuration(since)
 		if err != nil {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: invalid --since duration %q: %v\n", since, err)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: invalid --since duration %q: %v\n", since, err)
 			return nil, ExitUsageError
 		}
 		if d <= 0 {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: --since must be positive, got %q\n", since)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: --since must be positive, got %q\n", since)
 			return nil, ExitUsageError
 		}
 		cutoff := time.Now().UTC().Add(-d).Format(time.RFC3339)
@@ -333,11 +333,11 @@ func resolveTargets(s *store.Store, id string, chainHead bool, since, chainID st
 		}
 		rs, err := s.QueryReceipts(q)
 		if err != nil {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: query receipts: %v\n", err)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: query receipts: %v\n", err)
 			return nil, ExitUsageError
 		}
 		if len(rs) == 0 {
-			fmt.Fprintf(stderr, "agent-receipts verify-event: no receipts issued within %s\n", since)
+			fmt.Fprintf(stderr, "obsigna receipt verify-event: no receipts issued within %s\n", since)
 			return nil, ExitUsageError
 		}
 		targets := make([]target, len(rs))
@@ -356,17 +356,17 @@ func resolveChainID(s *store.Store, requested string, stderr io.Writer) (string,
 	}
 	chains, err := s.DistinctChainIDs()
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts verify-event: enumerate chains: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt verify-event: enumerate chains: %v\n", err)
 		return "", ExitUsageError
 	}
 	switch len(chains) {
 	case 0:
-		fmt.Fprintln(stderr, "agent-receipts verify-event: store holds no receipts")
+		fmt.Fprintln(stderr, "obsigna receipt verify-event: store holds no receipts")
 		return "", ExitUsageError
 	case 1:
 		return chains[0], ExitOK
 	default:
-		fmt.Fprintf(stderr, "agent-receipts verify-event: store holds %d chains; pass --chain-id to select one. Available chains:\n", len(chains))
+		fmt.Fprintf(stderr, "obsigna receipt verify-event: store holds %d chains; pass --chain-id to select one. Available chains:\n", len(chains))
 		for _, c := range chains {
 			fmt.Fprintf(stderr, "  %s\n", c)
 		}
@@ -614,7 +614,7 @@ func writeJSON(stdout, stderr io.Writer, results []eventResult) int {
 		if errors.Is(err, syscall.EPIPE) || errors.Is(err, io.ErrClosedPipe) {
 			return exitCode(results)
 		}
-		fmt.Fprintf(stderr, "agent-receipts verify-event: encode JSON: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt verify-event: encode JSON: %v\n", err)
 		return ExitUsageError
 	}
 	return exitCode(results)

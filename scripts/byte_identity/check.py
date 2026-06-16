@@ -61,8 +61,8 @@ import time
 # ---------------------------------------------------------------------------
 
 GO_MODULE = "github.com/agent-receipts/ar/sdk/go"
-TS_PACKAGE = "@agnt-rcpt/sdk-ts"
-PY_PACKAGE = "agent-receipts"
+TS_PACKAGE = "@obsigna/sdk-ts"
+PY_PACKAGE = "obsigna"
 
 # Default vectors location relative to the repo root (three levels up from here).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -259,7 +259,7 @@ _PY_DRIVER = """\
 import json
 import sys
 
-from agent_receipts import canonicalize, hash_receipt
+from obsigna import canonicalize, hash_receipt
 
 with open(sys.argv[1], encoding="utf-8") as fh:
     vectors = json.load(fh)
@@ -279,7 +279,7 @@ print(json.dumps({"canonical": canon, "receipt_hash": receipt_hash}))
 
 _TS_DRIVER = """\
 import { readFileSync } from "node:fs";
-import { canonicalize, hashReceipt } from "@agnt-rcpt/sdk-ts";
+import { canonicalize, hashReceipt } from "@obsigna/sdk-ts";
 
 const vectors = JSON.parse(readFileSync(process.argv[2], "utf-8"));
 

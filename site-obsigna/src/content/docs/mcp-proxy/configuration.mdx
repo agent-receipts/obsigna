@@ -1,0 +1,208 @@
+---
+title: Configuration
+description: CLI flags, policy rules, operation classification, and data redaction for the MCP Proxy.
+---
+
+## CLI flags
+
+These are the flags for `mcp-proxy serve` (the default subcommand). The proxy no longer signs or stores receipts — `-key`, `-db`, `-receipt-db`, `-taxonomy`, `-issuer`, `-principal`, and `-chain` were removed when signing and persistence moved to `obsigna-daemon` ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). The signing key, receipt database, and chain identity now live in the daemon — see [Daemon Setup](/getting-started/daemon-setup/). Note: the `-taxonomy` flag is removed but daemon-side taxonomy remapping is not yet implemented; see [Action taxonomy](#action-taxonomy) below.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-rules` | (built-in defaults) | Policy rules YAML file |
+| `-name` | (inferred from command) | Server name for the audit trail |
+| `-http` | `none` | HTTP address for the approval listener. Off by default — no listener starts unless you opt in. Pass `127.0.0.1:0` for a random free port or `127.0.0.1:<port>` to pin a port. See [Approval Server](/mcp-proxy/approval-ui/). |
+| `-approval-timeout` | `1m0s` | Maximum time to wait for HTTP approval before a paused call is auto-denied |
+| `-socket` | platform default | Unix-domain socket for `obsigna-daemon` (env: `AGENTRECEIPTS_SOCKET`). Pass `--socket=""` to disable emission. Emit errors are logged but do not block tool calls. |
+| `-issuer-name` | (auto-detected) | Issuer name, e.g. `Claude Code` (env: `AGENTRECEIPTS_ISSUER_NAME`) |
+| `-issuer-model` | (none) | AI model identifier, e.g. `claude-sonnet-4-6` (env: `AGENTRECEIPTS_ISSUER_MODEL`). Static per session — omit if the client can switch models mid-session |
+| `-operator-id` | (none) | Operator DID (organisation running the agent), e.g. `did:web:anthropic.com` (env: `AGENTRECEIPTS_OPERATOR_ID`) |
+| `-operator-name` | (none) | Operator name, e.g. `Anthropic` (env: `AGENTRECEIPTS_OPERATOR_NAME`). Requires `-operator-id` |
+
+## Policy rules
+
+Rules are defined in YAML and control what happens when a tool call matches:
+
+```yaml
+rules:
+  - name: block_destructive_ops
+    description: Block delete operations on sensitive tools
+    enabled: true
+    tool_pattern: "delete_*"
+    server_pattern: "*postgres*"
+    operation_types: [delete]
+    min_risk_score: 70
+    action: block
+
+  - name: pause_high_risk
+    description: Require approval for high-risk operations
+    enabled: true
+    min_risk_score: 50
+    action: pause
+```
+
+### Rule fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Unique rule identifier |
+| `description` | no | Human-readable description |
+| `enabled` | yes | Whether the rule is active |
+| `tool_pattern` | no | Glob pattern matching tool name (case-insensitive) |
+| `server_pattern` | no | Glob pattern matching server name |
+| `operation_types` | no | Filter by operation type: `read`, `write`, `delete`, `execute` |
+| `min_risk_score` | no | Minimum risk score (0-100) to match |
+| `action` | yes | One of `pass`, `flag`, `pause`, `block` |
+
+### Actions
+
+`pass` and `flag` are audit-only — they record the call and forward it. `pause` and `block` are proxy-layer enforcement features; the Agent Receipts protocol itself is audit-only and does not block or modify tool calls.
+
+| Action | Behavior |
+|--------|----------|
+| `pass` | Log only, forward normally |
+| `flag` | Log with highlight, forward normally |
+| `pause` | Hold for HTTP approval (configurable timeout, auto-denied on timeout) |
+| `block` | Reject immediately with error |
+
+When multiple rules match, the most restrictive action wins (block > pause > flag > pass).
+
+## Risk scoring
+
+Risk scores range from 0 to 100, computed from:
+
+| Factor | Score | Condition |
+|--------|-------|-----------|
+| Operation type | 0--40 | read=0, write=20, execute=30, delete=40 |
+| Sensitive keywords | +30 | Tool name contains: auth, credential, password, token, secret, key |
+| SQL without WHERE | +30 | Arguments contain UPDATE/DELETE/TRUNCATE without WHERE |
+| Config modification | +20 | Tool name contains: config, setting |
+| External messaging | +15 | Tool name starts with: send\_, post\_ |
+| Unknown operation | +10 | Fallback if classification fails |
+
+## Operation classification
+
+Tool names are classified by prefix (case-insensitive):
+
+| Type | Prefixes |
+|------|----------|
+| delete | delete\_, remove\_, drop\_, destroy\_, purge\_ |
+| execute | run\_, exec\_, invoke\_, call\_, trigger\_ |
+| write | create\_, update\_, set\_, add\_, put\_, edit\_, modify\_, write\_ |
+| read | get\_, read\_, list\_, search\_, describe\_, show\_ |
+| unknown | (fallback) |
+
+MCP tool names are automatically stripped of their `mcp__<server>__` prefix before classification. For example, `mcp__github-audited__create_branch` is classified as `create_branch` (write). This means policy rules use bare tool names.
+
+## Action taxonomy
+
+The daemon stores action types in `<channel>.<server>.<tool>` form — for example, `mcp.github-audited.create_branch`. Full taxonomy mapping that would reclassify tools to canonical types like `data.api.write` is not yet applied by the daemon; that work is tracked for a future release. Receipts for action types that do not match a built-in taxonomy entry carry `RiskMedium` as their risk level.
+
+Available action types include `filesystem.file.*`, `system.*`, and `data.api.*` (read, write, delete). See the [Action Taxonomy](https://agentreceipts.ai/specification/action-taxonomy/) reference and the [taxonomy definitions](https://github.com/agent-receipts/obsigna/tree/main/spec/spec/taxonomy) for the full list, and open a PR to add or correct mappings.
+The proxy's prefix-based [operation classification](#operation-classification) drives policy risk scoring today and is independent of the daemon's action type labelling.
+
+## Approval workflow
+
+Approvals are **off by default** — the HTTP listener does not start unless you pass `-http <addr>`. A pause rule that fires without a listener fails fast with JSON-RPC code `-32003` (`no approver configured…`) so the failure is immediate and obvious rather than a silent 60-second timeout.
+
+The [Approval Server page](/mcp-proxy/approval-ui/) has the full treatment — endpoints, auth, running an approver, opting out. Quick reference:
+
+- Endpoints: `POST /api/tool-calls/{id}/approve` and `POST /api/tool-calls/{id}/deny`, both require `Authorization: Bearer <token>`.
+- The URL and token are printed on stderr at startup, plus a machine-readable JSON line (`{"event":"approval_endpoint",...}`).
+- No `/pending` or index route — hitting `GET /` returns 404.
+- The HTTP server only starts when you pass `-http <addr>` explicitly. Passing `none` (or omitting `-http`) keeps the listener off.
+- Pin a port (`127.0.0.1:8081`) if you're running an external approver that can't parse the stderr discovery event.
+- On deny or timeout the client receives a JSON-RPC error with `code: -32002` and a `data` object including `status`, `rule_name`, `risk_score`, `approval_id`, and `approval_url`.
+
+## Data redaction
+
+Tool-call inputs and outputs are **not stored as plaintext** — the daemon stores only a cryptographic hash of each (see [Payload disclosure](#payload-disclosure) below). Redaction applies to the **error text** stored when a tool call fails, using two passes:
+
+**JSON-aware redaction** replaces values of sensitive keys including: `password`, `token`, `api_key`, `secret`, `authorization`, `private_key`, `access_token`, `jwt`, `database_url`, `ssh_key`, `connection_string`, and others (42 keys total).
+
+**Pattern-based redaction** matches known secret formats:
+- GitHub PATs and OAuth tokens (`ghp_*`, `gho_*`)
+- OpenAI/Anthropic API keys (`sk-*`)
+- AWS access keys (`AKIA*`)
+- Bearer tokens
+- Slack tokens (`xox*`)
+- PEM private key blocks
+
+## Payload disclosure
+
+By default the daemon stores only a cryptographic hash of each tool call's input and output — the receipt proves what happened without retaining the raw payload. The daemon can optionally encrypt parameters to a forensic public key (HPKE, [ADR-0012](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0012-payload-disclosure-policy.md)) so they are recoverable only by the holder of the matching private key, never stored as plaintext. This is a daemon-side, operator-controlled concern — see [Parameter Disclosure](https://agentreceipts.ai/specification/parameter-disclosure/) for the model and [Daemon Setup → Payload disclosure](/getting-started/daemon-setup/#payload-disclosure) for configuration.
+## Troubleshooting
+
+### Tool call errors (`-32002` / `-32003`)
+
+**Three different things produce these error codes.** Distinguish them before reaching for a fix, because they need different remedies and only two of them involve the proxy:
+
+1. **Client-side denial** — the MCP client (e.g. Claude Code) rejected the tool use before it reached the proxy. The call is never forwarded, so no receipt is written.
+2. **Proxy: no approver configured** (`-32003`) — the call reached the proxy, matched a `pause` rule, but the approval HTTP listener is not running (operator did not pass `-http <addr>`). The proxy fails fast rather than waiting out the timeout. This is the common case when running the default configuration. The JSON-RPC error response carries `data.status = "no_approver"`.
+3. **Proxy: approval denied or timed out** (`-32002`) — the call reached the proxy, matched a `pause` rule, and an approver listener was wired up (`-http <addr>` was passed). The approver either explicitly denied the call, or no approver POSTed a decision before `-approval-timeout` elapsed. The JSON-RPC error response disambiguates via `data.status`: `"denied"` for an explicit deny, `"timed_out"` for a timeout.
+
+**Diagnose — which one is it?**
+
+The pre-v0.9.0 proxy kept a local `audit.db` with a `tool_calls` table you could query directly; that store was removed when persistence moved to the daemon. Today the daemon's signed `receipts.db` is the record of forwarded calls. Diagnose with the CLIs instead of raw SQL:
+
+```bash
+# Is the proxy running with the flags you expect (rules, -http)?
+ps aux | grep mcp-proxy | grep -v grep
+mcp-proxy doctor                      # validate policy + approver wiring
+
+# Did a receipt for the call land in the daemon's store?
+obsigna receipt list                   # recent receipts, newest first
+```
+
+- **`mcp-proxy doctor` reports a pause rule with no approver** → case 2: paused calls fail with `-32003` until you start an approver (`-http <addr>`) or relax the policy.
+- **No receipt for the call, and the client reported the error before the tool ran** → client-side denial (case 1): the MCP client rejected the tool use before it reached the proxy, so nothing was forwarded. See [ar#157](https://github.com/agent-receipts/obsigna/issues/157) for the ongoing work to make these visible.
+- **A receipt exists but the call still errored** → the proxy forwarded it (case: downstream failure) or recorded a rejection. Use `obsigna receipt show <seq>` to inspect the outcome, and check the proxy's stderr log and the server's own logs. Distinguish a pause rejection via the JSON-RPC error code: `-32003` is case 2 (no approver), `-32002` is case 3, whose `data.status` field (`"denied"` vs `"timed_out"`) names the sub-case.
+
+**If the error is `-32003` (no approver configured):**
+
+The proxy is pausing high-risk calls but has no approval listener running. Either start an approver by passing `-http <addr>` when launching the proxy, or relax the policy so the tool is not paused. See [Approval Server](/mcp-proxy/approval-ui/) for both paths.
+
+```bash
+# Check which process flags are in effect.
+ps aux | grep mcp-proxy | grep -v grep
+```
+
+**If the error is `-32002` (approval denied or timed out):**
+
+An approver listener is running and either denied the call or didn't respond in time. Check `data.status` in the JSON-RPC error: `"denied"` means the approver said no — that's the workflow working as intended, no proxy fix needed. `"timed_out"` means no decision arrived; verify your approver can reach the endpoint and that `-approval-timeout` is long enough.
+
+```bash
+# Confirm the -http address and timeout flags.
+ps aux | grep mcp-proxy | grep -v grep
+```
+
+The scorer stacks a base (read 0, write 20, execute 30, delete 40, unknown 10) with modifiers — sensitive keywords in the tool name (+30), SQL mutations without `WHERE` (+30), `config`/`setting` substrings (+20), `send_*`/`post_*` prefixes (+15) — so what actually crosses 50 is combinations: `create_token` (write 20 + sensitive 30 = 50), `update_auth_config` (70), `delete_credential` (70), `delete_config` (60), `exec_sql` with a `DELETE` and no `WHERE` (60). Ordinary writes like `create_pull_request` (20), unknown-prefix calls like `merge_pull_request` (10), plain deletes like `delete_branch` (40), `update_config` with no sensitive keyword (40), and sensitive-keyword *reads* like `get_token` (30) all stay below the threshold — if one of those is failing, you're in path #1, not #2 or #3.
+
+### 404 at `http://127.0.0.1:8081/`
+
+The approval server is not a web UI. `GET /` returns 404 by design. The only routes are `POST /api/tool-calls/{id}/approve` and `POST /api/tool-calls/{id}/deny`, both requiring a bearer token — see [Approval Server](/mcp-proxy/approval-ui/#endpoints).
+
+### Multiple MCP clients running the proxy simultaneously
+
+By default, `mcp-proxy` starts no HTTP listener (`-http none`), so multiple concurrent sessions work without any port configuration — they simply don't collide.
+
+If you do opt in to the approval workflow, each instance that passes `-http <addr>` binds its own server. Give each a distinct port so an approver can route to the right one:
+
+```bash
+# Claude Desktop
+mcp-proxy -name github -http 127.0.0.1:8080 ... /path/to/server
+
+# Claude Code
+mcp-proxy -name github -http 127.0.0.1:8081 ... /path/to/server
+
+# Codex
+mcp-proxy -name github -http 127.0.0.1:8082 ... /path/to/server
+```
+
+`127.0.0.1:0` picks a random free port automatically — fine when the approver parses the stderr discovery event at startup.
+
+All proxy instances forward to the same `obsigna-daemon`, so every client's calls land in one unified, hash-chained receipt store. Point a proxy at a different daemon — and thus a separate audit trail — with `--socket` (or `AGENTRECEIPTS_SOCKET`); see [Daemon Setup](/getting-started/daemon-setup/).
+
+### `data directory … has mode 0750` warning at startup
+
+The proxy logs `[WARNING] data directory … has mode 0750 (group/other-accessible)` when the daemon's data directory (the signing key and `receipts.db`) is readable by group or other. It is **advisory, not fatal** — the proxy still starts and emits normally. To restrict the directory to your user, run `chmod 0700 "${XDG_DATA_HOME:-$HOME/.local/share}/agent-receipts"`. The check exists because that directory holds the signing key and receipt store, which should not be readable by other local accounts.

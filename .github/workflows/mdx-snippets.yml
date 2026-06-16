@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths: &paths
       - "site/src/content/**/*.mdx"
+      - "site-obsigna/src/content/**/*.mdx"
       - "scripts/readme_snippets/**"
       - ".github/workflows/mdx-snippets.yml"
       - "sdk/go/**"
@@ -37,7 +38,7 @@ jobs:
         with:
           go-version: "1.26"
       - name: Run Go .mdx snippets (in-tree)
-        run: python3 scripts/readme_snippets/check.py --lang go --source local --mode run $(find site/src/content -name '*.mdx' | sort)
+        run: python3 scripts/readme_snippets/check.py --lang go --source local --mode run $(find site/src/content site-obsigna/src/content -name '*.mdx' | sort)
 
   typescript:
     runs-on: ubuntu-latest
@@ -49,17 +50,17 @@ jobs:
           node-version: "24"
           cache: "pnpm"
           cache-dependency-path: sdk/ts/pnpm-lock.yaml
-      # The snippets resolve `@agnt-rcpt/sdk-ts` from a file: install of the
+      # The snippets resolve `@obsigna/sdk-ts` from a file: install of the
       # in-tree package, so its dist/ must be built first.
       - name: Build in-tree TypeScript SDK
         working-directory: sdk/ts
         run: pnpm install --frozen-lockfile && pnpm run build
       - name: Run TypeScript .mdx snippets (in-tree)
-        run: python3 scripts/readme_snippets/check.py --lang ts --source local --mode run $(find site/src/content -name '*.mdx' | sort)
+        run: python3 scripts/readme_snippets/check.py --lang ts --source local --mode run $(find site/src/content site-obsigna/src/content -name '*.mdx' | sort)
 
   python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Run Python .mdx snippets (in-tree)
-        run: python3 scripts/readme_snippets/check.py --lang py --source local --mode run $(find site/src/content -name '*.mdx' | sort)
+        run: python3 scripts/readme_snippets/check.py --lang py --source local --mode run $(find site/src/content site-obsigna/src/content -name '*.mdx' | sort)

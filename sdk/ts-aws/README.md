@@ -1,6 +1,6 @@
-# @agnt-rcpt/sdk-ts-aws
+# @obsigna/sdk-ts-aws
 
-AWS KMS `Signer` for the [Agent Receipts](https://github.com/agent-receipts/ar)
+AWS KMS `Signer` for the [Agent Receipts](https://github.com/agent-receipts/obsigna)
 TypeScript SDK.
 
 `KMSSigner` is an Ed25519 [`Signer`](./src/signer.ts) (ADR-0018) whose private
@@ -11,13 +11,13 @@ lifetime. This is the production key story for client-side signing on AWS
 collector — the private key is not extractable, not present in process memory,
 and revocable via IAM.
 
-The core `@agnt-rcpt/sdk-ts` package has zero cloud dependencies; install this
+The core `@obsigna/sdk-ts` package has zero cloud dependencies; install this
 package only when you sign with KMS.
 
 ## Install
 
 ```sh
-npm install @agnt-rcpt/sdk-ts-aws
+npm install @obsigna/sdk-ts-aws
 # peer: AWS credentials from the ambient provider chain (instance role, IRSA,
 # environment, shared profile) — the signer takes no static credentials.
 ```
@@ -25,7 +25,7 @@ npm install @agnt-rcpt/sdk-ts-aws
 ## Usage
 
 ```ts
-import { KMSSigner } from "@agnt-rcpt/sdk-ts-aws";
+import { KMSSigner } from "@obsigna/sdk-ts-aws";
 
 // keyId: a key ID, key ARN, alias name, or alias ARN. The key must be an
 // ECC_NIST_EDWARDS25519 (Ed25519) key with SIGN_VERIFY usage.

@@ -1,0 +1,149 @@
+---
+title: JetBrains AI Assistant Integration
+description: How to route JetBrains AI Assistant MCP servers through the Agent Receipts proxy for cryptographic audit trails.
+---
+
+JetBrains AI Assistant (IntelliJ IDEA, PyCharm, GoLand, and the other JetBrains IDEs) can connect to MCP servers from **Settings | Tools | AI Assistant | Model Context Protocol (MCP)**. The Agent Receipts proxy wraps any MCP server transparently — AI Assistant doesn't know or care that the proxy is there.
+
+:::note[AI Assistant, not Junie]
+This guide covers the **AI Assistant** plugin acting as an MCP *client* (introduced in 2025.1; needs IntelliJ IDEA 2025.1+ and a current AI Assistant plugin build). JetBrains' Junie agent has its own separate MCP configuration, and the "MCP Server" feature (the IDE acting as a server) is a different thing again — neither is covered here.
+:::
+
+:::note[Approval workflow]
+The default policy includes a `pause_high_risk` rule. If the proxy runs without `-http`, the listener is off and paused calls fail fast with `-32003`. To approve high-risk calls interactively, pass `-http 127.0.0.1:<port>` and run an approver — see [Approval Server](/mcp-proxy/approval-ui/).
+:::
+
+:::danger[Never put secrets in the MCP configuration]
+AI Assistant persists each server's command, arguments, and **environment variables** as part of the IDE settings. Anything you type into the *Environment Variables* field (or an `env` block in the "As JSON" form) is stored verbatim, and `${VAR}` expansion is **not** documented as supported. Do **not** put a real token, API key, or other credential there. Use a secret-manager wrapper (`op run`, `aws-vault exec`, …) or an OS keychain launcher script — both are documented below.
+:::
+
+## Prerequisites
+
+- [mcp-proxy installed](/mcp-proxy/installation/)
+- [`obsigna-daemon` installed, initialised, and running](/getting-started/daemon-setup/) — it holds the signing key and writes every receipt
+- IntelliJ IDEA 2025.1+ (or another JetBrains IDE on a matching build) with the AI Assistant plugin
+- The MCP server you want to audit. The examples below wrap GitHub's official MCP server:
+
+  ```bash
+  brew install github-mcp-server
+  ```
+
+  This puts a `github-mcp-server` binary on your `$PATH`. Verify with `which github-mcp-server`.
+
+## Start the daemon
+
+The proxy holds no signing key of its own — `obsigna-daemon` owns the key and writes every receipt ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). Initialise the key once and start the daemon before launching your IDE:
+
+```bash
+obsigna-daemon --init   # one-time: generates the Ed25519 signing key pair
+obsigna-daemon          # start the daemon (listens on a Unix socket)
+```
+
+The proxy reaches the daemon over its default platform socket automatically. See [Daemon Setup](/getting-started/daemon-setup/) for install options and running it as a service.
+
+## Configure the MCP server
+
+JetBrains launches MCP servers without your shell's `PATH`, so use **absolute paths** for every command. Print the ones you need:
+
+```bash
+echo "op:     $(which op)"
+echo "proxy:  $(which mcp-proxy)"
+echo "server: $(which github-mcp-server)"
+```
+
+Open **Settings | Tools | AI Assistant | Model Context Protocol (MCP)**, click **Add**, then switch the dialog from **Command** to **As JSON** (the control in the top-left corner). Paste one of the configurations below, set a **Working directory** (any readable folder, e.g. your home directory), click **OK**, then **Apply**.
+
+### Recommended: secret manager (`op run`, `aws-vault exec`, …)
+
+Install the 1Password CLI (`brew install 1password-cli`), sign in (`op signin`), and create a referenced env file:
+
+```ini
+# ~/.local/share/agent-receipts/mcp.env  (chmod 600)
+GITHUB_PERSONAL_ACCESS_TOKEN=op://Personal/GitHub/token
+```
+
+Point AI Assistant at `op run` — it resolves the `op://` reference at exec time and injects the value into `mcp-proxy`'s env without writing it to the IDE settings:
+
+```json
+{
+  "mcpServers": {
+    "github-audited": {
+      "command": "/opt/homebrew/bin/op",
+      "args": [
+        "run",
+        "--env-file=/Users/YOU/.local/share/agent-receipts/mcp.env",
+        "--",
+        "/Users/YOU/go/bin/mcp-proxy",
+        "-name", "github",
+        "-issuer-name", "JetBrains AI Assistant",
+        "-operator-id", "did:web:jetbrains.com",
+        "-operator-name", "JetBrains",
+        "/opt/homebrew/bin/github-mcp-server", "stdio"
+      ]
+    }
+  }
+}
+```
+
+`aws-vault exec`, `chamber exec` (AWS Parameter Store), and `direnv` with `op://` references all follow the same wrapping pattern.
+
+### Fallback: OS keychain launcher script
+
+If you don't have a secret manager, reuse the launcher script from [Claude Desktop's keychain fallback](/mcp-proxy/claude-desktop/#fallback-os-keychain-launcher-script) (one script works across clients). Point `command` at the launcher and drop the env block — the script sets `GITHUB_PERSONAL_ACCESS_TOKEN` from the keychain:
+
+```json
+{
+  "mcpServers": {
+    "github-audited": {
+      "command": "/Users/YOU/.local/share/agent-receipts/run-mcp-proxy-github.sh",
+      "args": [
+        "-name", "github",
+        "-issuer-name", "JetBrains AI Assistant",
+        "-operator-id", "did:web:jetbrains.com",
+        "-operator-name", "JetBrains",
+        "/opt/homebrew/bin/github-mcp-server", "stdio"
+      ]
+    }
+  }
+}
+```
+
+`-issuer-name`, `-operator-id`, and `-operator-name` stamp each signed receipt so you can tell which client made a given call when reviewing a shared store. Setting `-issuer-name` to `JetBrains AI Assistant` here (and to `Claude Code`, `Codex`, etc. in the other guides) is what distinguishes IDE sessions at audit time.
+
+After clicking **Apply**, the server appears in the list with a **Status** column: a green indicator means it connected, red means it failed. Click the icon in the Status column to see the tools the proxied server exposes. In the AI chat, the tools are now available to AI Assistant — it can call them while handling a request, or you can invoke one manually with its `/` command.
+
+## Verifying receipts
+
+The daemon signs and stores every tool call. After making calls through AI Assistant, query and verify the store with the `agent-receipts` CLI (installed alongside the daemon). It opens the database read-only, so it is safe to run while the daemon is writing:
+
+```bash
+# List recent receipts (newest first)
+obsigna receipt list
+
+# Verify the chain's signatures and hash links
+obsigna receipt verify \
+  --public-key ~/.local/share/agent-receipts/signing.key.pub
+```
+
+```
+$ obsigna receipt list
+SEQ  TIMESTAMP             CHAIN       TOOL / ACTION TYPE
+4    2026-04-24T02:05:19Z  2026-04-24  get_file_contents
+3    2026-04-24T01:58:45Z  2026-04-24  create_or_update_file
+2    2026-04-24T01:56:12Z  2026-04-24  search_issues
+1    2026-04-24T01:45:07Z  2026-04-24  list_issues
+```
+
+`obsigna receipt verify` prints `Chain 2026-04-24: VALID (4 receipts)` when signatures and hash links are intact. Inspect a single receipt — including its action type, risk level, and parameters hash — with `obsigna receipt show <seq>`. See the [CLI reference](/reference/cli-commands/#obsigna) for all subcommands.
+
+## Gotchas
+
+**Absolute paths required — red status otherwise.** JetBrains does not resolve commands through your shell `PATH`. If the Status column shows red, the most common cause is a bare command name; use the full path to `op`/`mcp-proxy`/the wrapped server (find each with `which`). The proxy's own stderr lands in the IDE's MCP logs (Help → Show Log in Explorer/Finder → `mcp` folder).
+
+**`${VAR}` expansion is not supported.** Unlike Claude Code, AI Assistant does not document variable interpolation in the Environment Variables field. Inject secrets with the secret-manager or keychain-launcher patterns above rather than referencing them by name.
+
+**No receipts appearing?** The daemon must be running *before* the IDE launches the proxied server, or emits fail. Confirm with `pgrep obsigna-daemon`, and see the [daemon troubleshooting guide](/getting-started/daemon-setup/#troubleshooting). If you run the daemon on a non-default socket, set `AGENTRECEIPTS_SOCKET` for both the daemon and the proxy.
+
+**Import from Claude.** If you already configured the proxy for Claude Desktop, the **Import from Claude** button on the MCP settings page reads that config and adds the proxied servers here — no need to retype the JSON.
+
+**Want human-in-the-loop approvals? Opt in with `-http`.** The approval listener is off by default. Add `-http 127.0.0.1:<port>` to `args` and run an approver — see [Approval Server](/mcp-proxy/approval-ui/). Without it, a paused call fails immediately with `-32003`.

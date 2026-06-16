@@ -198,6 +198,7 @@ type Outcome struct {
 	Reversible            *bool         `json:"reversible,omitempty"`
 	ReversalMethod        string        `json:"reversal_method,omitempty"`
 	ReversalWindowSeconds *int          `json:"reversal_window_seconds,omitempty"`
+	ReversalOf            string        `json:"reversal_of,omitempty"`
 	StateChange           *StateChange  `json:"state_change,omitempty"`
 	ResponseHash          string        `json:"response_hash,omitempty"`
 }

@@ -15,9 +15,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.39",
+    "@astrojs/sitemap": "^3.7",
+    "@astrojs/starlight": "^0.40",
     "astro": "^6",
-    "sharp": "^0.34"
+    "sharp": "^0.35",
+    "starlight-theme-flexoki": "^0.2.2"
   },
   "engines": {
     "node": ">=20"

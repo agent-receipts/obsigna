@@ -1,4 +1,4 @@
-// Package showcli implements the `agent-receipts show <seq>` subcommand:
+// Package showcli implements the `obsigna receipt show <seq>` subcommand:
 // inspect a single receipt by its chain sequence number, read from a
 // daemon-written SQLite store. It opens the database read-only so it is safe
 // to run while the daemon is the active writer.
@@ -49,10 +49,10 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		return fallback
 	}
 
-	fs := flag.NewFlagSet("show", flag.ContinueOnError)
+	fs := flag.NewFlagSet("receipt show", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: agent-receipts show <seq> [flags]")
+		fmt.Fprintln(stderr, "Usage: obsigna receipt show <seq> [flags]")
 		fmt.Fprintln(stderr, "\nPrint the full fields of the receipt at chain sequence <seq>.")
 		fmt.Fprintln(stderr, "\nFlags:")
 		fs.PrintDefaults()
@@ -83,27 +83,27 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	}
 
 	if len(rest) == 0 {
-		fmt.Fprintln(stderr, "agent-receipts show: missing <seq> argument (the chain sequence number, 1-indexed)")
+		fmt.Fprintln(stderr, "obsigna receipt show: missing <seq> argument (the chain sequence number, 1-indexed)")
 		return ExitUsageError
 	}
 	if len(rest) > 1 {
-		fmt.Fprintf(stderr, "agent-receipts show: unexpected positional argument(s): %v (only one <seq> is accepted)\n", rest[1:])
+		fmt.Fprintf(stderr, "obsigna receipt show: unexpected positional argument(s): %v (only one <seq> is accepted)\n", rest[1:])
 		return ExitUsageError
 	}
 	seq, err := strconv.Atoi(rest[0])
 	if err != nil || seq < 1 {
-		fmt.Fprintf(stderr, "agent-receipts show: <seq> must be a positive integer, got %q\n", rest[0])
+		fmt.Fprintf(stderr, "obsigna receipt show: <seq> must be a positive integer, got %q\n", rest[0])
 		return ExitUsageError
 	}
 
 	if *dbPath == "" {
-		fmt.Fprintln(stderr, "agent-receipts show: --db is required (no AGENTRECEIPTS_DB and no home directory)")
+		fmt.Fprintln(stderr, "obsigna receipt show: --db is required (no AGENTRECEIPTS_DB and no home directory)")
 		return ExitUsageError
 	}
 
 	s, err := store.OpenReadOnly(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts show: open store: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt show: open store: %v\n", err)
 		return ExitUsageError
 	}
 	defer s.Close()
@@ -115,11 +115,11 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 
 	r, err := s.GetByChainSequence(resolved, seq)
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts show: read chain %q: %v\n", resolved, err)
+		fmt.Fprintf(stderr, "obsigna receipt show: read chain %q: %v\n", resolved, err)
 		return ExitUsageError
 	}
 	if r == nil {
-		fmt.Fprintf(stderr, "agent-receipts show: no receipt at sequence %d in chain %q\n", seq, resolved)
+		fmt.Fprintf(stderr, "obsigna receipt show: no receipt at sequence %d in chain %q\n", seq, resolved)
 		return ExitNotFound
 	}
 	if *asJSON {
@@ -139,17 +139,17 @@ func resolveChainID(s *store.Store, requested string, stderr io.Writer) (string,
 
 	chains, err := s.DistinctChainIDs()
 	if err != nil {
-		fmt.Fprintf(stderr, "agent-receipts show: enumerate chains: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt show: enumerate chains: %v\n", err)
 		return "", ExitUsageError
 	}
 	switch len(chains) {
 	case 0:
-		fmt.Fprintln(stderr, "agent-receipts show: store holds no receipts")
+		fmt.Fprintln(stderr, "obsigna receipt show: store holds no receipts")
 		return "", ExitNotFound
 	case 1:
 		return chains[0], ExitOK
 	default:
-		fmt.Fprintf(stderr, "agent-receipts show: store holds %d chains; pass --chain-id to select one. Available chains:\n", len(chains))
+		fmt.Fprintf(stderr, "obsigna receipt show: store holds %d chains; pass --chain-id to select one. Available chains:\n", len(chains))
 		for _, c := range chains {
 			fmt.Fprintf(stderr, "  %s\n", c)
 		}
@@ -164,7 +164,7 @@ func writeJSON(stdout, stderr io.Writer, r *receipt.AgentReceipt) int {
 		if errors.Is(err, syscall.EPIPE) || errors.Is(err, io.ErrClosedPipe) {
 			return ExitOK
 		}
-		fmt.Fprintf(stderr, "agent-receipts show: encode JSON: %v\n", err)
+		fmt.Fprintf(stderr, "obsigna receipt show: encode JSON: %v\n", err)
 		return ExitUsageError
 	}
 	return ExitOK
@@ -224,7 +224,7 @@ func writeHuman(stdout io.Writer, r *receipt.AgentReceipt) int {
 }
 
 // exitFromFlush maps a tabwriter flush result to an exit code. A broken pipe
-// (e.g. `agent-receipts show ... | head`) is normal CLI behaviour, not a
+// (e.g. `obsigna receipt show ... | head`) is normal CLI behaviour, not a
 // failure, so it exits 0 — matching listcli.
 func exitFromFlush(w *tabwriter.Writer) int {
 	if err := w.Flush(); err != nil {

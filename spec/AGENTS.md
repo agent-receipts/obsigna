@@ -34,5 +34,5 @@ ajv compile -s schema/agent-receipt.schema.json --spec=draft2020 -c ajv-formats
 ## Related repos
 
 - [agent-receipts/site](https://github.com/agent-receipts/site) — documentation site
-- [agent-receipts/sdk-ts](https://github.com/agent-receipts/ar/tree/main/sdk/ts) — TypeScript SDK
-- [agent-receipts/sdk-py](https://github.com/agent-receipts/ar/tree/main/sdk/py) — Python SDK
+- [agent-receipts/sdk-ts](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) — TypeScript SDK
+- [agent-receipts/sdk-py](https://github.com/agent-receipts/obsigna/tree/main/sdk/py) — Python SDK

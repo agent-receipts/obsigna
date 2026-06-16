@@ -4,99 +4,107 @@
 
 **Cryptographically signed audit trails for AI agent actions**
 
-[![Go Tests](https://github.com/agent-receipts/ar/actions/workflows/sdk-go.yml/badge.svg)](https://github.com/agent-receipts/ar/actions/workflows/sdk-go.yml)
-[![TS Tests](https://github.com/agent-receipts/ar/actions/workflows/sdk-ts.yml/badge.svg)](https://github.com/agent-receipts/ar/actions/workflows/sdk-ts.yml)
-[![Python Tests](https://github.com/agent-receipts/ar/actions/workflows/sdk-py.yml/badge.svg)](https://github.com/agent-receipts/ar/actions/workflows/sdk-py.yml)
+[![Go Tests](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-go.yml/badge.svg)](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-go.yml)
+[![TS Tests](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-ts.yml/badge.svg)](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-ts.yml)
+[![Python Tests](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-py.yml/badge.svg)](https://github.com/agent-receipts/obsigna/actions/workflows/sdk-py.yml)
+[![Daemon](https://github.com/agent-receipts/obsigna/actions/workflows/daemon.yml/badge.svg)](https://github.com/agent-receipts/obsigna/actions/workflows/daemon.yml)
+[![MCP Proxy](https://github.com/agent-receipts/obsigna/actions/workflows/mcp-proxy.yml/badge.svg)](https://github.com/agent-receipts/obsigna/actions/workflows/mcp-proxy.yml)
+[![Hook](https://github.com/agent-receipts/obsigna/actions/workflows/hook.yml/badge.svg)](https://github.com/agent-receipts/obsigna/actions/workflows/hook.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 </div>
 
 | | |
 |---|---|
-| **Project site & docs** | [agentreceipts.ai](https://agentreceipts.ai) |
-| **Daemon setup & migration guide** | [agentreceipts.ai/getting-started/daemon-setup/](https://agentreceipts.ai/getting-started/daemon-setup/) |
-| **API reference** | [Go](https://agentreceipts.ai/sdk-go/api-reference/) · [TypeScript](https://agentreceipts.ai/sdk-ts/api-reference/) · [Python](https://agentreceipts.ai/sdk-py/api-reference/) |
+| **Protocol site & spec** | [agentreceipts.ai](https://agentreceipts.ai) |
+| **Tooling docs** | [obsigna.dev](https://obsigna.dev) |
+| **Daemon setup & migration guide** | [obsigna.dev/getting-started/daemon-setup/](https://obsigna.dev/getting-started/daemon-setup/) |
+| **API reference** | [Go](https://obsigna.dev/sdk-go/api-reference/) · [TypeScript](https://obsigna.dev/sdk-ts/api-reference/) · [Python](https://obsigna.dev/sdk-py/api-reference/) |
 | **Blog** | [Your AI Agent Just Sent an Email](https://jongerius.solutions/post/your-ai-agent-just-sent-an-email/) · [Every MCP Tool Call My AI Makes Now Gets a Signed Receipt](https://jongerius.solutions/post/auditing-github-mcp-agent-receipts/) |
 | **Go** | [sdk/go](https://pkg.go.dev/github.com/agent-receipts/ar/sdk/go) · [mcp-proxy](https://pkg.go.dev/github.com/agent-receipts/ar/mcp-proxy) · [dashboard](https://pkg.go.dev/github.com/agent-receipts/dashboard) |
-| **npm** | [@agnt-rcpt/sdk-ts](https://www.npmjs.com/package/@agnt-rcpt/sdk-ts) |
-| **PyPI** | [agent-receipts](https://pypi.org/project/agent-receipts/) |
+| **npm** | [@obsigna/sdk-ts](https://www.npmjs.com/package/@obsigna/sdk-ts) |
+| **PyPI** | [obsigna](https://pypi.org/project/obsigna/) |
 
 ---
 
-## Start here
-
-The fastest way to try Agent Receipts is to put [`mcp-proxy/`](mcp-proxy/) in front of an MCP server you already use.
-
-In one step, you get:
-
-- Signed receipts for every tool call
-- A tamper-evident audit chain you can verify later
-- Risk scoring and policy hooks without changing the client or server
-
-If you want to audit GitHub MCP in a real agent workflow, start with:
-
-- [Claude Desktop integration](https://agentreceipts.ai/mcp-proxy/claude-desktop/)
-- [Claude Code integration](https://agentreceipts.ai/mcp-proxy/claude-code/)
-- [Codex integration](https://agentreceipts.ai/mcp-proxy/codex/)
-
 ## What is this?
 
-Agent Receipts is an open protocol and set of SDKs for producing cryptographically signed, tamper-evident records of AI agent actions. Every action an agent takes -- API calls, tool use, data access -- gets a verifiable receipt that can be audited later.
+**Agent Receipts** is an open protocol for producing cryptographically signed, tamper-evident records of AI agent actions. It defines the receipt format, signing scheme, chain structure, and taxonomy of action types. Anyone can implement it — in any language, in any runtime.
+
+**Obsigna** is the reference toolset that implements the protocol:
+
+| Tool | What it does |
+|------|-------------|
+| `obsigna-mcp` | MCP stdio proxy — signs every tool call, adds policy hooks |
+| `obsigna-daemon` | Out-of-process signing daemon — holds the key, owns the audit chain |
+| `obsigna-hook` | PostToolUse hook for Claude Code and other runtimes |
+| `obsigna` | CLI for browsing and verifying receipt databases |
+| `sdk/go`, `@obsigna/sdk-ts`, `obsigna` (Python) | SDKs for embedding receipt creation in your own code |
 
 <picture>
   <img alt="How it works: Authorize → Act → Sign → Link → Audit" src=".github/how-it-works.svg">
 </picture>
 
+## Start here
+
+Both paths below require the daemon — it holds the signing key and owns the audit chain. Install it first:
+
+```bash
+brew install agent-receipts/tap/obsigna
+obsigna daemon start
+```
+
+**Fastest path — PostToolUse hook (Claude Code):** one config snippet and every tool call gets a signed receipt automatically:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "obsigna-hook" }] }]
+  }
+}
+```
+
+Add that to `~/.claude/settings.json`, then inspect the audit trail:
+
+```bash
+obsigna list
+obsigna show <seq>
+obsigna verify
+```
+
+**More control — MCP proxy:** wraps any MCP server and adds policy hooks and risk scoring on top of signed receipts:
+
+- [Claude Desktop setup](https://obsigna.dev/mcp-proxy/claude-desktop/)
+- [Claude Code setup](https://obsigna.dev/mcp-proxy/claude-code/)
+- [Codex setup](https://obsigna.dev/mcp-proxy/codex/)
+
 ## Project layout
 
 | Project | Description |
 |---------|-------------|
-| [`docs/adr/`](docs/adr/) | Architecture Decision Records |
 | [`spec/`](spec/) | Protocol specification, JSON schemas, governance |
 | [`sdk/go/`](sdk/go/) | Go SDK |
 | [`sdk/ts/`](sdk/ts/) | TypeScript SDK |
 | [`sdk/py/`](sdk/py/) | Python SDK |
 | [`daemon/`](daemon/) | Signing daemon — out-of-process key custody, shared audit chain |
 | [`mcp-proxy/`](mcp-proxy/) | MCP proxy with receipt signing, policy engine, intent tracking |
+| [`hook/`](hook/) | PostToolUse hook binary for Claude Code and other runtimes |
 | [`cross-sdk-tests/`](cross-sdk-tests/) | Cross-language verification tests |
+| [`docs/adr/`](docs/adr/) | Architecture Decision Records |
 | [dashboard](https://github.com/agent-receipts/dashboard) | Local web UI for browsing and verifying receipt databases |
 | [openclaw](https://github.com/agent-receipts/openclaw) | Agent Receipts plugin for OpenClaw |
 
-## 10-minute audited MCP quick start
-
-Install the proxy:
-
-```bash
-go install github.com/agent-receipts/mcp-proxy/cmd/mcp-proxy@latest
-```
-
-Wrap any MCP server:
-
-```bash
-mcp-proxy node /path/to/mcp-server.js
-```
-
-Then point your agent client at the proxy instead of the raw server:
-
-- [Claude Desktop setup](https://agentreceipts.ai/mcp-proxy/claude-desktop/)
-- [Claude Code setup](https://agentreceipts.ai/mcp-proxy/claude-code/)
-- [Codex setup](https://agentreceipts.ai/mcp-proxy/codex/)
-
-Once your agent makes tool calls, inspect the signed audit trail:
-
-```bash
-mcp-proxy list
-mcp-proxy inspect <receipt-id>
-mcp-proxy verify --key pub.pem <chain-id>
-```
-
 ## SDK quick start
 
-> **Not for production.** The snippets below keep the signing key inside the
-> agent process. Anyone with code execution in the agent can forge receipts. For
-> real deployments, use the
-> [daemon-mediated path](https://agentreceipts.ai/getting-started/daemon-setup/),
-> where the daemon owns the key and your app only sends events over a socket.
+> **Choose your trust model.** The snippets below keep the signing key inside the
+> agent process — a deliberate deployment model where the agent host is trusted
+> and tamper-evidence is aimed at downstream parties. In this model, anyone with
+> code execution in the agent can forge receipts. To defend against a compromised
+> agent, use the
+> [daemon-mediated path](https://obsigna.dev/getting-started/daemon-setup/),
+> where a separate daemon owns the key and your app only sends events over a
+> socket. See the [Trust Model](https://agentreceipts.ai/specification/trust-model/)
+> page for the full spectrum (in-process → daemon-isolated → HSM/KMS).
 
 ### Go
 
@@ -121,7 +129,7 @@ signed, _ := receipt.Sign(unsigned, keys.PrivateKey, "did:agent:my-agent#key-1")
 ### TypeScript
 
 ```bash
-npm install @agnt-rcpt/sdk-ts
+npm install @obsigna/sdk-ts
 ```
 
 ```typescript
@@ -129,7 +137,7 @@ import {
   createReceipt,
   generateKeyPair,
   signReceipt,
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 
 const keys = generateKeyPair();
 const unsigned = createReceipt({
@@ -145,15 +153,15 @@ const signed = signReceipt(unsigned, keys.privateKey, "did:agent:my-agent#key-1"
 ### Python
 
 ```bash
-pip install agent-receipts
+pip install obsigna
 ```
 
 ```python
-from agent_receipts import (
+from obsigna import (
     create_receipt, generate_key_pair, sign_receipt,
     CreateReceiptInput, Issuer, Principal, Outcome, Chain,
 )
-from agent_receipts.receipt.create import ActionInput
+from obsigna.receipt.create import ActionInput
 
 keys = generate_key_pair()
 unsigned = create_receipt(CreateReceiptInput(

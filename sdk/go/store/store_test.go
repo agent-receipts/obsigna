@@ -250,6 +250,73 @@ func TestDistinctChainIDs_Empty(t *testing.T) {
 	}
 }
 
+func TestLatestRootChainID_Empty(t *testing.T) {
+	s := setupStore(t)
+	chainID, found, err := s.LatestRootChainID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found || chainID != "" {
+		t.Errorf("got (%q, %v), want (\"\", false) for an empty store", chainID, found)
+	}
+}
+
+func TestLatestRootChainID_MostRecentlyWritten(t *testing.T) {
+	s := setupStore(t)
+	kp := mustKeyPair(t)
+
+	// Insert "2026-06-03" first (more receipts → higher max sequence), then
+	// "2026-06-03-8". Recency is by write order (rowid), so the second chain
+	// wins even though the first holds a higher-sequence receipt — guarding
+	// against a timestamp/sequence tiebreak surfacing the older chain.
+	insert := func(chainID string, count int) {
+		var prevHash *string
+		for i := 1; i <= count; i++ {
+			r := makeSignedReceipt(t, kp, i, chainID, prevHash)
+			h := mustHashReceipt(t, r)
+			if err := s.Insert(r, h); err != nil {
+				t.Fatal(err)
+			}
+			prevHash = &h
+		}
+	}
+	insert("2026-06-03", 3)
+	insert("2026-06-03-8", 2)
+
+	chainID, found, err := s.LatestRootChainID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || chainID != "2026-06-03-8" {
+		t.Errorf("got (%q, %v), want (\"2026-06-03-8\", true)", chainID, found)
+	}
+}
+
+func TestLatestRootChainID_ExcludesAgentSubchains(t *testing.T) {
+	s := setupStore(t)
+	kp := mustKeyPair(t)
+
+	r := makeSignedReceipt(t, kp, 1, "2026-06-03-8", nil)
+	h := mustHashReceipt(t, r)
+	if err := s.Insert(r, h); err != nil {
+		t.Fatal(err)
+	}
+	// Agent sub-chain receipt written last: newer by rowid, but must be excluded.
+	ar := makeSignedReceipt(t, kp, 1, "2026-06-03-8/agent/abc123", nil)
+	ah := mustHashReceipt(t, ar)
+	if err := s.Insert(ar, ah); err != nil {
+		t.Fatal(err)
+	}
+
+	chainID, found, err := s.LatestRootChainID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || chainID != "2026-06-03-8" {
+		t.Errorf("got (%q, %v), want the root chain excluding agent sub-chains", chainID, found)
+	}
+}
+
 func TestGetChainTail_Empty(t *testing.T) {
 	s := setupStore(t)
 	seq, hash, found, err := s.GetChainTail("chain-1")

@@ -72,8 +72,8 @@ from dataclasses import asdict, dataclass
 # ---------------------------------------------------------------------------
 # Defaults for this monorepo
 
-NPM_PACKAGES = ["@agnt-rcpt/sdk-ts", "@agnt-rcpt/sdk-ts-aws", "@agnt-rcpt/openclaw"]
-PYPI_PACKAGES = ["agent-receipts"]
+NPM_PACKAGES = ["@obsigna/sdk-ts", "@obsigna/sdk-ts-aws", "@agnt-rcpt/openclaw"]
+PYPI_PACKAGES = ["obsigna"]
 GO_MODULES = ["github.com/agent-receipts/ar/sdk/go"]
 GITHUB_REPO = "agent-receipts/ar"  # repo hosting the Go module (dependents link)
 # Repos whose GitHub release assets are scanned for Homebrew-tap install signal:

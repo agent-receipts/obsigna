@@ -10,7 +10,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from agent_receipts.taxonomy.config import load_taxonomy_config
+from obsigna.taxonomy.config import load_taxonomy_config
 
 
 class TestLoadTaxonomyConfig:

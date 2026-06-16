@@ -65,17 +65,25 @@ func waitForExit(t *testing.T, stdin io.WriteCloser, cmd *exec.Cmd) {
 // startProxy builds and starts the proxy with a mock MCP server, returning
 // the stdin writer, stdout scanner, and command.
 // --socket="" disables the emitter; receipts go to the daemon in production
-// (ADR-0010) but the daemon is out of scope for this e2e test, which exercises
+// (ADR-0010) but the daemon is out of scope for these tests, which exercise
 // the proxy's JSON-RPC forwarding and policy enforcement.
 func startProxy(t *testing.T) (io.WriteCloser, *bufio.Scanner, *exec.Cmd) {
+	t.Helper()
+	return startProxyWithSocket(t, "")
+}
+
+// startProxyWithSocket builds and starts the proxy wired to the given daemon
+// socket. Pass "" to disable emission (forwarding/policy only); pass a live
+// daemon socket to exercise the full receipt path through the compiled binary.
+func startProxyWithSocket(t *testing.T, socketPath string) (io.WriteCloser, *bufio.Scanner, *exec.Cmd) {
 	t.Helper()
 	tmpDir := t.TempDir()
 
 	mockBin := buildBinary(t, "./testdata", tmpDir, "mock-server")
-	proxyBin := buildBinary(t, "./cmd/mcp-proxy", tmpDir, "mcp-proxy")
+	proxyBin := buildBinary(t, "./cmd/obsigna-mcp", tmpDir, "obsigna-mcp")
 
 	cmd := exec.Command(proxyBin,
-		"--socket", "", // no daemon in e2e — receipts go to daemon in production
+		"--socket", socketPath,
 		"--http", "127.0.0.1:0",
 		"--", mockBin,
 	)

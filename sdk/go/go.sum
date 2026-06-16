@@ -1,7 +1,7 @@
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/agent-receipts/ar/daemon v0.16.0 h1:IWEBHiC1HuG3+VTEKpmSX2V0+4IgOPTMzI/5UaW7Fp4=
-github.com/agent-receipts/ar/daemon v0.16.0/go.mod h1:vScXF225vmt3RXn8N33Bt39nLu6HGCjR7Faq9c+/C2I=
+github.com/agent-receipts/ar/daemon v0.23.0 h1:2YWpa6yhSMePBQgUDPdKOnwEOnwrppHqfieMEnlxK+w=
+github.com/agent-receipts/ar/daemon v0.23.0/go.mod h1:MHymb7QucpV9Z2RaHjj7x5TtHWaPphTB6Zez5xZN+TY=
 github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg8=
 github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=

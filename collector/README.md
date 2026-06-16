@@ -86,8 +86,14 @@ The receipts handler emits these statuses:
 
 ## Running
 
+The collector binary is **`obsigna-collector`** (ADR-0035), launched in
+production via `obsigna collector run`, which `syscall.Exec`s straight into it.
+The legacy `collector` binary still works as a thin deprecation shim that
+forwards to `obsigna-collector` — update installers to the new name when
+convenient; the shim will be removed in a future release.
+
 ```sh
-go run ./cmd/collector --addr 127.0.0.1:8787 --db collector.db
+go run ./cmd/obsigna-collector --addr 127.0.0.1:8787 --db collector.db
 ```
 
 The default `--addr` binds to loopback (`127.0.0.1:8787`) so a `go run` on a
@@ -95,7 +101,7 @@ workstation does not expose an unauthenticated audit-trail endpoint to the
 network. To expose the collector beyond localhost, opt in explicitly:
 
 ```sh
-go run ./cmd/collector --addr 0.0.0.0:8787
+go run ./cmd/obsigna-collector --addr 0.0.0.0:8787
 ```
 
 In production, run the collector behind a reverse proxy or service mesh that
@@ -143,7 +149,7 @@ follow-ups:
 ```sh
 go test ./...        # unit tests
 go vet ./...         # static analysis
-go build ./cmd/collector
+go build ./cmd/...   # obsigna-collector binary + the collector deprecation shim
 ```
 
 Tests use an in-memory `Store` for the HTTP layer and a fresh on-disk SQLite
@@ -153,8 +159,10 @@ database (under `t.TempDir()`) for the SQLite-adapter tests.
 
 - [ADR-0020](../docs/adr/0020-emitter-abstraction-and-remote-receipt-delivery.md)
   — emitter abstraction, collector contract
+- [ADR-0035](../docs/adr/0035-collector-binary-topology.md)
+  — collector binary topology (`obsigna-collector`, `obsigna collector run`)
 - [ADR-0018](../docs/adr/0018-signer-abstraction-and-cloud-agnostic-keyprovider-design.md)
   — `Signer` interface (production key story for HTTP emitters)
-- Issue [#533](https://github.com/agent-receipts/ar/issues/533) — this work
-- Issue [#486](https://github.com/agent-receipts/ar/issues/486) — `HttpEmitter` (paired client work)
-- Issue [#536](https://github.com/agent-receipts/ar/issues/536) — operator guide
+- Issue [#533](https://github.com/agent-receipts/obsigna/issues/533) — this work
+- Issue [#486](https://github.com/agent-receipts/obsigna/issues/486) — `HttpEmitter` (paired client work)
+- Issue [#536](https://github.com/agent-receipts/obsigna/issues/536) — operator guide

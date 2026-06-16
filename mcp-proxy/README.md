@@ -9,7 +9,7 @@
 
 **Audit, govern, and sign every AI agent action.**
 
-[SDK](https://github.com/agent-receipts/ar/tree/main/sdk/go) &bull; [Spec](https://github.com/agent-receipts/spec) &bull; [agentreceipts.ai](https://agentreceipts.ai)
+[SDK](https://github.com/agent-receipts/obsigna/tree/main/sdk/go) &bull; [Spec](https://github.com/agent-receipts/spec) &bull; [agentreceipts.ai](https://agentreceipts.ai)
 
 </div>
 
@@ -33,18 +33,28 @@ Single binary. No external dependencies. Drop-in for any MCP server.
 ### Homebrew (macOS, Linux)
 
 ```sh
-brew install agent-receipts/tap/mcp-proxy
+brew install agent-receipts/tap/obsigna
 ```
 
 ### Prebuilt binaries
 
-Download from the [releases page](https://github.com/agent-receipts/ar/releases?q=mcp-proxy) (darwin and linux, amd64 and arm64).
+Download the `obsigna_<version>_<os>_<arch>` tarball from the [releases page](https://github.com/agent-receipts/obsigna/releases?q=obsigna) (darwin and linux, amd64 and arm64).
 
 ### From source
 
 ```sh
-go install github.com/agent-receipts/ar/mcp-proxy/cmd/mcp-proxy@latest
+go install github.com/agent-receipts/ar/mcp-proxy/cmd/obsigna-mcp@latest
 ```
+
+### Binary name
+
+The proxy binary is **`obsigna-mcp`** (renamed from `mcp-proxy`; ADR-0033). In a full
+Obsigna install it is also launched as **`obsigna mcp run`** (ADR-0030), which execs
+straight into `obsigna-mcp`. The legacy **`mcp-proxy`** command still works as a thin
+deprecation shim that forwards to `obsigna-mcp`, so existing MCP client configs keep
+running — but prefer `obsigna-mcp` in new configs; the shim will be removed in a future
+release. The usage examples below use `mcp-proxy` for continuity; substitute `obsigna-mcp`
+freely.
 
 ## Usage
 

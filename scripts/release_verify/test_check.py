@@ -76,7 +76,7 @@ class TestAssertVersion:
 class TestParsePipShowVersion:
     def test_parses_version_line(self) -> None:
         output = (
-            "Name: agent-receipts\n"
+            "Name: obsigna\n"
             "Version: 0.10.0\n"
             "Summary: Agent Receipts SDK\n"
         )
@@ -86,7 +86,7 @@ class TestParsePipShowVersion:
         assert check._parse_pip_show_version("Version:   1.2.3  \n") == "1.2.3"
 
     def test_missing_version_returns_none(self) -> None:
-        assert check._parse_pip_show_version("Name: agent-receipts\nSummary: x\n") is None
+        assert check._parse_pip_show_version("Name: obsigna\nSummary: x\n") is None
 
     def test_empty_output_returns_none(self) -> None:
         assert check._parse_pip_show_version("") is None

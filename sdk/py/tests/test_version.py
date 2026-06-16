@@ -1,4 +1,4 @@
-"""Test that ``agent_receipts.VERSION`` is derived from package metadata.
+"""Test that ``obsigna.VERSION`` is derived from package metadata.
 
 Pins the contract introduced in #345: replacing the hand-maintained
 ``VERSION = "..."`` constant with one read from ``importlib.metadata``
@@ -12,13 +12,13 @@ from __future__ import annotations
 import re
 from importlib.metadata import version
 
-import agent_receipts
+import obsigna
 
 
 def test_version_matches_installed_package_metadata() -> None:
-    """``agent_receipts.VERSION`` must equal what pip / uv resolved."""
+    """``obsigna.VERSION`` must equal what pip / uv resolved."""
 
-    assert agent_receipts.VERSION == version("agent-receipts")
+    assert obsigna.VERSION == version("obsigna")
 
 
 def test_version_is_non_empty() -> None:
@@ -28,8 +28,8 @@ def test_version_is_non_empty() -> None:
     or all-whitespace value (which would still pass a plain truthiness
     check) is also rejected."""
 
-    assert isinstance(agent_receipts.VERSION, str)
-    assert agent_receipts.VERSION.strip()
+    assert isinstance(obsigna.VERSION, str)
+    assert obsigna.VERSION.strip()
 
 
 def test_version_matches_project_release_shape() -> None:
@@ -63,8 +63,8 @@ def test_version_matches_project_release_shape() -> None:
         """,
         re.VERBOSE,
     )
-    assert project_release_shape.match(agent_receipts.VERSION), (
-        f"VERSION {agent_receipts.VERSION!r} does not match sdk/py's "
+    assert project_release_shape.match(obsigna.VERSION), (
+        f"VERSION {obsigna.VERSION!r} does not match sdk/py's "
         "release-version policy (strict X.Y.Z, optional PEP 440 aN/bN/rcN, "
         "optional +local)"
     )
@@ -81,9 +81,9 @@ def test_version_is_distinct_from_receipt_schema_version() -> None:
     on the ``VERSION != RECEIPT_VERSION`` invariant."""
 
     # Both exist and are independently exported.
-    assert agent_receipts.VERSION
-    assert agent_receipts.RECEIPT_VERSION
-    assert agent_receipts.VERSION != agent_receipts.RECEIPT_VERSION, (
+    assert obsigna.VERSION
+    assert obsigna.RECEIPT_VERSION
+    assert obsigna.VERSION != obsigna.RECEIPT_VERSION, (
         "package VERSION and RECEIPT_VERSION converged — "
         "if intentional, drop this test; otherwise one of the constants drifted"
     )

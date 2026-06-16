@@ -1,128 +1,102 @@
-// Command collector runs the agent-receipts reference HTTP collector.
+// Command collector is the deprecation shim for the renamed `obsigna-collector`
+// binary (ADR-0035). The reference HTTP collector is now its own minimal binary,
+// obsigna-collector, launched in production via `obsigna collector run`
+// (ADR-0030, ADR-0034). This shim preserves the old `collector` entrypoint —
+// every flag is identical — by replacing its own process image with
+// obsigna-collector via syscall.Exec, forwarding argv and the environment
+// unchanged. It prints a one-line deprecation notice to STDERR before the exec.
 //
-// The collector accepts signed receipts at POST /receipts and persists them to
-// a SQLite-backed store. It performs no signing, no chain construction, no
-// signature verification, and no semantic validation — its contract is the
-// dumb append-only sink described in ADR-0020.
+// syscall.Exec (not exec.Command) is deliberate: the collector is a long-running
+// HTTP service. Replacing the image keeps the same PID and inherited
+// stdin/stdout/stderr, so the shim adds no extra process and is indistinguishable
+// from invoking obsigna-collector directly. The trade-off is platform restriction
+// to where syscall.Exec exists (darwin, linux) — the only release targets,
+// matching obsigna's launcher.
+//
+// This file must remain a thin shim: it deliberately does not import the
+// collector library or re-implement its flags. The entrypoint-guard test in
+// cmd/obsigna-collector asserts that, so `collector` can never be reintroduced as
+// a primary entrypoint.
 package main
 
 import (
-	"context"
-	"flag"
 	"fmt"
-	"log/slog"
+	"io"
 	"os"
-	"os/signal"
-	"runtime/debug"
-	"strconv"
+	"os/exec"
+	"path/filepath"
 	"syscall"
-	"time"
-
-	"github.com/agent-receipts/ar/collector"
 )
 
-// version is set at build time via -ldflags "-X main.version=vX.Y.Z". Falls
-// back to the module version from Go's build info (set automatically for
-// binaries installed with `go install`), then to "dev". Mirrors the
-// resolveVersion pattern used in daemon/cmd/agent-receipts-daemon/main.go.
-var version string
+// deprecationShimMarker identifies this entrypoint as the collector →
+// obsigna-collector deprecation shim. The entrypoint-guard test
+// (cmd/obsigna-collector) greps for it to prove cmd/collector is only ever the
+// shim.
+const deprecationShimMarker = "collector-deprecation-shim"
 
-func resolveVersion() string {
-	if version != "" {
-		return version
-	}
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
-	}
-	return "dev"
-}
+// targetBinary is the binary the shim forwards to. Releases target darwin and
+// linux only, so no platform-specific extension is needed.
+const targetBinary = "obsigna-collector"
 
-// defaultAddr binds to loopback by default so a `go run ./cmd/collector` on a
-// developer workstation does not expose an unauthenticated audit-trail
-// endpoint to the network. Operators who want network reachability must opt
-// in explicitly with --addr 0.0.0.0:8787 (or, preferably, sit a reverse
-// proxy / mesh in front).
-const defaultAddr = "127.0.0.1:8787"
+// execImage replaces the current process image with the named binary, the way
+// execve(2) does. It is a package var so tests can stub it and assert it
+// defaults to syscall.Exec. This MUST be syscall.Exec, never exec.Command:
+// forking would insert an extra process and change the PID the service manager
+// supervises, whereas replacing the image keeps the collector indistinguishable
+// from a direct obsigna-collector invocation.
+var execImage = syscall.Exec
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
-	addr := flag.String("addr", envOrDefault("AGENTRECEIPTS_COLLECTOR_ADDR", defaultAddr), "HTTP listen address (default loopback; use 0.0.0.0:port to expose)")
-	dbPath := flag.String("db", envOrDefault("AGENTRECEIPTS_COLLECTOR_DB", "collector.db"), "SQLite database path (use ':memory:' for ephemeral storage — not durable)")
-	maxBody := flag.Int64("max-body-bytes", envInt64OrDefault(logger, "AGENTRECEIPTS_COLLECTOR_MAX_BODY_BYTES", collector.DefaultMaxBodyBytes), "Maximum request body size in bytes")
-	drainTimeout := flag.Duration("drain-timeout", envDurationOrDefault(logger, "AGENTRECEIPTS_COLLECTOR_DRAIN_TIMEOUT", 10*time.Second), "Graceful shutdown timeout")
-	showVersion := flag.Bool("version", false, "Print version and exit")
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Println(resolveVersion())
-		return
-	}
-
-	logger.Info("collector starting", "version", resolveVersion(), "addr", *addr, "db", *dbPath)
-
-	store, err := collector.OpenSQLiteStore(*dbPath)
-	if err != nil {
-		logger.Error("failed to open store", slog.Any("err", err))
-		os.Exit(1)
-	}
-	defer store.Close()
-
-	srv, err := collector.NewServer(collector.Config{
-		Addr:         *addr,
-		MaxBodyBytes: *maxBody,
-		Logger:       logger,
-	}, store)
-	if err != nil {
-		logger.Error("failed to construct server", slog.Any("err", err))
-		os.Exit(1)
-	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	if err := collector.Run(ctx, srv, *drainTimeout, logger); err != nil {
-		logger.Error("collector exited with error", slog.Any("err", err))
-		os.Exit(1)
-	}
-	logger.Info("collector stopped cleanly")
+	os.Exit(run(os.Args[1:], os.Stderr))
 }
 
-func envOrDefault(name, def string) string {
-	if v := os.Getenv(name); v != "" {
-		return v
+// run prints the deprecation notice, resolves obsigna-collector, and replaces
+// this process with it, forwarding args and the current environment. On success
+// it does not return — the image is gone. A return means the exec never happened
+// (binary missing or not executable); that is the only error path, reported with
+// a non-zero exit code.
+func run(args []string, stderr io.Writer) int {
+	fmt.Fprintf(stderr,
+		"collector is deprecated; use 'obsigna-collector' (or 'obsigna collector run'). Forwarding…\n")
+
+	bin, err := resolveSibling(targetBinary)
+	if err != nil {
+		fmt.Fprintf(stderr, "collector: %v\n", err)
+		return 1
 	}
-	return def
+	// argv[0] is the resolved binary path so ps/`/proc/self/cmdline` show
+	// obsigna-collector, not collector. The target parses os.Args[1:] exactly as
+	// if invoked directly — the collector's flag surface is identical.
+	argv := append([]string{bin}, args...)
+	if err := execImage(bin, argv, os.Environ()); err != nil {
+		fmt.Fprintf(stderr, "collector: exec %s: %v\n", bin, err)
+		return 1
+	}
+	return 0 // unreachable with the real syscall.Exec; the image is replaced
 }
 
-// envInt64OrDefault parses an int64 from the named env var. On parse failure
-// it logs a warning and falls back to def — silent fallback hides operator
-// misconfigurations (e.g. setting MAX_BODY_BYTES=1MB and getting a 1 MiB
-// default rather than 1 000 000 bytes).
-func envInt64OrDefault(log *slog.Logger, name string, def int64) int64 {
-	v := os.Getenv(name)
-	if v == "" {
-		return def
+// resolveSibling returns the path to a binary named name, preferring one
+// installed beside the current executable and falling back to $PATH. Resolving
+// beside the current binary first avoids picking up an unrelated binary of the
+// same name earlier on $PATH. This mirrors daemon/internal/binresolve, which the
+// collector module cannot import across the module's internal boundary.
+func resolveSibling(name string) (string, error) {
+	if self, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(self), name)
+		if isExecutableFile(candidate) {
+			return candidate, nil
+		}
 	}
-	parsed, err := strconv.ParseInt(v, 10, 64)
-	if err != nil {
-		log.Warn("invalid env var, using default",
-			"name", name, "value", v, "default", def, slog.Any("err", err))
-		return def
+	if p, err := exec.LookPath(name); err == nil {
+		return p, nil
 	}
-	return parsed
+	return "", fmt.Errorf("cannot locate the %q binary (expected beside the current binary or on $PATH)", name)
 }
 
-func envDurationOrDefault(log *slog.Logger, name string, def time.Duration) time.Duration {
-	v := os.Getenv(name)
-	if v == "" {
-		return def
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
 	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		log.Warn("invalid env var, using default",
-			"name", name, "value", v, "default", def, slog.Any("err", err))
-		return def
-	}
-	return d
+	return info.Mode().Perm()&0o111 != 0
 }

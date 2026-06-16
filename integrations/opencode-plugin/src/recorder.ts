@@ -24,7 +24,7 @@
  * guessing.
  */
 
-import { DaemonEmitter, type EmitEvent } from "@agnt-rcpt/sdk-ts";
+import { DaemonEmitter, type EmitEvent } from "@obsigna/sdk-ts";
 import { resolveActionType } from "./actions.js";
 import { type ResolvedConfig, shouldEmit } from "./config.js";
 

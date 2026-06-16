@@ -60,7 +60,7 @@ jobs:
           node-version: "24"
           cache: "pnpm"
           cache-dependency-path: sdk/ts/pnpm-lock.yaml
-      # The snippets resolve `@agnt-rcpt/sdk-ts` from a file: install of the
+      # The snippets resolve `@obsigna/sdk-ts` from a file: install of the
       # in-tree package, so its dist/ must be built first.
       - name: Build in-tree TypeScript SDK
         working-directory: sdk/ts

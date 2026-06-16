@@ -1,0 +1,32 @@
+# Obsigna
+
+> Tooling for the Agent Receipts protocol
+
+Obsigna is the open-source toolset for producing and verifying Agent Receipts — cryptographically signed, hash-chained records of AI agent actions. It provides SDKs, an MCP proxy, a PostToolUse hook, a collector daemon, and a dashboard.
+
+## Key links
+
+- Getting Started: https://obsigna.dev/getting-started/quick-start/
+- MCP Proxy: https://obsigna.dev/mcp-proxy/overview/
+- Hook: https://obsigna.dev/hook/overview/
+- Dashboard: https://obsigna.dev/dashboard/overview/
+- Protocol specification: https://agentreceipts.ai/specification/overview/
+- GitHub: https://github.com/agent-receipts/obsigna
+
+## Components
+
+- mcp-proxy: MCP STDIO proxy that audits tool calls, applies policy, and emits receipts
+- hook: PostToolUse hook for Claude Code and other agent runtimes
+- daemon: Out-of-agent collector that signs and stores receipts
+- dashboard: Read UI for activity timelines, error rates, and per-tool breakdowns
+- sdk-go: Go SDK for creating and verifying receipts
+- sdk-ts: TypeScript SDK (@obsigna/sdk-ts)
+- sdk-py: Python SDK (obsigna)
+- openclaw: OpenClaw plugin for automatic receipt generation
+
+## Core concepts
+
+- Audit boundary: Receipts are signed outside the agent process, so an agent cannot forge its own audit trail
+- Agent Receipt: A signed record of a single agent action (W3C Verifiable Credential, Ed25519, SHA-256)
+- Receipt Chain: Hash-linked sequence of receipts forming a tamper-evident log
+- Policy: Rules the MCP proxy enforces (allow, deny, require approval) before a tool call runs

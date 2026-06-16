@@ -140,7 +140,7 @@ Disclosure is controlled by operator config — never by agent-supplied input. T
 The daemon ships a one-shot generator. It writes the raw 32-byte private key (mode `0600`) and public key (mode `0644`), and prints the fingerprint so you can confirm the key the daemon encrypts to matches the private key you keep for recovery:
 
 ```bash
-agent-receipts-daemon --init-forensic-key \
+obsigna-daemon --init-forensic-key \
   --forensic-key ~/.local/share/agent-receipts/forensic.key
 ```
 
@@ -176,10 +176,10 @@ The flag and environment variable have no array type, so the allowlist form is a
 # keyword mode
 AGENTRECEIPTS_PARAMETER_DISCLOSURE=high \
 AGENTRECEIPTS_FORENSIC_PUBLIC_KEY=/path/to/forensic.key.pub \
-  agent-receipts-daemon
+  obsigna-daemon
 
 # allowlist mode (comma-separated)
-agent-receipts-daemon \
+obsigna-daemon \
   --forensic-public-key /path/to/forensic.key.pub \
   --parameter-disclosure system.command.execute,filesystem.file.delete
 ```
@@ -192,7 +192,7 @@ When both are present, the daemon logs the forensic key fingerprint at startup s
 Parameter disclosure ACTIVE: policy=high, forensic key sha256:3b4c5d6e… — matching parameters will be HPKE-encrypted to that key (recoverable only with the private key)
 ```
 
-See [Daemon Setup](/getting-started/daemon-setup/) for the full configuration reference.
+See [Daemon Setup](https://obsigna.dev/getting-started/daemon-setup/) for the full configuration reference.
 
 ## Encrypt-failure behaviour
 
@@ -204,7 +204,7 @@ When an operator holds the forensic private key, they can decrypt the `parameter
 
 A solo operator generates a forensic keypair, configures the daemon with the public key, and later loads their private key into the dashboard or a CLI tool. The workflow:
 
-1. Generate a forensic keypair (X25519) with `agent-receipts-daemon --init-forensic-key` (see [Generate a forensic key pair](#generate-a-forensic-key-pair) above).
+1. Generate a forensic keypair (X25519) with `obsigna-daemon --init-forensic-key` (see [Generate a forensic key pair](#generate-a-forensic-key-pair) above).
 2. Configure the daemon with the public key path and the desired disclosure mode.
 3. During an incident or audit, load the private key into the dashboard.
 4. The dashboard derives the key fingerprint (`sha256:<hex of raw public key>`), queries receipts by `kid`, and decrypts each matching `parameters_disclosure` inline.
@@ -218,7 +218,7 @@ The dashboard feature is the intended forensic-recovery UX for the envelope. CLI
 
 ### Recover from code today
 
-You don't need the dashboard (or the planned forensic CLI) to read an envelope. **All three SDKs ship a decrypt helper that works today** — Python [`decrypt_disclosure`](/sdk-py/api-reference/#recovering-a-stored-disclosure), Go [`DecryptDisclosure`](/sdk-go/api-reference/#recovering-a-stored-disclosure), and TypeScript [`decryptDisclosure`](/sdk-ts/api-reference/#recovering-a-stored-disclosure). The file `--init-forensic-key` wrote is the raw 32-byte X25519 private key (no PEM, no decoding); pass it together with the envelope from `agent-receipts show <seq> --chain-id <id> --json` — found at `credentialSubject.action.parameters_disclosure` — to your SDK's helper. The plaintext lives only in your process; nothing is written back to the store.
+You don't need the dashboard (or the planned forensic CLI) to read an envelope. **All three SDKs ship a decrypt helper that works today** — Python [`decrypt_disclosure`](https://obsigna.dev/sdk-py/api-reference/#recovering-a-stored-disclosure), Go [`DecryptDisclosure`](https://obsigna.dev/sdk-go/api-reference/#recovering-a-stored-disclosure), and TypeScript [`decryptDisclosure`](https://obsigna.dev/sdk-ts/api-reference/#recovering-a-stored-disclosure). The file `--init-forensic-key` wrote is the raw 32-byte X25519 private key (no PEM, no decoding); pass it together with the envelope from `obsigna receipt show <seq> --chain-id <id> --json` — found at `credentialSubject.action.parameters_disclosure` — to your SDK's helper. The plaintext lives only in your process; nothing is written back to the store.
 
 ## GDPR and data handling
 

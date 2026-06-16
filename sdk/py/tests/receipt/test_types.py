@@ -3,8 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from agent_receipts.receipt.hash import hash_receipt
-from agent_receipts.receipt.types import (
+from obsigna.receipt.hash import hash_receipt
+from obsigna.receipt.types import (
     CONTEXT,
     CREDENTIAL_TYPE,
     VERSION,

@@ -1,20 +1,21 @@
 # AGENTS.md
 
-Thin MCP proxy: enforces policy on tool calls and forwards completed events to the [agent-receipts daemon](https://github.com/agent-receipts/ar/tree/main/daemon) for signing and persistence. The daemon is the sole writer; the proxy holds no SQLite store of its own (since v0.9.0 — see ADR-0010, [#421](https://github.com/agent-receipts/ar/pull/421), [#453](https://github.com/agent-receipts/ar/issues/453)).
+Thin MCP proxy: enforces policy on tool calls and forwards completed events to the [agent-receipts daemon](https://github.com/agent-receipts/obsigna/tree/main/daemon) for signing and persistence. The daemon is the sole writer; the proxy holds no SQLite store of its own (since v0.9.0 — see ADR-0010, [#421](https://github.com/agent-receipts/obsigna/pull/421), [#453](https://github.com/agent-receipts/obsigna/issues/453)).
 
 ## Getting started
 
 ```sh
-go build ./...                         # build all
-go build -o mcp-proxy ./cmd/mcp-proxy  # build binary
-go test ./...                          # run tests
-go vet ./...                           # static analysis
+go build ./...                              # build all
+go build -o obsigna-mcp ./cmd/obsigna-mcp   # build the proxy binary
+go test ./...                               # run tests
+go vet ./...                                # static analysis
 ```
 
 ## Project structure
 
 ```
-cmd/mcp-proxy/     # CLI entry point (serve, doctor, init)
+cmd/obsigna-mcp/   # CLI entry point (serve, doctor, init) — the proxy binary (ADR-0033)
+cmd/mcp-proxy/     # thin deprecation shim: execs obsigna-mcp (ADR-0033)
 internal/
   proxy/           # STDIO proxy, JSON-RPC parsing
   audit/           # Classifier, risk scorer, approval manager (no persistence)
@@ -33,7 +34,7 @@ MCP Client → stdin/stdout → mcp-proxy → stdin/stdout → MCP Server
                                ├── Policy engine (YAML rules)
                                ├── Approval workflow (HTTP, in-memory)
                                └── Daemon emitter (forwards completed events
-                                   to agent-receipts-daemon over AF_UNIX;
+                                   to obsigna-daemon over AF_UNIX;
                                    daemon owns redaction, hashing, signing,
                                    chaining, and persistence)
 ```

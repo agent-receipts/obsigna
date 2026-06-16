@@ -51,8 +51,8 @@ import time
 # ---------------------------------------------------------------------------
 
 GO_MODULE = "github.com/agent-receipts/ar/sdk/go"
-TS_PACKAGE = "@agnt-rcpt/sdk-ts"
-PY_PACKAGE = "agent-receipts"
+TS_PACKAGE = "@obsigna/sdk-ts"
+PY_PACKAGE = "obsigna"
 
 # Default schema location relative to the repo root (two levels up from here).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -153,7 +153,7 @@ def _assert_conforms(lang: str, receipt: object, schema: dict) -> int:
 
 _PY_EMIT = """\
 import json
-from agent_receipts import (
+from obsigna import (
     ActionInput,
     CreateReceiptInput,
     Chain,
@@ -195,7 +195,7 @@ import {
   createReceipt,
   generateKeyPair,
   signReceipt,
-} from "@agnt-rcpt/sdk-ts";
+} from "@obsigna/sdk-ts";
 
 const keys = generateKeyPair();
 const input: CreateReceiptInput = {

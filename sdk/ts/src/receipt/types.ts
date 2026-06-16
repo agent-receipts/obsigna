@@ -179,6 +179,7 @@ export interface Outcome {
 	reversible?: boolean;
 	reversal_method?: string;
 	reversal_window_seconds?: number;
+	reversal_of?: string;
 	state_change?: StateChange;
 	/** SHA-256 hash of the RFC 8785 canonical JSON of the server's response,
 	 *  computed after secret redaction (redact → hash → sign). */
@@ -223,6 +224,32 @@ export interface Delegation {
 	delegator: Delegator;
 }
 
+// --- Key rotation ---
+
+/** Key-rotation event (ADR-0015). Present only on a key_rotated receipt; absent
+ *  on every other receipt. The receipt carrying it is signed with the OUTGOING
+ *  key (`signed_with: "old"`); `new_public_key` holds the incoming key inline so
+ *  verifiers chain through the rotation without an external key registry. All
+ *  seven fields are required when the object is present. See spec §7.3.7. */
+export interface KeyRotation {
+	/** Constant "key_rotated". */
+	event_type: "key_rotated";
+	/** Incoming public key inline: raw key bytes (Ed25519: 32 bytes, RFC 8032
+	 *  §5.1.5), multibase-encoded with the "u" base64url prefix. */
+	new_public_key: string;
+	/** sha256:<hex> of the outgoing public key's raw bytes. */
+	old_key_fingerprint: string;
+	/** sha256:<hex> of the incoming public key's raw bytes; MUST equal the
+	 *  SHA-256 of the bytes decoded from new_public_key. */
+	new_key_fingerprint: string;
+	/** Algorithm tag of the outgoing key (e.g. "ed25519"). */
+	old_algorithm: string;
+	/** Algorithm tag of the incoming key. */
+	new_algorithm: string;
+	/** Constant "old": the rotation event is signed with the outgoing key. */
+	signed_with: "old";
+}
+
 // --- Credential Subject ---
 
 export interface CredentialSubject {
@@ -232,6 +259,8 @@ export interface CredentialSubject {
 	outcome: Outcome;
 	authorization?: Authorization;
 	chain: Chain;
+	/** Present only on a key_rotated receipt (ADR-0015); absent otherwise. */
+	keyRotation?: KeyRotation;
 	correlation_id?: string;
 	/** Records the parent chain when this receipt opens a subagent chain. */
 	delegation?: Delegation;

@@ -5,7 +5,7 @@ description: "Plugin architecture, receipt anatomy, self-verification, and how t
 
 _Published 2026-04-27_
 
-The OpenClaw plugin is the second way to generate Agent Receipts — the first being the [MCP Proxy](/mcp-proxy/overview/). Both produce the same W3C Verifiable Credentials with Ed25519 signatures and hash-chained sequences. They differ in where they sit and what context they have access to.
+The OpenClaw plugin is the second way to generate Agent Receipts — the first being the [MCP Proxy](https://obsigna.dev/mcp-proxy/overview/). Both produce the same W3C Verifiable Credentials with Ed25519 signatures and hash-chained sequences. They differ in where they sit and what context they have access to.
 
 This post covers the plugin's internal mechanics, using real receipts from the first end-to-end trial.
 
@@ -50,7 +50,7 @@ sequenceDiagram
     participant Plugin as agent-receipts plugin
     participant Tool
     participant DB as SQLite
-    participant Daemon as agent-receipts-daemon
+    participant Daemon as obsigna-daemon
 
     Agent->>OpenClaw: tool call
     OpenClaw->>Plugin: before_tool_call (priority 100)
@@ -70,7 +70,7 @@ sequenceDiagram
 
 `before_tool_call` runs at priority 100 — earlier than most hooks — to capture timing accurately before the tool call starts. It stashes the parameters hash (SHA-256 of the [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) canonical JSON of the arguments) and the start timestamp.
 
-Receipt creation happens in `after_tool_call`. The default path signs in-process and writes to the local SQLite database. With `daemonForwarding: true`, the plugin forwards the event to `agent-receipts-daemon` instead — the daemon signs and stores the receipt; in-process signing is skipped. In the default in-process path, signing or DB write failures are caught by the plugin, which logs a warning and returns cleanly. In the daemon-forwarding path, forwarding is fire-and-forget — daemon-side failures are not reported back to the plugin. In both cases the agent session continues; the receipt may be lost but the tool call is not blocked.
+Receipt creation happens in `after_tool_call`. The default path signs in-process and writes to the local SQLite database. With `daemonForwarding: true`, the plugin forwards the event to `obsigna-daemon` instead — the daemon signs and stores the receipt; in-process signing is skipped. In the default in-process path, signing or DB write failures are caught by the plugin, which logs a warning and returns cleanly. In the daemon-forwarding path, forwarding is fire-and-forget — daemon-side failures are not reported back to the plugin. In both cases the agent session continues; the receipt may be lost but the tool call is not blocked.
 
 ---
 
@@ -162,7 +162,7 @@ Receipt 2: sequence=2, previous_receipt_hash=sha256:<hash of receipt 1>
 Receipt 3: sequence=3, previous_receipt_hash=sha256:<hash of receipt 2>
 ```
 
-To tamper with the chain, you'd need to modify a receipt, recompute all subsequent hashes, and re-sign every receipt with the private key. Without the key, the chain is tamper-evident: any modification breaks verification at the point of change, and any gap in sequence numbers is immediately visible. In the default configuration the signing key lives on disk at `~/.openclaw/agent-receipts/keys.json` — accessible to the agent process itself. Set `daemonForwarding: true` to move key material into `agent-receipts-daemon`: the agent can no longer read the key or rewrite already-signed receipts. The daemon listens on a local Unix socket, so a compromised agent running as the same OS user can still connect and emit new events for signing; preventing that requires the daemon to run as a dedicated OS user.
+To tamper with the chain, you'd need to modify a receipt, recompute all subsequent hashes, and re-sign every receipt with the private key. Without the key, the chain is tamper-evident: any modification breaks verification at the point of change, and any gap in sequence numbers is immediately visible. In the default configuration the signing key lives on disk at `~/.openclaw/agent-receipts/keys.json` — accessible to the agent process itself. Set `daemonForwarding: true` to move key material into `obsigna-daemon`: the agent can no longer read the key or rewrite already-signed receipts. The daemon listens on a local Unix socket, so a compromised agent running as the same OS user can still connect and emit new events for signing; preventing that requires the daemon to run as a dedicated OS user.
 
 The `export` command produces the full credential for independent verification:
 
@@ -252,8 +252,8 @@ The tradeoff: the plugin requires no changes to your agent implementation, no wr
 
 ## What's next
 
-- **Subagent chain linking** — when an agent fans out into parallel subagents, linking their receipt chains to the parent. ([ar#14](https://github.com/agent-receipts/ar/issues/14))
+- **Subagent chain linking** — when an agent fans out into parallel subagents, linking their receipt chains to the parent. ([ar#14](https://github.com/agent-receipts/obsigna/issues/14))
 - **ClawHub submission** — listing `@agnt-rcpt/openclaw` in the OpenClaw plugin registry. ([openclaw#5](https://github.com/agent-receipts/openclaw/issues/5))
 - **Taxonomy coverage** — adding `ar_query_receipts` and `ar_verify_chain` to the action taxonomy. ([openclaw#98](https://github.com/agent-receipts/openclaw/issues/98))
 
-See [OpenClaw Installation](/openclaw/installation/) to get started.
+See [OpenClaw Installation](https://obsigna.dev/openclaw/installation/) to get started.

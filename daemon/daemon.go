@@ -1,7 +1,7 @@
-// Package daemon assembles the agent-receipts-daemon's components — chain
-// state, key source, receipt store, frame socket — into a single Run
-// entrypoint. cmd/agent-receipts-daemon/main.go wraps Run with flag/env
-// parsing and signal handling.
+// Package daemon assembles the obsigna-daemon's components — chain state, key
+// source, receipt store, frame socket — into a single Run entrypoint.
+// cmd/obsigna-daemon/main.go wraps Run with flag/env parsing and signal
+// handling.
 package daemon
 
 import (
@@ -29,7 +29,7 @@ import (
 )
 
 // Config is the daemon's startup configuration. Resolve from flags/env in
-// cmd/agent-receipts-daemon/main.go and pass to Run.
+// cmd/obsigna-daemon/main.go and pass to Run.
 type Config struct {
 	// SocketPath is the Unix-domain socket the daemon listens on.
 	SocketPath string
@@ -70,6 +70,13 @@ type Config struct {
 
 	// VerificationMethodID goes into proof.verificationMethod.
 	VerificationMethodID string
+
+	// AnchorLogPath, when set, is an append-only external-witness log that
+	// rotation events are written to before the local chain commits (ADR-0015
+	// anchor-first ordering). Empty disables anchoring — the operator keeps the
+	// chain-integrity guarantees but forgoes the post-compromise integrity
+	// guarantee. Set from --anchor-log (env: AGENTRECEIPTS_ANCHOR_LOG).
+	AnchorLogPath string
 
 	// Logger receives daemon log lines. Defaults to log.Default().
 	Logger *log.Logger
@@ -179,6 +186,18 @@ func DefaultPublicKeyPath(keyPath string) string {
 	}
 	return keyPath + ".pub"
 }
+
+// DefaultIssuerID and DefaultVerificationMethodID are the identity defaults a
+// local daemon signs under when no issuer/verification-method is configured.
+// They are exported so any tool that builds a Config for the same local install
+// — the daemon's own config resolution and `obsigna keys rotate` — shares one
+// source of truth: the issuer DID and verification method are embedded in every
+// signed receipt, so two callers defaulting them differently would fork chain
+// identity for the same operator.
+const (
+	DefaultIssuerID             = "did:agent-receipts-daemon:local"
+	DefaultVerificationMethodID = DefaultIssuerID + "#k1"
+)
 
 // DefaultForensicKeyPath returns the default forensic private-key path,
 // co-located with the signing key and receipt store. Empty when the XDG data
@@ -373,7 +392,7 @@ func Run(ctx context.Context, cfg Config) error {
 	switch runtime.GOOS {
 	case "linux", "darwin":
 	default:
-		return fmt.Errorf("agent-receipts-daemon: unsupported platform %q (Phase 1 supports linux and darwin only)", runtime.GOOS)
+		return fmt.Errorf("obsigna-daemon: unsupported platform %q (Phase 1 supports linux and darwin only)", runtime.GOOS)
 	}
 	if err := validateConfig(&cfg); err != nil {
 		return err
@@ -543,7 +562,7 @@ func Run(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("listen: %w", err)
 	}
 	defer ln.Close()
-	cfg.Logger.Printf("agent-receipts-daemon listening on %s (chain=%s, db=%s)", ln.Path(), cfg.ChainID, cfg.DBPath)
+	cfg.Logger.Printf("obsigna-daemon listening on %s (chain=%s, db=%s)", ln.Path(), cfg.ChainID, cfg.DBPath)
 
 	if err := ln.Serve(ctx); err != nil {
 		return fmt.Errorf("serve: %w", err)
@@ -564,7 +583,7 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 	}
 
-	cfg.Logger.Printf("agent-receipts-daemon shutdown complete")
+	cfg.Logger.Printf("obsigna-daemon shutdown complete")
 	return nil
 }
 

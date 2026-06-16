@@ -120,14 +120,14 @@ class TestDaemonAssetURL:
     def test_url_shape(self) -> None:
         url = check.daemon_asset_url("0.8.0")
         assert url == (
-            "https://github.com/agent-receipts/ar/releases/download/"
-            "daemon%2Fv0.8.0/daemon_0.8.0_linux_amd64.tar.gz"
+            "https://github.com/agent-receipts/obsigna/releases/download/"
+            "obsigna%2Fv0.8.0/obsigna_0.8.0_linux_amd64.tar.gz"
         )
 
     def test_prerelease_version(self) -> None:
         url = check.daemon_asset_url("0.9.0-alpha.1")
-        assert "daemon%2Fv0.9.0-alpha.1/" in url
-        assert url.endswith("daemon_0.9.0-alpha.1_linux_amd64.tar.gz")
+        assert "obsigna%2Fv0.9.0-alpha.1/" in url
+        assert url.endswith("obsigna_0.9.0-alpha.1_linux_amd64.tar.gz")
 
 
 class TestPickLatest:

@@ -34,7 +34,7 @@ pnpm preview   # preview production build
 
 ## Related repos
 
-- [agent-receipts/spec](https://github.com/agent-receipts/ar/tree/main/spec) — protocol specification
-- [agent-receipts/sdk-ts](https://github.com/agent-receipts/ar/tree/main/sdk/ts) — TypeScript SDK
-- [agent-receipts/sdk-py](https://github.com/agent-receipts/ar/tree/main/sdk/py) — Python SDK
+- [agent-receipts/spec](https://github.com/agent-receipts/obsigna/tree/main/spec) — protocol specification
+- [agent-receipts/sdk-ts](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) — TypeScript SDK
+- [agent-receipts/sdk-py](https://github.com/agent-receipts/obsigna/tree/main/sdk/py) — Python SDK
 - [agent-receipts/openclaw](https://github.com/agent-receipts/openclaw) — OpenClaw plugin
