@@ -15,7 +15,10 @@ Neither log alone tells the full story. sbx sees network packets — not tool se
 ./demo.sh
 ```
 
-Prerequisites: `obsigna-daemon`, `obsigna`, `sbx` (authenticated with `sbx login`), `ollama` running locally with `devstral-small-2:latest` pulled.
+Prerequisites:
+- `obsigna-daemon`, `obsigna`, `sbx` (authenticated: `sbx login`), `socat`, `ollama`
+- `devstral-small-2:latest` pulled in ollama
+- The demo creates `devstral-demo` (a 32K-context variant) automatically on first run
 
 Override the model:
 ```
@@ -24,67 +27,74 @@ Override the model:
 
 ## What happens
 
-1. `obsigna-daemon` starts on your **host** (outside the VM), holding the Ed25519 signing key. The agent inside sbx cannot reach the key.
-2. An sbx sandbox is created with the workspace bind-mounted. The daemon's Unix socket lives inside the mounted workspace directory, so the plugin inside the VM can connect to it — but the daemon process stays on the host.
-3. `opencode` runs inside sbx with a local ollama model (`host.docker.internal:11434`). The obsigna plugin (`integrations/opencode-plugin`) hooks `tool.execute.before/after` and emits one receipt per native tool call.
-4. The agent writes a Python file, runs it, then attempts an outbound `curl`. sbx blocks the outbound request.
+1. `obsigna-daemon` starts on your **host** (outside the VM), holding the Ed25519 signing key.
+2. A `socat` TCP bridge forwards from `host.docker.internal:3923` to the daemon's Unix socket, because macOS host sockets can't be connected to from inside a Linux container via bind-mount.
+3. An sbx sandbox is created with the workspace bind-mounted.
+4. `opencode` runs inside sbx. Inside the container, a second `socat` creates a Linux Unix socket that tunnels to the host via TCP. The obsigna plugin connects to that socket and emits one signed receipt per tool call.
+5. The agent writes a Python file, runs it, then attempts an outbound `curl`. sbx blocks the curl.
 
 ## Reading the output
 
 **`sbx policy log`** — infrastructure view:
 ```
-ALLOWED  host.docker.internal:11434   ollama (model inference)
-BLOCKED  worldtimeapi.org:443         default deny — no matching allow rule
+ALLOWED  localhost:11434   ollama (model inference)
+ALLOWED  localhost:3923    obsigna receipt tunnel
+BLOCKED  worldtimeapi.org:443   default deny
 ```
 
 **`obsigna receipt list`** — agent action view:
 ```
-seq  type                      tool    risk
-1    filesystem.file.modify    write   medium   work/fibonacci.py
-2    system.command.execute    bash    high     python work/fibonacci.py
-3    system.command.execute    bash    high     curl https://worldtimeapi.org/...
+SEQ  TIMESTAMP             CHAIN       TOOL / ACTION TYPE
+1    2026-06-16T...        2026-06-16  write   ← fibonacci.py created
+2    2026-06-16T...        2026-06-16  bash    ← python3 work/fibonacci.py
+3    2026-06-16T...        2026-06-16  bash    ← curl (blocked at network layer)
 ```
 
 **`obsigna verify`** — chain integrity:
 ```
-chain verified: 3 receipts, 0 gaps, signatures valid
+Chain 2026-06-16: VALID (3 receipts)
 ```
 
-The curl shows up in **both** logs — sbx blocked it at the network layer, obsigna receipted it at the agent action layer. They see the same event from different vantage points.
+The curl shows up in **both** logs — sbx blocked it at the network layer, obsigna receipted it at the agent action layer.
 
 ## Architecture
 
 ```
 your laptop (host)
-├── obsigna-daemon          signing key lives here
-│     ↑ Unix socket
-│     │ (bind-mounted into sbx at the same path)
-│     ↓
+├── obsigna-daemon          signing key lives here (Ed25519)
+│     ↑ Unix socket (/tmp/obsigna-sbx/obsigna.sock)
+│     │
+│     socat (host)          TCP bridge: port 3923 → Unix socket
+│     ↑ TCP :3923
+│     │
 └── sbx microVM
+      ├── socat (container) TCP → Linux Unix socket (/tmp/obsigna.sock)
+      │     ↑
       ├── opencode (agent)
-      │     └── obsigna plugin  ──→ socket ──→ daemon
+      │     └── obsigna plugin ──→ /tmp/obsigna.sock ──→ tunnel ──→ daemon
       └── ollama via host.docker.internal:11434
 ```
 
-The signing key never enters the VM. Receipts are stored on the host. Even if the agent were compromised, it cannot forge or delete the receipt chain.
+The signing key never enters the VM. Receipts are written to the host's SQLite DB. Even if the agent were compromised, it cannot forge or delete the receipt chain.
 
 ## Files
 
 ```
 demo/
 ├── demo.sh                  orchestrates the full flow
-├── kit/kit.yaml             sbx kit: injects AGENTRECEIPTS_SOCKET
+├── undici-stub.mjs          esbuild stub replacing undici (not available in opencode runtime)
+├── kit/spec.yaml            sbx kit spec (mixin)
 ├── workspace/
 │   ├── .opencode/
-│   │   ├── opencode.json    ollama model config
+│   │   ├── opencode.json    provider + model config (ollama via openai-compatible)
 │   │   └── plugins/
-│   │       └── agent-receipts.js   bundled obsigna plugin (built by demo.sh)
+│   │       └── agent-receipts.js   bundled obsigna plugin (built by demo.sh on first run)
 │   └── work/                agent writes output here
 └── README.md                this file
 ```
 
 ## Follow-ups
 
-- The plugin (`integrations/opencode-plugin`, PR #766) is not yet published to npm. `demo.sh` builds it from source.
-- The `kit/kit.yaml` format is sbx experimental. If the kit `env` key is not yet supported, set `AGENTRECEIPTS_SOCKET` manually via `sbx exec`.
-- MCP proxy (Tier A) can be layered on top for adversary-resistant receipts — see `mcp-proxy/` and the opencode Tier A docs in PR #766.
+- The plugin (`integrations/opencode-plugin`, PR #766) is not yet published to npm. `demo.sh` builds it from source on first run.
+- This demo also serves as the end-to-end acceptance test for PR #766.
+- MCP proxy (Tier A) can be layered on top for adversary-resistant receipts — see `mcp-proxy/`.
