@@ -1,0 +1,53 @@
+{
+	"name": "@agent-receipts/opencode-plugin",
+	"version": "0.1.0-alpha.1",
+	"description": "OpenCode plugin that emits Agent Receipts for native tool calls via the agent-receipts daemon",
+	"license": "Apache-2.0",
+	"author": "Otto Jongerius",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/agent-receipts/obsigna.git",
+		"directory": "integrations/opencode-plugin"
+	},
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"engines": {
+		"node": ">=22.11.0"
+	},
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"check": "pnpm run typecheck && pnpm run lint",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"packageManager": "pnpm@10.33.0",
+	"dependencies": {
+		"@obsigna/sdk-ts": "file:../../sdk/ts"
+	},
+	"peerDependencies": {
+		"@opencode-ai/plugin": ">=0.1.0"
+	},
+	"peerDependenciesMeta": {
+		"@opencode-ai/plugin": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.9",
+		"@opencode-ai/plugin": "*",
+		"@types/node": "^25.5.0",
+		"typescript": "~6.0.2",
+		"vitest": "^4.1.2"
+	}
+}

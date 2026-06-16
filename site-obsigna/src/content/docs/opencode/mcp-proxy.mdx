@@ -1,0 +1,61 @@
+---
+title: MCP Proxy (Tier A)
+description: Route OpenCode MCP servers through the Agent Receipts proxy for an adversary-resistant audit trail.
+---
+
+OpenCode loads MCP servers from `opencode.json`. Wrapping a server with [`mcp-proxy`](/mcp-proxy/overview/) gives the MCP channel an **adversary-resistant** audit trail: the proxy runs out-of-process and signs locally, so it holds even if OpenCode itself misbehaves. This is Tier A — docs-only, reusing a shipped component. For native tool calls, see the [plugin](/opencode/installation/) (Tier B).
+
+## Prerequisites
+
+- [mcp-proxy installed](/mcp-proxy/installation/)
+- [`agent-receipts-daemon` installed, initialised, and running](/getting-started/daemon-setup/) — it holds the signing key and writes every receipt
+- The MCP server you want to audit. The example below wraps GitHub's official server:
+
+  ```bash
+  brew install github-mcp-server
+  ```
+
+## Configure
+
+OpenCode launches local MCP servers as subprocesses. Point the `command` at `mcp-proxy`, which wraps the upstream server transparently — OpenCode doesn't know the proxy is there. Use absolute paths; OpenCode launches MCP servers with a clean environment.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "github-audited": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "/usr/local/bin/mcp-proxy",
+        "-name", "github",
+        "-issuer-name", "OpenCode",
+        "-operator-id", "did:web:opencode.ai",
+        "-operator-name", "OpenCode",
+        "/usr/local/bin/github-mcp-server", "stdio"
+      ]
+    }
+  }
+}
+```
+
+The proxy reaches `agent-receipts-daemon` over its default platform socket automatically — no extra flag needed.
+
+:::danger[Never put secrets in opencode.json]
+`opencode.json` is plaintext on disk. Do **not** put real tokens or API keys in an `environment` block. Wrap the proxy command in a secret-manager launcher (`op run`, `aws-vault exec`) or an OS-keychain script — the same pattern documented for [Codex](/mcp-proxy/codex/#recommended-secret-manager-op-run) and [Claude Desktop](/mcp-proxy/claude-desktop/#fallback-os-keychain-launcher-script) works here. One launcher script works across clients.
+:::
+
+:::note[Approval workflow]
+The default policy includes a `pause_high_risk` rule. To enable the approval listener, add `-http`, `127.0.0.1:7778` to the `command` array (or generate a snippet with `mcp-proxy init`). Without it, paused calls fail fast with `-32003`. See [Approval Server](/mcp-proxy/approval-ui/).
+:::
+
+## Verify
+
+Run an MCP tool in OpenCode (e.g. a GitHub query), then:
+
+```bash
+agent-receipts list     # receipts with channel: mcp from the proxy
+agent-receipts verify   # walk the chain and check signatures
+```
+
+Receipts from the proxy carry `channel: mcp`; native-tool receipts from the [plugin](/opencode/installation/) carry `channel: opencode`. Both land in the same daemon chain, giving you a complete picture across both channels.

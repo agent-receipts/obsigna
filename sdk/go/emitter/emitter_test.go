@@ -30,9 +30,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
-	"strings"
 	"time"
 
 	"github.com/agent-receipts/ar/daemon"

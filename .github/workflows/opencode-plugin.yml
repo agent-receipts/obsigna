@@ -1,0 +1,61 @@
+name: "CI: opencode-plugin"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "integrations/opencode-plugin/**"
+      - "sdk/ts/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "integrations/opencode-plugin/**"
+      - "sdk/ts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: |
+            sdk/ts/pnpm-lock.yaml
+            integrations/opencode-plugin/pnpm-lock.yaml
+
+      # The plugin depends on `@obsigna/sdk-ts` via a `file:../../sdk/ts`
+      # install, so the in-tree SDK's dist/ must be built before the plugin can
+      # typecheck, build, or test against it. This also makes the job fail when
+      # a same-PR sdk/ts change breaks the plugin (hence sdk/ts/** in paths).
+      - name: Build in-tree TypeScript SDK
+        working-directory: sdk/ts
+        run: pnpm install --frozen-lockfile && pnpm run build
+
+      - name: Install plugin deps
+        working-directory: integrations/opencode-plugin
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: integrations/opencode-plugin
+        run: pnpm run typecheck
+
+      - name: Lint
+        working-directory: integrations/opencode-plugin
+        run: pnpm run lint
+
+      - name: Build
+        working-directory: integrations/opencode-plugin
+        run: pnpm run build
+
+      - name: Test
+        working-directory: integrations/opencode-plugin
+        run: pnpm run test

@@ -11,6 +11,7 @@ sdk/ts/        # TypeScript SDK (@obsigna/sdk-ts)
 sdk/py/        # Python SDK (obsigna)
 mcp-proxy/     # MCP STDIO proxy with audit, policy, and receipts (Go)
 hook/          # PostToolUse hook binary for Claude Code and other runtimes (Go)
+integrations/  # Per-agent-runtime adapters (e.g. opencode-plugin; hook to migrate here)
 site/          # Documentation site (Astro)
 cross-sdk-tests/  # Cross-language receipt verification tests
 ```

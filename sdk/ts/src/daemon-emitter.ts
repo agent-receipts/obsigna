@@ -81,6 +81,22 @@ export interface EmitEvent {
 	channel: string;
 	tool: EmitTool;
 	/**
+	 * Optional taxonomic action type the emitter has already resolved (e.g.
+	 * "filesystem.file.modify"). The daemon uses it verbatim as action.type and
+	 * resolves risk_level from it via the taxonomy. When omitted, the daemon
+	 * falls back to a synthetic "<channel>.<tool>" type that rarely matches the
+	 * taxonomy, so risk defaults to medium. Emitters that know the real action
+	 * type SHOULD set it — that is what makes risk-based controls (e.g.
+	 * parameter-disclosure "high") effective. The daemon resolves risk itself
+	 * rather than trusting an emitter-supplied risk, so an emitter cannot
+	 * downgrade risk to evade disclosure by setting this field.
+	 *
+	 * Note: this field is currently TypeScript-only. The Go and Python emitters
+	 * do not yet expose an equivalent option; adding cross-SDK parity is a
+	 * follow-up.
+	 */
+	actionType?: string;
+	/**
 	 * Raw JSON string for the tool input. Forwarded verbatim — the exact
 	 * bytes are embedded in the frame without re-parsing or reformatting,
 	 * so the daemon's RFC 8785 canonicalisation sees the same bytes the
@@ -145,6 +161,7 @@ interface WireFrame {
 		server?: string;
 		name: string;
 	};
+	action_type?: string;
 	input?: string;
 	output?: string;
 	error?: string;
@@ -377,6 +394,9 @@ export class DaemonEmitter {
 				`emitter: invalid decision "${ev.decision}" (want allowed|denied|pending)`,
 			);
 		}
+		if (ev.actionType !== undefined && typeof ev.actionType !== "string") {
+			return new Error("emitter: actionType must be a string");
+		}
 		if (ev.input !== undefined && !isValidJson(ev.input)) {
 			return new Error("emitter: input is not valid JSON");
 		}
@@ -397,6 +417,7 @@ export class DaemonEmitter {
 				...(ev.tool.server ? { server: ev.tool.server } : {}),
 				name: ev.tool.name,
 			},
+			...(ev.actionType ? { action_type: ev.actionType } : {}),
 			...(ev.input !== undefined ? { input: RAW_INPUT_SENTINEL } : {}),
 			...(ev.output !== undefined ? { output: RAW_OUTPUT_SENTINEL } : {}),
 			...(ev.error ? { error: ev.error } : {}),
