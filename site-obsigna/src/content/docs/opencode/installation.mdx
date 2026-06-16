@@ -1,9 +1,9 @@
 ---
 title: Plugin Installation
-description: Install and configure the @agent-receipts/opencode-plugin to capture native OpenCode tool calls, then verify the chain end to end.
+description: Install and configure the @obsigna/opencode-plugin to capture native OpenCode tool calls, then verify the chain end to end.
 ---
 
-The `@agent-receipts/opencode-plugin` package (Tier B) emits one daemon-signed receipt per native OpenCode tool call. For the MCP channel (Tier A), see [MCP Proxy](/opencode/mcp-proxy/).
+The `@obsigna/opencode-plugin` package (Tier B) emits one daemon-signed receipt per native OpenCode tool call. For the MCP channel (Tier A), see [MCP Proxy](/opencode/mcp-proxy/).
 
 ## Prerequisites
 
@@ -26,13 +26,13 @@ The plugin reaches the daemon over its default platform socket automatically —
 Add the package to your project and register it in `opencode.json`:
 
 ```bash
-npm install @agent-receipts/opencode-plugin
+npm install @obsigna/opencode-plugin
 ```
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@agent-receipts/opencode-plugin"]
+  "plugin": ["@obsigna/opencode-plugin"]
 }
 ```
 
@@ -41,7 +41,7 @@ OpenCode also loads plugins from `.opencode/plugin/`. To configure the plugin pr
 {/* snippet-check: no-run */}
 ```ts
 // .opencode/plugin/agent-receipts.ts
-import { createAgentReceiptsPlugin } from "@agent-receipts/opencode-plugin";
+import { createAgentReceiptsPlugin } from "@obsigna/opencode-plugin";
 
 export const AgentReceiptsPlugin = createAgentReceiptsPlugin({
   strict: false,

@@ -6,7 +6,7 @@ description: How Agent Receipts captures OpenCode tool calls across two channels
 [OpenCode](https://opencode.ai) is a model-agnostic coding agent. Agent Receipts captures its activity across **two channels**, mirroring the [Claude Code](/hook/overview/) setup:
 
 - **Tier A — MCP tools** go through [`mcp-proxy`](/opencode/mcp-proxy/). This is the *ingress-egress*, adversary-resistant placement: the proxy runs out-of-process and signs locally, so it holds even against a misbehaving agent. Docs-only — it reuses a shipped component.
-- **Tier B — native tools** (`bash`, `edit`, `write`, `webfetch`, …) go through the **`@agent-receipts/opencode-plugin`** plugin. This is the *execd-side*, honest-operator placement: maximum coverage of native calls, emitted to the daemon for signing.
+- **Tier B — native tools** (`bash`, `edit`, `write`, `webfetch`, …) go through the **`@obsigna/opencode-plugin`** plugin. This is the *execd-side*, honest-operator placement: maximum coverage of native calls, emitted to the daemon for signing.
 
 ```mermaid
 graph LR

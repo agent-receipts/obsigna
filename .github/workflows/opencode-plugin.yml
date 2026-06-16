@@ -5,12 +5,10 @@ on:
     branches: [main]
     paths:
       - "integrations/opencode-plugin/**"
-      - "sdk/ts/**"
   pull_request:
     branches: [main]
     paths:
       - "integrations/opencode-plugin/**"
-      - "sdk/ts/**"
 
 permissions:
   contents: read
@@ -28,17 +26,7 @@ jobs:
         with:
           node-version: "24"
           cache: "pnpm"
-          cache-dependency-path: |
-            sdk/ts/pnpm-lock.yaml
-            integrations/opencode-plugin/pnpm-lock.yaml
-
-      # The plugin depends on `@obsigna/sdk-ts` via a `file:../../sdk/ts`
-      # install, so the in-tree SDK's dist/ must be built before the plugin can
-      # typecheck, build, or test against it. This also makes the job fail when
-      # a same-PR sdk/ts change breaks the plugin (hence sdk/ts/** in paths).
-      - name: Build in-tree TypeScript SDK
-        working-directory: sdk/ts
-        run: pnpm install --frozen-lockfile && pnpm run build
+          cache-dependency-path: integrations/opencode-plugin/pnpm-lock.yaml
 
       - name: Install plugin deps
         working-directory: integrations/opencode-plugin

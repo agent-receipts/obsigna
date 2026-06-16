@@ -1,5 +1,5 @@
 {
-	"name": "@agent-receipts/opencode-plugin",
+	"name": "@obsigna/opencode-plugin",
 	"version": "0.1.0-alpha.1",
 	"description": "OpenCode plugin that emits Agent Receipts for native tool calls via the agent-receipts daemon",
 	"license": "Apache-2.0",
@@ -33,7 +33,7 @@
 	},
 	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
-		"@obsigna/sdk-ts": "file:../../sdk/ts"
+		"@obsigna/sdk-ts": "^0.14.0"
 	},
 	"peerDependencies": {
 		"@opencode-ai/plugin": ">=0.1.0"
