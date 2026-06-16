@@ -12,22 +12,21 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Deployment environment lets you attach protection rules (required
-    # reviewers, wait timer, branch restrictions) to gate who can trigger
-    # a release. Configure at:
-    # https://github.com/agent-receipts/obsigna/settings/environments
-    environment: release-opencode-plugin
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - run: corepack enable && corepack prepare pnpm@10.33.0 --activate
 
+      # No registry-url / NODE_AUTH_TOKEN: this package publishes via npm OIDC
+      # trusted publishing. setup-node's registry-url writes a token-based
+      # `.npmrc`, which npm uses in preference to OIDC — so it is deliberately
+      # omitted here. npm resolves the default registry and mints a short-lived
+      # publish credential from the GitHub OIDC token (id-token: write above).
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
           cache: "pnpm"
           cache-dependency-path: integrations/opencode-plugin/pnpm-lock.yaml
-          registry-url: "https://registry.npmjs.org"
 
       - name: Prepare version
         run: |
@@ -99,6 +98,12 @@ jobs:
             echo "tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish to npm
+      # npm OIDC trusted publishing requires npm >= 11.5.1. Node 24 bundles a
+      # new enough npm, but pin the floor explicitly so a runner image refresh
+      # can't silently drop below it.
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Publish to npm (OIDC trusted publishing)
         working-directory: integrations/opencode-plugin
         run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.tag }}
