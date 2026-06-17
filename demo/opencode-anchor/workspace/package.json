@@ -1,0 +1,7 @@
+{
+  "name": "obsigna-opencode-anchor-demo-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Agent workspace for the opencode -> daemon -> checkpoint demo. start.sh installs the freshly built @obsigna/opencode-plugin here."
+}

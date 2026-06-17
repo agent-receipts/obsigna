@@ -244,6 +244,11 @@ is strictly increasing, and that the latest checkpoint matches the store HEAD.
 A store HEAD *behind* the anchored HEAD is reported as `FAIL (truncation)`.
 Without `--against-anchor`, `verify` is byte-identical to today.
 
+For a runnable end-to-end proof — a real OpenCode session emitting through the
+daemon to a `git` anchor, the agent UID provably unable to write that anchor, and
+a truncated tail turning `verify --against-anchor` red — see
+[`demo/opencode-anchor`](../demo/opencode-anchor/).
+
 ## Read interface: `obsigna receipt show <seq>`
 
 ```sh

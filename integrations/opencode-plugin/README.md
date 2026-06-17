@@ -24,6 +24,8 @@ Register it as an OpenCode plugin in `opencode.json`:
 
 Requires `obsigna-daemon` to be running. See the [OpenCode docs](https://obsigna.dev/opencode/overview/) for the full Tier A + Tier B walkthrough and an end-to-end `obsigna verify` example.
 
+For a one-command runnable proof of the whole path — a real OpenCode session emitting through this plugin to the daemon, signed checkpoints written to a `git` anchor the agent UID cannot write, and a truncated tail caught by `obsigna verify --against-anchor` — see [`demo/opencode-anchor`](../../demo/opencode-anchor/).
+
 ## Configuration
 
 Configure via environment variables (read at plugin load):

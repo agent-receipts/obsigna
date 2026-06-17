@@ -1,0 +1,2 @@
+Chain demo-chain: VALID (3 receipts)
+Anchor /tmp/obsigna-anchor-demo/daemon/anchor/anchor.ndjson: FAIL (truncation) — anchor records head at seq 5 (sha256:e50fbb24f97945c863ede0802da76de5136d0ecc52ecda932de83b1ee4eac1a2) but store head is seq 3: receipts 4..5 truncated

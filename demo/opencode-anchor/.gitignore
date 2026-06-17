@@ -1,0 +1,5 @@
+# The demo builds/installs everything under $DEMO_HOME (default
+# /tmp/obsigna-anchor-demo), outside the repo. Nothing here should be committed
+# except the source scripts, the workspace template, and the red-verify artifact.
+*.tgz
+workspace/node_modules/
