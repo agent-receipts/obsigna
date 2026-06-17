@@ -20,6 +20,7 @@
 | **Tooling docs** | [obsigna.dev](https://obsigna.dev) |
 | **Daemon setup & migration guide** | [obsigna.dev/getting-started/daemon-setup/](https://obsigna.dev/getting-started/daemon-setup/) |
 | **API reference** | [Go](https://obsigna.dev/sdk-go/api-reference/) · [TypeScript](https://obsigna.dev/sdk-ts/api-reference/) · [Python](https://obsigna.dev/sdk-py/api-reference/) |
+| **Examples** | [obsigna-examples](https://github.com/agent-receipts/obsigna-examples) |
 | **Blog** | [Your AI Agent Just Sent an Email](https://jongerius.solutions/post/your-ai-agent-just-sent-an-email/) · [Every MCP Tool Call My AI Makes Now Gets a Signed Receipt](https://jongerius.solutions/post/auditing-github-mcp-agent-receipts/) |
 | **Go** | [sdk/go](https://pkg.go.dev/github.com/agent-receipts/ar/sdk/go) · [mcp-proxy](https://pkg.go.dev/github.com/agent-receipts/ar/mcp-proxy) · [dashboard](https://pkg.go.dev/github.com/agent-receipts/dashboard) |
 | **npm** | [@obsigna/sdk-ts](https://www.npmjs.com/package/@obsigna/sdk-ts) |
@@ -93,6 +94,7 @@ obsigna verify
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records |
 | [dashboard](https://github.com/agent-receipts/dashboard) | Local web UI for browsing and verifying receipt databases |
 | [openclaw](https://github.com/agent-receipts/openclaw) | Agent Receipts plugin for OpenClaw |
+| [obsigna-examples](https://github.com/agent-receipts/obsigna-examples) | Worked examples and integration demos |
 
 ## SDK quick start
 
