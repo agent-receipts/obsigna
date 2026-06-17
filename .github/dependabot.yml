@@ -18,6 +18,15 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: npm
+    directory: /site-obsigna
+    schedule:
+      interval: weekly
+    groups:
+      npm_and_yarn:
+        patterns:
+          - "*"
+
   - package-ecosystem: gomod
     directory: /sdk/go
     schedule:
