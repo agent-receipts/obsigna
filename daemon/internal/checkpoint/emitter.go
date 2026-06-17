@@ -78,10 +78,13 @@ func (e *Emitter) Observe(chainID string, seq int64, headHash string) {
 	}
 }
 
-// Flush forces a checkpoint for chainID at (seq, headHash) regardless of the
-// cadence counter and resets it. Used on graceful shutdown so the final head
-// of every open chain is anchored even when the last receipts did not land on
-// a cadence boundary.
+// Flush requests a checkpoint for chainID at (seq, headHash) outside the normal
+// cadence and resets the cadence counter. Used on graceful shutdown so the final
+// head of every open chain is anchored even when the last receipts did not land
+// on a cadence boundary. Like the per-receipt path it goes through
+// markEmitLocked, so a head that is already anchored — e.g. the terminator was
+// skipped on a tight shutdown deadline and the tail is unchanged — is a no-op
+// rather than a duplicate checkpoint.
 func (e *Emitter) Flush(chainID string, seq int64, headHash string) {
 	e.mu.Lock()
 	e.counts[chainID] = 0
