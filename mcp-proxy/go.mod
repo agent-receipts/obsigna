@@ -3,8 +3,8 @@ module github.com/agent-receipts/ar/mcp-proxy
 go 1.26.1
 
 require (
-	github.com/agent-receipts/ar/daemon v0.16.0
-	github.com/agent-receipts/ar/sdk/go v0.17.0
+	github.com/agent-receipts/ar/daemon v0.23.0
+	github.com/agent-receipts/ar/sdk/go v0.19.0-alpha.1
 	github.com/google/uuid v1.6.0
 	gopkg.in/yaml.v3 v3.0.1
 )
