@@ -35,7 +35,7 @@
     }
   },
   "devDependencies": {
-    "playwright": "^1.60.0",
+    "playwright": "^1.61.0",
     "rehype-mermaid": "^3.0.0"
   }
 }
