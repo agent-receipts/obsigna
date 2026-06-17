@@ -28,7 +28,11 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "esbuild": "^0.28.1",
+      "dompurify": "^3.4.10"
+    }
   },
   "devDependencies": {
     "playwright": "^1.60.0",

@@ -28,7 +28,10 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "esbuild": "^0.28.1"
+    }
   },
   "devDependencies": {
     "playwright": "^1.60.0",
