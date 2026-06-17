@@ -93,6 +93,7 @@ obsigna verify
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records |
 | [dashboard](https://github.com/agent-receipts/dashboard) | Local web UI for browsing and verifying receipt databases |
 | [openclaw](https://github.com/agent-receipts/openclaw) | Agent Receipts plugin for OpenClaw |
+| [obsigna-examples](https://github.com/agent-receipts/obsigna-examples) | Worked examples and integration demos |
 
 ## SDK quick start
 
