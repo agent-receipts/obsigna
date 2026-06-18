@@ -53,14 +53,19 @@ Files created by `--init`:
 |------|-------------|
 | Signing key | `$XDG_DATA_HOME/agent-receipts/signing.key` (falls back to `~/.local/share/agent-receipts/signing.key` when `$XDG_DATA_HOME` is unset or not an absolute path) |
 | Public key | `$XDG_DATA_HOME/agent-receipts/signing.key.pub` (same fallback) |
+| Forensic private key | `$XDG_DATA_HOME/agent-receipts/forensic.key` (same fallback) |
+| Forensic public key | `$XDG_DATA_HOME/agent-receipts/forensic.key.pub` (same fallback) |
+| Starter config | `$XDG_DATA_HOME/agent-receipts/daemon.toml` (same fallback) |
 
-Both `signing.key` and `signing.key.pub` are created together. The public key is needed by `obsigna receipt verify` — keep it alongside the database when archiving.
+`--init` sets up a complete install in one step. Alongside the Ed25519 signing pair it generates an X25519 **forensic key pair** ([ADR-0012](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0012-parameter-disclosure.md)) and writes a `daemon.toml` that turns **parameter disclosure on**. The result: a fresh daemon records the raw tool inputs — encrypted into each receipt and recoverable with the forensic private key — not just hashes. See [Payload disclosure](#payload-disclosure) below for what that means and how to read a recorded payload.
 
-Override these paths with environment variables: `AGENTRECEIPTS_KEY` (signing key), `AGENTRECEIPTS_PUBLIC_KEY` (public key).
+The public key is needed by `obsigna receipt verify` — keep it alongside the database when archiving. The **forensic private key** (`forensic.key`) is the recovery secret: whoever holds it can decrypt every recorded payload, and the daemon never reads it. For a real deployment, move `forensic.key` off the daemon host once `--init` has run — the daemon only ever needs `forensic.key.pub`.
+
+Override the key paths with environment variables: `AGENTRECEIPTS_KEY` (signing key), `AGENTRECEIPTS_PUBLIC_KEY` (public key).
 
 The receipt database (`$XDG_DATA_HOME/agent-receipts/receipts.db`, falling back to `~/.local/share/agent-receipts/receipts.db`) is created automatically the first time the daemon starts, not by `--init`. Override with `AGENTRECEIPTS_DB`.
 
-`--init` refuses to overwrite an existing key and exits non-zero. It is a one-time bootstrap, not a rotation command — run it once per machine.
+`--init` refuses to overwrite an existing signing or forensic key and exits non-zero, and never clobbers a `daemon.toml` you have already edited (it reports that it left your config untouched). It is a one-time bootstrap, not a rotation command — run it once per machine.
 
 #### Rotate the signing key
 
@@ -130,7 +135,8 @@ public_key = "/home/me/.local/share/agent-receipts/signing.key.pub"  # --public-
 # chain_id = "my-chain"               # --chain-id; omit to use the per-day UTC default (recommended) — setting it pins one chain and disables daily auto-advance
 issuer_id = "did:agent-receipts-daemon:local"          # --issuer-id
 verification_method = "did:agent-receipts-daemon:local#k1"  # --verification-method
-parameter_disclosure = false          # --parameter-disclosure
+forensic_public_key = "/home/me/.local/share/agent-receipts/forensic.key.pub"  # --forensic-public-key
+parameter_disclosure = "true"         # --parameter-disclosure; "true" (the --init default) | "high" | "fs.write,net.http" | false
 redact_patterns = "/etc/agent-receipts/redact.yaml"   # --redact-patterns
 unsafe_socket_path = false            # --unsafe-socket-path
 shutdown_deadline = "200ms"           # --shutdown-deadline (Go duration string)
@@ -252,24 +258,31 @@ See the [OpenClaw installation guide](/openclaw/installation) for daemon forward
 
 ## Payload disclosure
 
-By default the daemon stores only a cryptographic hash of each tool call's input and output (`parameters_hash` / `response_hash`). This is privacy-preserving — the receipt proves what happened without retaining the raw payload.
+After `--init`, parameter disclosure is **on**. Each tool call's parameters are encrypted to the forensic X25519 public key using HPKE (ADR-0012) and ride in the signed receipt's `parameters_disclosure` field; only the holder of the matching `forensic.key` can decrypt them, and the daemon itself cannot read what it wrote. The `parameters_hash` is always present too, so tamper-evidence never depends on disclosure.
 
-To make parameters *recoverable* without ever storing plaintext, the daemon can encrypt them to a forensic X25519 public key using HPKE (ADR-0012). The encrypted envelope rides in the signed receipt's `parameters_disclosure` field; only the holder of the matching private key can decrypt it, and the daemon itself cannot read what it wrote. The `parameters_hash` is always present, so tamper-evidence does not depend on disclosure being enabled.
-
-Generate a forensic key pair (once), then enable disclosure with a policy:
+This is the default because a hash alone often isn't enough to answer "what did the agent actually do?". With disclosure on you can recover the exact inputs of any recorded action:
 
 ```bash
-# Generate the key pair (private key stays offline; daemon only reads the public key)
-obsigna-daemon --init-forensic-key \
-  --forensic-key ~/.local/share/agent-receipts/forensic.key
-
-# Run with disclosure enabled: false | true | high | <comma-separated action types>
-obsigna-daemon \
-  --forensic-public-key ~/.local/share/agent-receipts/forensic.key.pub \
-  --parameter-disclosure high
+obsigna receipt disclose 42                      # recover receipt 42's parameters
+obsigna receipt disclose 42 --json               # as JSON
 ```
 
-`--parameter-disclosure` selects *which* actions disclose; it requires `--forensic-public-key` (there must be a key to encrypt to). The default is `false` (hash only).
+`disclose` reads the forensic **private** key (default `~/.local/share/agent-receipts/forensic.key`; override with `--key` or `AGENTRECEIPTS_FORENSIC_KEY`) and decrypts the envelope locally — the plaintext is never written back to the store.
+
+### Choosing a disclosure policy
+
+`parameter_disclosure` selects *which* actions disclose. `--init` writes `"true"` (every action) so a fresh install shows everything; narrow it by editing `daemon.toml` (or the `--parameter-disclosure` flag / `AGENTRECEIPTS_PARAMETER_DISCLOSURE`):
+
+| Value | Discloses |
+|-------|-----------|
+| `"true"` | every action (the `--init` default) |
+| `"high"` | high-risk actions only |
+| `"fs.write,net.http"` | a comma-separated action-type allowlist |
+| `false` | nothing — hashes only |
+
+Any enabled policy requires a forensic public key to encrypt to; `--init` provides one. To turn disclosure **off**, set `parameter_disclosure = false`.
+
+> **Production:** the forensic private key is the recovery secret. Move `forensic.key` off the daemon host after `--init` (the daemon only needs `forensic.key.pub`), so a host compromise cannot decrypt recorded payloads. This is also what makes crypto-shredding possible — destroy the private key and the encrypted payloads become unrecoverable while the hash-based audit trail stays verifiable.
 
 For the full model — disclosure modes, the two-key separation, forensic recovery, encrypt-failure fallback, and the GDPR/crypto-shredding story — see [Parameter Disclosure](https://agentreceipts.ai/specification/parameter-disclosure/).
 
