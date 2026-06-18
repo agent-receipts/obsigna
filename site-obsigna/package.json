@@ -16,9 +16,9 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7",
-    "@astrojs/starlight": "^0.39",
+    "@astrojs/starlight": "^0.40",
     "astro": "^6",
-    "sharp": "^0.34",
+    "sharp": "^0.35",
     "starlight-theme-flexoki": "^0.2.2"
   },
   "engines": {
@@ -34,7 +34,7 @@
     }
   },
   "devDependencies": {
-    "playwright": "^1.60.0",
+    "playwright": "^1.61.0",
     "rehype-mermaid": "^3.0.0"
   }
 }
