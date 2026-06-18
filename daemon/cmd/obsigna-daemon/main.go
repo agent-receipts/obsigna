@@ -353,8 +353,9 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 // XDG path) and loads it. It returns the resolved path alongside the parsed
 // file so callers (notably --init) write to the same file the daemon will read;
 // the path is "" only when no XDG data home is available. An explicit --config
-// naming a missing file is an error; a missing file at the default path is
-// tolerated (returns a nil FileConfig).
+// naming a missing file is an error for a normal run, but tolerated for --init
+// (the named file is the one --init will create); a missing file at the default
+// path is always tolerated (returns a nil FileConfig).
 func loadConfigLayer(args []string, getenv func(string) string) (string, *daemon.FileConfig, error) {
 	// First pass: read only --config so we know which file to load before
 	// registering the rest of the flags (whose defaults depend on the file).
@@ -377,7 +378,10 @@ func loadConfigLayer(args []string, getenv func(string) string) (string, *daemon
 	}
 
 	path := configPath
-	required := explicit
+	// An explicit --config naming a missing file is an error for a normal run,
+	// but --init is allowed to bootstrap a config at a path that does not exist
+	// yet — that named file is precisely what --init writes.
+	required := explicit && !argsHaveInit(args)
 	if path == "" {
 		path = daemon.DefaultConfigPath()
 		if path == "" {
@@ -428,6 +432,27 @@ func scanConfigFlag(args []string) (string, bool) {
 		}
 	}
 	return value, found
+}
+
+// argsHaveInit reports whether args request --init, the only action that
+// bootstraps a config file. A bare --init/-init is true; --init=<v> is parsed
+// as a bool. It deliberately does not match --init-forensic-key. Stops at "--"
+// so it never reads past the flag terminator.
+func argsHaveInit(args []string) bool {
+	set := false
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		switch {
+		case a == "--init" || a == "-init":
+			set = true
+		case strings.HasPrefix(a, "--init=") || strings.HasPrefix(a, "-init="):
+			b, err := strconv.ParseBool(a[strings.IndexByte(a, '=')+1:])
+			set = err == nil && b
+		}
+	}
+	return set
 }
 
 // applyFileConfig overlays a FileConfig onto cfg. Only keys present in the file

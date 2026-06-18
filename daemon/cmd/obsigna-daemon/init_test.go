@@ -152,6 +152,40 @@ func TestRunInit_HonorsExplicitConfigPath(t *testing.T) {
 	}
 }
 
+// TestRunInit_BootstrapsMissingExplicitConfig drives the whole chain through
+// resolveConfig (not just runInit) to prove `--init --config <missing>` works:
+// loadConfigLayer must tolerate the not-yet-existing file for --init, and
+// runInit must then create it. A normal run with a missing --config still errors
+// (asserted separately below).
+func TestRunInit_BootstrapsMissingExplicitConfig(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	custom := filepath.Join(t.TempDir(), "etc", "daemon.toml")
+
+	r, err := resolveConfig([]string{"--init", "--config", custom}, discardEnv, &strings.Builder{})
+	if err != nil {
+		t.Fatalf("resolveConfig(--init --config <missing>): %v", err)
+	}
+	if r.configPath != custom {
+		t.Fatalf("resolved configPath = %q, want %q", r.configPath, custom)
+	}
+	if err := runInit(r, &strings.Builder{}); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
+	if _, err := os.Stat(custom); err != nil {
+		t.Errorf("config was not created at the explicit path %s: %v", custom, err)
+	}
+}
+
+// TestResolveConfig_MissingExplicitConfigErrorsForNormalRun pins that the --init
+// tolerance does not leak: a plain daemon run with a missing --config is still
+// an error.
+func TestResolveConfig_MissingExplicitConfigErrorsForNormalRun(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "nope.toml")
+	if _, err := resolveConfig([]string{"--config", missing}, discardEnv, &strings.Builder{}); err == nil {
+		t.Fatal("resolveConfig(--config <missing>) succeeded; want an error for a normal run")
+	}
+}
+
 // TestRunInit_PreflightRefusesPartialInstall: when a forensic key already exists
 // but no signing key does, --init must refuse before generating anything — it
 // must not leave a fresh signing key behind (the half-initialised state that
