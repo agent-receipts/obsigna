@@ -104,6 +104,13 @@ export default defineConfig({
           ],
         },
         {
+          label: "Reference",
+          items: [
+            { label: "CLI Commands", slug: "reference/cli-commands" },
+            { label: "Configuration", slug: "reference/configuration" },
+          ],
+        },
+        {
           label: "Hook",
           items: [
             { label: "Overview", slug: "hook/overview" },
@@ -191,13 +198,6 @@ export default defineConfig({
             { label: "Installation", slug: "openclaw/installation" },
             { label: "CLI Reference", slug: "openclaw/cli-reference" },
             { label: "Agent Tools", slug: "openclaw/agent-tools" },
-          ],
-        },
-        {
-          label: "Reference",
-          items: [
-            { label: "CLI Commands", slug: "reference/cli-commands" },
-            { label: "Configuration", slug: "reference/configuration" },
           ],
         },
         {

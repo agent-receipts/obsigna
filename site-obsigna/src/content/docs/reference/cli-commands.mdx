@@ -181,7 +181,7 @@ obsigna receipt verify-event --since 24h                      # every receipt in
 
 ### `obsigna receipt disclose`
 
-Decrypt the `parameters_disclosure` envelope of a single stored receipt using the operator's X25519 forensic private key, and print the recovered plaintext parameters. This is the headless counterpart to the dashboard's inline forensic decryption — the privacy model hashes parameters by default; `disclose` is the controlled "break the glass" path for an operator who holds the forensic key.
+Decrypt the `parameters_disclosure` envelope of a single stored receipt using the operator's X25519 forensic private key, and print the recovered plaintext parameters. A fresh install set up with `obsigna-daemon --init` records this envelope on every receipt, encrypted to your forensic key; the store itself never holds plaintext. `disclose` is the controlled "break the glass" path for an operator who holds the forensic private key — the headless counterpart to the dashboard's inline forensic decryption.
 
 ```bash
 obsigna receipt disclose 42                          # human-readable key/value table

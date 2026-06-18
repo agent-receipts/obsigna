@@ -53,7 +53,7 @@ socket — see [Daemon Setup](/getting-started/daemon-setup/) for socket paths (
 without `XDG_RUNTIME_DIR`, that's under `/run`) and service installation.
 
 ```bash
-obsigna-daemon --init   # one-time: creates the signing key
+obsigna-daemon --init   # one-time: signing + forensic keys, and a config with disclosure on
 obsigna-daemon          # start the daemon (leave it running)
 ```
 
@@ -71,7 +71,7 @@ with DaemonEmitter() as e:  # uses AGENTRECEIPTS_SOCKET or the per-OS default
         channel="my-app",
         tool_name="filesystem.file.read",
         decision="allowed",
-        input='{"path": "/etc/hosts"}',  # raw JSON; the daemon hashes it (and HPKE-encrypts it when parameter disclosure is on)
+        input='{"path": "/etc/hosts"}',  # raw JSON; the daemon hashes it and (with the --init default) HPKE-encrypts it so it is recoverable
     )
 ```
 
@@ -107,7 +107,7 @@ socket — see [Daemon Setup](/getting-started/daemon-setup/) for socket paths (
 without `XDG_RUNTIME_DIR`, that's under `/run`) and service installation.
 
 ```bash
-obsigna-daemon --init   # one-time: creates the signing key
+obsigna-daemon --init   # one-time: signing + forensic keys, and a config with disclosure on
 obsigna-daemon          # start the daemon (leave it running)
 ```
 
@@ -128,7 +128,7 @@ async function main() {
       channel: "my-app",
       tool: { name: "filesystem.file.read" },
       decision: "allowed",
-      input: JSON.stringify({ path: "/etc/hosts" }), // raw JSON; hashed by the daemon (and HPKE-encrypted when parameter disclosure is on)
+      input: JSON.stringify({ path: "/etc/hosts" }), // raw JSON; hashed by the daemon and (with the --init default) HPKE-encrypted so it is recoverable
     });
     if (err) throw err;
   } finally {
@@ -175,7 +175,7 @@ socket — see [Daemon Setup](/getting-started/daemon-setup/) for socket paths (
 without `XDG_RUNTIME_DIR`, that's under `/run`) and service installation.
 
 ```bash
-obsigna-daemon --init   # one-time: creates the signing key
+obsigna-daemon --init   # one-time: signing + forensic keys, and a config with disclosure on
 obsigna-daemon          # start the daemon (leave it running)
 ```
 
@@ -208,7 +208,7 @@ func main() {
 		Channel:  "my-app",
 		Tool:     emitter.Tool{Name: "filesystem.file.read"},
 		Decision: "allowed",
-		Input:    json.RawMessage(`{"path":"/etc/hosts"}`), // raw JSON; hashed by the daemon (and HPKE-encrypted when parameter disclosure is on)
+		Input:    json.RawMessage(`{"path":"/etc/hosts"}`), // raw JSON; hashed by the daemon and (with the --init default) HPKE-encrypted so it is recoverable
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -234,6 +234,23 @@ A successful run prints the chain length and confirms the signatures are intact.
 started the daemon with a non-default chain id (`AGENTRECEIPTS_CHAIN_ID` / `--chain-id`)
 or overrode `AGENTRECEIPTS_DB` or `AGENTRECEIPTS_PUBLIC_KEY`, pass those same values
 here — otherwise `verify` reads today's UTC-dated chain at the default paths.
+
+## See the raw input
+
+Verification proves the receipt is intact, but not *what the agent did*. Because `--init`
+turns parameter disclosure on, each receipt also carries the tool's raw input, encrypted
+to your forensic key. Recover it with `obsigna receipt disclose`:
+
+```bash
+obsigna receipt disclose 1          # decrypt receipt 1's parameters
+# path: /etc/hosts
+```
+
+`disclose` decrypts locally with the forensic private key (`~/.local/share/agent-receipts/forensic.key`,
+written by `--init`); the plaintext is never written back to the store. This is the
+"break the glass" path — the store keeps ciphertext, and only a holder of that key can
+read it. To record hashes alone instead, set `parameter_disclosure = false` (see
+[Payload disclosure](/getting-started/daemon-setup/#payload-disclosure)).
 
 ## Appendix: in-process signing (tutorial and testing only)
 

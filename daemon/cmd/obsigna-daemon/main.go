@@ -54,6 +54,7 @@ type resolved struct {
 	initForensicKey bool
 	rotate          bool
 	forensicKeyPath string
+	configPath      string
 	printConfig     bool
 }
 
@@ -86,32 +87,24 @@ func main() {
 	}
 
 	if r.initKeys {
-		if r.cfg.PublicKeyPath == "" {
-			r.cfg.PublicKeyPath = daemon.DefaultPublicKeyPath(r.cfg.KeyPath)
-		}
-		if err := daemon.GenerateKey(r.cfg.KeyPath, r.cfg.PublicKeyPath); err != nil {
+		if err := runInit(r, os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "obsigna-daemon --init: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("generated signing key: %s\n", r.cfg.KeyPath)
-		fmt.Printf("public key: %s\n", r.cfg.PublicKeyPath)
 		return
 	}
 
 	if r.initForensicKey {
-		if r.cfg.ForensicPublicKeyPath == "" {
-			r.cfg.ForensicPublicKeyPath = daemon.DefaultForensicPublicKeyPath(r.forensicKeyPath)
-		}
-		fingerprint, err := daemon.GenerateForensicKey(r.forensicKeyPath, r.cfg.ForensicPublicKeyPath)
+		pubPath, fingerprint, err := generateForensicKey(r.forensicKeyPath, r.cfg.ForensicPublicKeyPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "obsigna-daemon --init-forensic-key: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Printf("generated forensic private key: %s (keep this offline; the daemon never reads it)\n", r.forensicKeyPath)
-		fmt.Printf("forensic public key:           %s\n", r.cfg.ForensicPublicKeyPath)
+		fmt.Printf("forensic public key:           %s\n", pubPath)
 		fmt.Printf("fingerprint (kid):             %s\n", fingerprint)
 		fmt.Printf("\nTo enable disclosure, start the daemon with:\n")
-		fmt.Printf("  --forensic-public-key %s --parameter-disclosure <true|high|action.types>\n", r.cfg.ForensicPublicKeyPath)
+		fmt.Printf("  --forensic-public-key %s --parameter-disclosure <true|high|action.types>\n", pubPath)
 		return
 	}
 
@@ -162,6 +155,114 @@ func main() {
 	}
 }
 
+// runInit handles --init: initialise a fresh install in one step by generating
+// the Ed25519 signing key, an X25519 forensic key pair (ADR-0012), and a starter
+// config that turns parameter disclosure on. The result is that a subsequent
+// bare `obsigna-daemon` records recoverable parameters out of the box, so an
+// operator evaluating Obsigna can see the raw tool inputs/outputs immediately
+// rather than only hashes.
+//
+// Writes are fail-closed: a preflight rejects the run if any key already exists
+// (so a half-initialised install can never be produced — we never write the
+// signing key only to fail on a pre-existing forensic key), and
+// WriteStarterConfig never clobbers a config the operator already wrote.
+func runInit(r resolved, stdout io.Writer) error {
+	if r.cfg.PublicKeyPath == "" {
+		r.cfg.PublicKeyPath = daemon.DefaultPublicKeyPath(r.cfg.KeyPath)
+	}
+	if r.cfg.ForensicPublicKeyPath == "" {
+		r.cfg.ForensicPublicKeyPath = daemon.DefaultForensicPublicKeyPath(r.forensicKeyPath)
+	}
+
+	// Preflight: refuse before writing anything if any key target already
+	// exists. GenerateKey/GenerateForensicKey each enforce O_EXCL, but checked
+	// independently they can leave a fresh signing key behind when the forensic
+	// key already exists. One up-front check keeps --init all-or-nothing.
+	if existing := firstExistingPath(r.cfg.KeyPath, r.cfg.PublicKeyPath, r.forensicKeyPath, r.cfg.ForensicPublicKeyPath); existing != "" {
+		return fmt.Errorf("%s already exists; --init refuses to overwrite keys. Remove the existing install or rotate with --rotate", existing)
+	}
+
+	if err := daemon.GenerateKey(r.cfg.KeyPath, r.cfg.PublicKeyPath); err != nil {
+		return err
+	}
+	_, fingerprint, err := generateForensicKey(r.forensicKeyPath, r.cfg.ForensicPublicKeyPath)
+	if err != nil {
+		// The preflight already rejects a pre-existing forensic key; this guards
+		// the rarer case where generation fails for another reason (I/O, RNG)
+		// after the signing key was written. Roll the signing key back so the
+		// install stays all-or-nothing and a retry isn't wedged.
+		_ = os.Remove(r.cfg.KeyPath)
+		_ = os.Remove(r.cfg.PublicKeyPath)
+		return err
+	}
+
+	fmt.Fprintf(stdout, "generated signing key:          %s\n", r.cfg.KeyPath)
+	fmt.Fprintf(stdout, "published public key:           %s\n", r.cfg.PublicKeyPath)
+	fmt.Fprintf(stdout, "generated forensic private key: %s\n", r.forensicKeyPath)
+	fmt.Fprintf(stdout, "forensic public key:            %s\n", r.cfg.ForensicPublicKeyPath)
+	fmt.Fprintf(stdout, "fingerprint (kid):              %s\n", fingerprint)
+
+	// Write the starter config to the same file the daemon will read — honor an
+	// explicit --config / AGENTRECEIPTS_CONFIG rather than always the XDG default.
+	configPath := r.configPath
+	if configPath == "" {
+		// No XDG data home and no explicit --config: we cannot scaffold a
+		// config, so tell the operator how to enable disclosure explicitly.
+		fmt.Fprintf(stdout, "\nCould not resolve a config path. Enable disclosure with:\n")
+		fmt.Fprintf(stdout, "  --forensic-public-key %s --parameter-disclosure %s\n", r.cfg.ForensicPublicKeyPath, daemon.DefaultParameterDisclosure)
+		return nil
+	}
+
+	wrote, err := daemon.WriteStarterConfig(configPath, r.cfg.ForensicPublicKeyPath, daemon.DefaultParameterDisclosure)
+	if err != nil {
+		return err
+	}
+	if !wrote {
+		// An existing config might enable disclosure or not — we don't parse it,
+		// so we must not claim disclosure is on. Point the operator at the keys
+		// they'd reference to turn it on themselves.
+		fmt.Fprintf(stdout, "\nA config already exists at %s; left unchanged. To turn\n", configPath)
+		fmt.Fprintf(stdout, "disclosure on, ensure it contains:\n")
+		fmt.Fprintf(stdout, "  forensic_public_key = %q\n  parameter_disclosure = %q\n", r.cfg.ForensicPublicKeyPath, daemon.DefaultParameterDisclosure)
+		return nil
+	}
+
+	fmt.Fprintf(stdout, "wrote starter config:           %s (parameter_disclosure = %q)\n", configPath, daemon.DefaultParameterDisclosure)
+	fmt.Fprintf(stdout, "\nParameter disclosure is ON: each action's parameters are encrypted into\n")
+	fmt.Fprintf(stdout, "its receipt and recoverable with `obsigna receipt disclose`. Keep\n")
+	fmt.Fprintf(stdout, "%s safe — whoever holds it can decrypt recorded parameters.\n", r.forensicKeyPath)
+	fmt.Fprintf(stdout, "For production, move that private key off-host; the daemon only ever\n")
+	fmt.Fprintf(stdout, "needs the public key.\n")
+	return nil
+}
+
+// generateForensicKey resolves the public-key path default (when empty) and
+// generates the X25519 forensic key pair, returning the resolved public-key
+// path and the key's fingerprint. Shared by the --init and --init-forensic-key
+// handlers so the defaulting and generation live in one place.
+func generateForensicKey(forensicKeyPath, forensicPublicKeyPath string) (pubPath, fingerprint string, err error) {
+	if forensicPublicKeyPath == "" {
+		forensicPublicKeyPath = daemon.DefaultForensicPublicKeyPath(forensicKeyPath)
+	}
+	fingerprint, err = daemon.GenerateForensicKey(forensicKeyPath, forensicPublicKeyPath)
+	return forensicPublicKeyPath, fingerprint, err
+}
+
+// firstExistingPath returns the first non-empty path that exists on disk, or ""
+// if none do. Empty paths are skipped (a derived default may be empty when no
+// home directory is resolvable). Lstat is used so a symlink counts as existing.
+func firstExistingPath(paths ...string) string {
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if _, err := os.Lstat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
 // resolveConfig merges configuration from three layers, lowest priority first:
 //
 //  1. the TOML config file (default path or --config), then
@@ -179,7 +280,7 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 	fs.SetOutput(errOut)
 
 	configPath := fs.String("config", "", "Path to a TOML config file (default: $XDG_DATA_HOME/agent-receipts/daemon.toml; ignored if absent)")
-	initKeys := fs.Bool("init", false, "Generate a new signing key pair and exit (must not exist)")
+	initKeys := fs.Bool("init", false, "Initialise a fresh install and exit: generate the signing key pair, an X25519 forensic key pair (ADR-0012), and a starter config that turns parameter disclosure on. Refuses to overwrite existing keys; never clobbers an existing config")
 	initForensicKey := fs.Bool("init-forensic-key", false, "Generate a new X25519 forensic key pair (ADR-0012) and exit. Writes the private key to --forensic-key and the public key to --forensic-public-key (must not exist)")
 	rotate := fs.Bool("rotate", false, "Rotate the signing key (ADR-0015): append a key_rotated receipt signed by the current key, archive the current public key, and swap in a new key, then exit. Stop the daemon first.")
 	showVersion := fs.Bool("version", false, "Print version and exit")
@@ -199,7 +300,7 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 		ShutdownDeadline:     200 * time.Millisecond,
 	}
 
-	fc, err := loadConfigLayer(args, getenv)
+	configFilePath, fc, err := loadConfigLayer(args, getenv)
 	if err != nil {
 		return resolved{}, err
 	}
@@ -249,15 +350,19 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 		initForensicKey: *initForensicKey,
 		rotate:          *rotate,
 		forensicKeyPath: *forensicKeyPath,
+		configPath:      configFilePath,
 		printConfig:     *printConfigFlag,
 	}, nil
 }
 
 // loadConfigLayer resolves the config-file path (--config flag or the default
-// XDG path) and loads it. An explicit --config naming a missing file is an
-// error; a missing file at the default path is tolerated (returns a nil
-// FileConfig).
-func loadConfigLayer(args []string, getenv func(string) string) (*daemon.FileConfig, error) {
+// XDG path) and loads it. It returns the resolved path alongside the parsed
+// file so callers (notably --init) write to the same file the daemon will read;
+// the path is "" only when no XDG data home is available. An explicit --config
+// naming a missing file is an error for a normal run, but tolerated for --init
+// (the named file is the one --init will create); a missing file at the default
+// path is always tolerated (returns a nil FileConfig).
+func loadConfigLayer(args []string, getenv func(string) string) (string, *daemon.FileConfig, error) {
 	// First pass: read only --config so we know which file to load before
 	// registering the rest of the flags (whose defaults depend on the file).
 	// We can't use flag.Parse here — it stops at the first unknown flag — so we
@@ -275,24 +380,27 @@ func loadConfigLayer(args []string, getenv func(string) string) (*daemon.FileCon
 		// back to the default path here would either error against a path the
 		// operator never named or silently load the default as if explicit;
 		// both are confusing, so reject it outright.
-		return nil, errors.New("--config requires a path")
+		return "", nil, errors.New("--config requires a path")
 	}
 
 	path := configPath
-	required := explicit
+	// An explicit --config naming a missing file is an error for a normal run,
+	// but --init is allowed to bootstrap a config at a path that does not exist
+	// yet — that named file is precisely what --init writes.
+	required := explicit && !argsHaveInit(args)
 	if path == "" {
 		path = daemon.DefaultConfigPath()
 		if path == "" {
 			// No XDG data home and no home dir: skip the file layer entirely.
-			return nil, nil
+			return "", nil, nil
 		}
 	}
 
 	fc, err := daemon.LoadConfigFile(path, required)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	return fc, nil
+	return path, fc, nil
 }
 
 // scanConfigFlag extracts the --config value from args, accepting both the
@@ -330,6 +438,27 @@ func scanConfigFlag(args []string) (string, bool) {
 		}
 	}
 	return value, found
+}
+
+// argsHaveInit reports whether args request --init, the only action that
+// bootstraps a config file. A bare --init/-init is true; --init=<v> is parsed
+// as a bool. It deliberately does not match --init-forensic-key. Stops at "--"
+// so it never reads past the flag terminator.
+func argsHaveInit(args []string) bool {
+	set := false
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		switch {
+		case a == "--init" || a == "-init":
+			set = true
+		case strings.HasPrefix(a, "--init=") || strings.HasPrefix(a, "-init="):
+			b, err := strconv.ParseBool(a[strings.IndexByte(a, '=')+1:])
+			set = err == nil && b
+		}
+	}
+	return set
 }
 
 // applyFileConfig overlays a FileConfig onto cfg. Only keys present in the file
