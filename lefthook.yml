@@ -42,7 +42,9 @@ pre-commit:
 
     - name: shellcheck
       glob: "*.sh"
-      run: command -v shellcheck >/dev/null 2>&1 && shellcheck {staged_files} || echo "shellcheck not installed — skipping"
+      # Skip only when shellcheck is absent; when present, let its exit code
+      # propagate so real lint failures aren't masked as "not installed".
+      run: if command -v shellcheck >/dev/null 2>&1; then shellcheck {staged_files}; else echo "shellcheck not installed — skipping"; fi
 
 pre-push:
   parallel: true
