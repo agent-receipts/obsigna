@@ -187,6 +187,12 @@ func runInit(r resolved, stdout io.Writer) error {
 	}
 	_, fingerprint, err := generateForensicKey(r.forensicKeyPath, r.cfg.ForensicPublicKeyPath)
 	if err != nil {
+		// The preflight already rejects a pre-existing forensic key; this guards
+		// the rarer case where generation fails for another reason (I/O, RNG)
+		// after the signing key was written. Roll the signing key back so the
+		// install stays all-or-nothing and a retry isn't wedged.
+		_ = os.Remove(r.cfg.KeyPath)
+		_ = os.Remove(r.cfg.PublicKeyPath)
 		return err
 	}
 

@@ -92,7 +92,7 @@ func TestRunInit_PreservesExistingConfig(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
 	cfgPath := daemon.DefaultConfigPath()
-	if err := os.MkdirAll(daemon.DefaultConfigPath()[:strings.LastIndex(cfgPath, "/")], 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o750); err != nil {
 		t.Fatal(err)
 	}
 	existing := []byte("parameter_disclosure = false\n")
