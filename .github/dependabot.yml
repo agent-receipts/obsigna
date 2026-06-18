@@ -35,6 +35,11 @@ updates:
       go:
         patterns:
           - "*"
+    # Internal modules are version-managed by the release cascade and wired
+    # locally via go.work; Dependabot bumping their pins (often to alpha tags)
+    # is noise. Third-party deps still update normally.
+    ignore:
+      - dependency-name: "github.com/agent-receipts/ar/*"
 
   - package-ecosystem: gomod
     directory: /mcp-proxy
@@ -44,6 +49,8 @@ updates:
       go:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "github.com/agent-receipts/ar/*"
 
   - package-ecosystem: gomod
     directory: /cross-sdk-tests
@@ -53,6 +60,8 @@ updates:
       go:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "github.com/agent-receipts/ar/*"
 
   - package-ecosystem: uv
     directory: /sdk/py
