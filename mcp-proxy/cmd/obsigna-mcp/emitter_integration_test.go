@@ -26,7 +26,9 @@ import (
 	"time"
 
 	"github.com/agent-receipts/ar/daemon"
+	"github.com/agent-receipts/ar/mcp-proxy/configs"
 	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"github.com/agent-receipts/ar/sdk/go/receipt"
 	"github.com/agent-receipts/ar/sdk/go/store"
 )
 
@@ -198,6 +200,7 @@ func TestEmitToContext_AllowedToolCall(t *testing.T) {
 		"allowed",
 		"jsonrpc-req-42",
 		"",
+		"",
 	)
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
@@ -236,6 +239,7 @@ func TestEmitToContext_DeniedToolCall(t *testing.T) {
 		"denied",
 		"",
 		"",
+		"",
 	)
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
@@ -260,7 +264,7 @@ func TestEmitToContext_MultipleEvents(t *testing.T) {
 	}
 
 	for _, ev := range events {
-		emitToContext(em, "multi-server", ev.tool, ev.input, ev.output, "", ev.decision, "", "")
+		emitToContext(em, "multi-server", ev.tool, ev.input, ev.output, "", ev.decision, "", "", "")
 	}
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, len(events), 5*time.Second)
@@ -305,7 +309,7 @@ func TestEmitToContext_FireAndForgetWhenNoDaemon(t *testing.T) {
 
 	start := time.Now()
 	// emitToContext logs the drop via log.Printf — that's fine for tests.
-	emitToContext(em, "srv", "noop", nil, nil, "", "allowed", "", "")
+	emitToContext(em, "srv", "noop", nil, nil, "", "allowed", "", "", "")
 	elapsed := time.Since(start)
 
 	// 25ms dial timeout + 100ms write deadline = 125ms worst-case. We allow
@@ -333,7 +337,7 @@ func TestEmitToContext_NilInputsAreValid(t *testing.T) {
 
 	// nil input and output are valid: the emitter accepts them and the daemon
 	// treats them as absent. No panic, no error returned.
-	emitToContext(em, "srv", "tool-with-no-io", nil, nil, "", "allowed", "", "")
+	emitToContext(em, "srv", "tool-with-no-io", nil, nil, "", "allowed", "", "", "")
 }
 
 // TestEmitToContext_NilEmitterIsNoOp guards the nil-emitter path in serve():
@@ -343,7 +347,7 @@ func TestEmitToContext_NilInputsAreValid(t *testing.T) {
 // explicit guard at the call sites is kept for clarity.
 func TestEmitToContext_NilEmitterIsNoOp(t *testing.T) {
 	// Must not panic.
-	emitToContext(nil, "srv", "tool", nil, nil, "", "allowed", "", "")
+	emitToContext(nil, "srv", "tool", nil, nil, "", "allowed", "", "", "")
 }
 
 // TestEmitToContext_SessionIDPropagatesToReceipts verifies the ADR-0010 OQ4
@@ -357,7 +361,7 @@ func TestEmitToContext_SessionIDPropagatesToReceipts(t *testing.T) {
 	em := newSilentEmitter(t, d.cfg.SocketPath, sid)
 
 	for i := 0; i < 3; i++ {
-		emitToContext(em, "srv", "tool", json.RawMessage(`{"i":1}`), nil, "", "allowed", "", "")
+		emitToContext(em, "srv", "tool", json.RawMessage(`{"i":1}`), nil, "", "allowed", "", "", "")
 	}
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 3, 5*time.Second)
@@ -375,5 +379,97 @@ func TestEmitToContext_SessionIDPropagatesToReceipts(t *testing.T) {
 		if r.Issuer.SessionID != sid {
 			t.Errorf("receipt[%d]: issuer.session_id = %q; want %q", i, r.Issuer.SessionID, sid)
 		}
+	}
+}
+
+// TestEmitToContext_MappedToolForwardsActionType verifies issue #721 for the
+// proxy: a tool that resolves to a real taxonomic type sends that type on the
+// emitter frame, and the daemon uses it verbatim as action.type and resolves
+// the matching risk_level from the taxonomy. `delete_file` maps to
+// "data.api.delete" in the bundled github taxonomy (a high-risk data type), so
+// the resulting receipt must carry that type and risk_level: high.
+func TestEmitToContext_MappedToolForwardsActionType(t *testing.T) {
+	d := startTestDaemon(t, shortSocketDirEmitter(t))
+
+	em := newSilentEmitter(t, d.cfg.SocketPath, "proxy-test-session-mapped")
+
+	mappings, err := configs.BundledTaxonomies()
+	if err != nil {
+		t.Fatalf("BundledTaxonomies: %v", err)
+	}
+	const tool = "delete_file"
+	actionType := resolveActionType(tool, mappings)
+	if actionType != "data.api.delete" {
+		t.Fatalf("resolveActionType(%q) = %q; want %q (check bundled github taxonomy)", tool, actionType, "data.api.delete")
+	}
+
+	emitToContext(em, "github", tool,
+		json.RawMessage(`{"path":"secrets.txt"}`), nil, "", "allowed", "", "", actionType)
+
+	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
+
+	s, err := store.OpenReadOnly(d.cfg.DBPath)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer s.Close()
+	receipts, err := s.GetChain(d.cfg.ChainID)
+	if err != nil {
+		t.Fatalf("GetChain: %v", err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts, want 1", len(receipts))
+	}
+	action := receipts[0].CredentialSubject.Action
+	if action.Type != "data.api.delete" {
+		t.Errorf("action.type = %q; want %q (daemon must use the forwarded action_type verbatim)", action.Type, "data.api.delete")
+	}
+	if action.RiskLevel != receipt.RiskHigh {
+		t.Errorf("action.risk_level = %q; want %q (daemon resolves risk from the taxonomic type)", action.RiskLevel, receipt.RiskHigh)
+	}
+}
+
+// TestEmitToContext_UnknownToolOmitsActionType verifies the issue #721
+// constraint that the proxy sends NO action_type for a tool that does not map
+// to a real taxonomic type. resolveActionType returns "" for the unknown case,
+// the emitter omits the frame field, and the daemon falls back to its synthetic
+// "<channel>.<tool>" type (risk_level: medium).
+func TestEmitToContext_UnknownToolOmitsActionType(t *testing.T) {
+	d := startTestDaemon(t, shortSocketDirEmitter(t))
+
+	em := newSilentEmitter(t, d.cfg.SocketPath, "proxy-test-session-unknown")
+
+	mappings, err := configs.BundledTaxonomies()
+	if err != nil {
+		t.Fatalf("BundledTaxonomies: %v", err)
+	}
+	const tool = "totally_unmapped_tool_xyz"
+	if at := resolveActionType(tool, mappings); at != "" {
+		t.Fatalf("resolveActionType(%q) = %q; want empty (unmapped tool must not send a type)", tool, at)
+	}
+
+	// Mirror the proxy: an unmapped tool forwards an empty action_type.
+	emitToContext(em, "github", tool,
+		json.RawMessage(`{"q":"x"}`), nil, "", "allowed", "", "", resolveActionType(tool, mappings))
+
+	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
+
+	s, err := store.OpenReadOnly(d.cfg.DBPath)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer s.Close()
+	receipts, err := s.GetChain(d.cfg.ChainID)
+	if err != nil {
+		t.Fatalf("GetChain: %v", err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts, want 1", len(receipts))
+	}
+	// With no forwarded action_type the daemon derives the synthetic
+	// "<channel>.<tool>" type — "mcp.github.totally_unmapped_tool_xyz" — never a
+	// guessed taxonomic value.
+	if got := receipts[0].CredentialSubject.Action.Type; got != "mcp.github."+tool {
+		t.Errorf("action.type = %q; want synthetic fallback %q", got, "mcp.github."+tool)
 	}
 }
