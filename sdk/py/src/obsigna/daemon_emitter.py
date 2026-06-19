@@ -227,6 +227,7 @@ class DaemonEmitter:
         tool_name: str,
         decision: str,
         tool_server: str = "",
+        action_type: str = "",
         input: bytes | str | None = None,
         output: bytes | str | None = None,
         error: str = "",
@@ -251,6 +252,18 @@ class DaemonEmitter:
             Required. One of ``"allowed"``, ``"denied"``, or ``"pending"``.
         tool_server:
             Optional server qualifier for the tool.
+        action_type:
+            Optional taxonomic action type the emitter has already resolved
+            (e.g. ``"filesystem.file.delete"``). The daemon uses it verbatim as
+            ``action.type`` and resolves ``risk_level`` from it via the
+            taxonomy. When omitted (empty), the daemon falls back to a synthetic
+            ``"<channel>.<tool>"`` type that rarely matches the taxonomy, so
+            risk defaults to medium. Emitters that know the real action type
+            SHOULD set it — that is what makes risk-based controls (e.g.
+            parameter-disclosure ``"high"``) effective. Send the *type*, never a
+            risk level: the daemon always resolves risk itself rather than
+            trusting an emitter-supplied value, so this field cannot be used to
+            downgrade risk and evade a disclosure policy.
         input:
             Optional raw JSON bytes or string. Passed verbatim to the daemon —
             NOT re-serialised. Must be valid JSON when non-empty.
@@ -293,6 +306,11 @@ class DaemonEmitter:
                 "emitter: tool_server must be a str,"
                 f" got {type(tool_server).__name__!r}"
             )
+        if not isinstance(action_type, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise ValueError(
+                "emitter: action_type must be a str,"
+                f" got {type(action_type).__name__!r}"
+            )
         if not isinstance(error, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise ValueError(
                 f"emitter: error must be a str, got {type(error).__name__!r}"
@@ -312,6 +330,8 @@ class DaemonEmitter:
             "tool": _build_tool(tool_name, tool_server),
             "decision": decision,
         }
+        if action_type:
+            frame["action_type"] = action_type
         if raw_input is not None:
             frame["input"] = _RawJSON(raw_input)
         if raw_output is not None:

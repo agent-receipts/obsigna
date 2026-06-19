@@ -333,6 +333,12 @@ class TestDaemonEmitterValidation:
         with pytest.raises(ValueError, match="tool_name must be a str"):
             self.e.emit(channel="sdk", tool_name=42, decision="allowed")  # type: ignore[arg-type]
 
+    def test_non_str_action_type(self) -> None:
+        with pytest.raises(ValueError, match="action_type must be a str"):
+            self.e.emit(  # type: ignore[arg-type]
+                channel="sdk", tool_name="noop", decision="allowed", action_type=42
+            )
+
     def test_non_str_tool_server(self) -> None:
         with pytest.raises(ValueError, match="tool_server must be a str"):
             self.e.emit(  # type: ignore[arg-type]
@@ -628,6 +634,87 @@ class TestRawJSONPassthrough:
             assert b'{ "b":  2 , "a" : 1 }' in raw_frame
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _capture_one_frame(emit_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Emit a single frame through an in-process echo server and return it.
+
+    Spins up a one-shot AF_UNIX server, runs ``emit`` with ``emit_kwargs``
+    against it, and returns the decoded JSON frame the daemon would receive.
+    No real daemon required.
+    """
+    frames: list[bytes] = []
+    ready = threading.Event()
+    tmpdir = _short_tmp()
+    sock_path = os.path.join(tmpdir, "capture.sock")
+
+    def _server() -> None:
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        srv.bind(sock_path)
+        srv.listen(1)
+        ready.set()
+        conn, _ = srv.accept()
+        hdr = b""
+        while len(hdr) < 4:
+            chunk = conn.recv(4 - len(hdr))
+            if not chunk:
+                break
+            hdr += chunk
+        if len(hdr) == 4:
+            length = struct.unpack(">I", hdr)[0]
+            body = b""
+            while len(body) < length:
+                chunk = conn.recv(length - len(body))
+                if not chunk:
+                    break
+                body += chunk
+            frames.append(body)
+        conn.close()
+        srv.close()
+
+    t = threading.Thread(target=_server, daemon=True)
+    t.start()
+    ready.wait(timeout=2)
+    try:
+        e = DaemonEmitter(socket_path=sock_path)
+        e.emit(**emit_kwargs)
+        e.close()
+        t.join(timeout=2)
+        assert frames, "no frame received by echo server"
+        return json.loads(frames[0])
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestActionType:
+    """The emitter forwards a resolved taxonomic action_type to the daemon.
+
+    The daemon uses action_type verbatim as action.type and resolves risk
+    from the taxonomy, so a high-risk type can drive risk-based controls
+    (parameter-disclosure "high"). The field is omitted when empty so the
+    daemon's "<channel>.<tool>" fallback stays in effect (issue #721).
+    """
+
+    def test_action_type_present_in_frame(self) -> None:
+        frame = _capture_one_frame(
+            {
+                "channel": "sdk",
+                "tool_name": "rm",
+                "decision": "allowed",
+                "action_type": "filesystem.file.delete",
+            }
+        )
+        assert frame["action_type"] == "filesystem.file.delete"
+
+    def test_action_type_absent_when_empty(self) -> None:
+        frame = _capture_one_frame(
+            {
+                "channel": "sdk",
+                "tool_name": "rm",
+                "decision": "allowed",
+            }
+        )
+        assert "action_type" not in frame
 
 
 # ---------------------------------------------------------------------------
