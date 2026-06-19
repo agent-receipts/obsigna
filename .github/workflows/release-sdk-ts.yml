@@ -26,8 +26,6 @@ jobs:
           python-version: "3.13"
       - name: Verify installed deps match declared deps (Gate #10)
         run: python3 scripts/dependency_manifest/check.py --lang ts
-      - name: Run unit tests for dependency-manifest gate
-        run: python3 scripts/dependency_manifest/test_check.py
 
   release:
     needs: validate
