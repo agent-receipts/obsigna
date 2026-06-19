@@ -29,26 +29,35 @@ inline. Status values: `planned`, `in-progress`, `done`, `deferred`.
 
 ## Regulated industries readiness (v1.5)
 
-Items required before a bank, insurer, or healthcare provider can deploy
-Agent Receipts in production. These are not optional for adoption in
-regulated industries.
+Items relevant before a bank, insurer, or healthcare provider can deploy
+Agent Receipts in production. Sequenced together because they share one
+target audience (regulated-industries adopters) rather than dripped into v2.
+
+The split below reflects a triage by cost-to-build against existing
+plumbing, not by label: the cheap-and-core items (timestamp anchoring,
+revocation, store-completeness — all of which reuse the daemon's existing
+out-of-band anchoring) stay `planned`; the heavy-and-substitutable items
+(HSM, a separate verifier service, at-scale multi-tenancy docs) are
+`deferred` until a concrete regulated deployment drives them.
 
 | Item | ADR | Issue | Status |
 |---|---|---|---|
-| PKCS#11 / CloudHSM `Signer` adapter | ADR-0018 | #489 | planned |
 | RFC 3161 TSA timestamp anchoring (elevated from v2) | ADR-0019 § P3 | #482 | planned |
+| Regional TSA support (eIDAS, ICP-Brasil, etc.) — layers on #482 | new ADR needed | #492 | planned |
 | Revocation list format and reference implementation (elevated from v2) | ADR-0019 § O1 | #483 | planned |
-| `CheckpointPublisher` with object-lock reference backend (elevated from v2) | ADR-0019 § O2 | #484 | planned |
+| `CheckpointPublisher` with object-lock reference backend — base checkpoint anchoring shipped (#889); production object-lock sink remains | ADR-0019 § O2 | #484 | planned |
 | Content-addressed payload storage (GDPR erasure) | ADR-0019 § S3 (extends) | #731 | planned |
-| Standalone verifier service (separable from SDK) | new ADR needed | #490 | planned |
 | Downloadable conformance test suite (packaged suite extending the base vectors shipped in #474) | ADR-0019 § S1 (extends) | not filed | planned |
-| Multi-tenancy guidance — key management at scale | docs | #491 | planned |
-| Regional TSA support (eIDAS, ICP-Brasil, etc.) | new ADR needed | #492 | planned |
+| PKCS#11 / CloudHSM `Signer` adapter | ADR-0018 | #489 | deferred |
+| Standalone verifier service (separable from SDK) — `obsigna verify` CLI already covers the air-gapped audit case | new ADR needed | #490 | deferred |
+| Multi-tenancy guidance — key management at scale | docs | #491 | deferred |
 
-These items have a coherent target audience (regulated-industries adopters) and
-should be sequenced together rather than dripped into v2. Moving them to
-v1.5 surfaces them as a deliberate milestone rather than indefinitely
-deferred work.
+The `deferred` rows are closed as not-planned (#489, #490, #491). They are
+not required for v1.5 adoption: HSM-backed custody is substitutable by the
+existing file/KMS `Signer` paths, standalone verification is already served
+by the `obsigna verify` static binary, and at-scale multi-tenancy docs would
+describe infrastructure that does not yet exist. Each reopens, or gets a
+fresh scoped issue, when a real regulated deployment needs it.
 
 ---
 
@@ -111,8 +120,8 @@ across workstreams they can be parallelised.
 
 | Item | ADR | Issue | Status |
 |---|---|---|---|
-| Bounded `input`/`output` payload via `PayloadStrategy` (truncation; content-addressed/GDPR erasure split to #731, v1.5) | ADR-0019 § S3 | #478 | planned |
-| `parameterDisclosure` Phase A — cross-SDK + OpenClaw migration (envelope already shipped in Go #468 / TS #472; Python SDK envelope, OpenClaw rename, cross-SDK tests remain) | ADR-0012 | #280 | in-progress |
+| Bound remaining inline plaintext fields — cap `error` / `prompt_preview` + truncation flag (hash-first model superseded the original `PayloadStrategy` framing; content-addressed/GDPR erasure split to #731, v1.5) | ADR-0019 § S3 | #478 | planned |
+| `parameterDisclosure` Phase A — cross-SDK + OpenClaw migration (envelope, Python SDK, OpenClaw rename, cross-SDK tests all shipped) | ADR-0012 | #280 | done |
 
 ### Cross-SDK parity
 
