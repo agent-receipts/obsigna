@@ -10,7 +10,25 @@ permissions:
   id-token: write
 
 jobs:
+  # Gate #10 (pre-publish): every dependency installed into the artifact must be
+  # declared in pyproject.toml or recorded in the gate's allowlist with a
+  # justification. Runs before release so an undeclared, un-allow-listed
+  # dependency stops the publish instead of merely turning a run red after the
+  # version is already live on PyPI. Manifest-vs-manifest — no network, no install.
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Verify installed deps match declared deps (Gate #10)
+        run: python3 scripts/dependency_manifest/check.py --lang py
+
   release:
+    needs: validate
     runs-on: ubuntu-latest
     # Deployment environment lets you attach protection rules (required
     # reviewers, wait timer, branch restrictions) to gate who can trigger
