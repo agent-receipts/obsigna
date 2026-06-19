@@ -11,6 +11,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Added
+
+- **`receipt.VerifyRaw(rawJSON []byte, publicKeyPEM string)`** — verifies a receipt's Ed25519 signature directly from its verbatim on-wire JSON bytes, the verification counterpart to `HashRawReceipt`. Because `Sign` canonicalizes the whole signed payload, a newer SDK that adds and signs over a field nested inside the payload (e.g. under `credentialSubject`) produces a receipt that the struct-based `Verify` false-negatives — it drops the unknown field on `Unmarshal` before canonicalizing — but that `VerifyRaw` accepts. Collectors and auditors holding the raw bytes should prefer `VerifyRaw`. The shared Ed25519 proof-check logic is now factored out of `Verify`; behaviour is unchanged.
+
 ## [0.20.0-alpha.1] - 2026-06-13
 
 ### Added

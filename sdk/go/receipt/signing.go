@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -83,18 +84,109 @@ func Sign(unsigned UnsignedAgentReceipt, privateKeyPEM string, verificationMetho
 }
 
 // Verify checks the Ed25519 signature on a signed receipt.
+//
+// Verify canonicalizes a re-marshal of the Go struct, so any field a newer SDK
+// added inside the signed payload (e.g. nested under credentialSubject) is
+// dropped on the way in and does not contribute to the verified bytes — turning
+// a genuinely valid signature into a false negative. When you hold the verbatim
+// wire bytes (as a collector or auditor does), prefer VerifyRaw, which is to
+// Verify what HashRawReceipt is to HashReceipt.
 func Verify(r AgentReceipt, publicKeyPEM string) (bool, error) {
-	if r.Proof.Type != ProofTypeEd25519Signature2020 {
-		return false, fmt.Errorf("unsupported proof type %q: only %s is accepted", r.Proof.Type, ProofTypeEd25519Signature2020)
+	unsigned := UnsignedAgentReceipt{
+		Context:           r.Context,
+		ID:                r.ID,
+		Type:              r.Type,
+		Version:           r.Version,
+		Issuer:            r.Issuer,
+		IssuanceDate:      r.IssuanceDate,
+		CredentialSubject: r.CredentialSubject,
 	}
-	if len(r.Proof.ProofValue) < 2 {
-		return false, errors.New("proof value too short")
+	canonical, err := Canonicalize(unsigned)
+	if err != nil {
+		return false, fmt.Errorf("canonicalize for verification: %w", err)
 	}
-	if r.Proof.ProofValue[0] != 'u' {
-		return false, fmt.Errorf("unsupported multibase prefix: %q", r.Proof.ProofValue[0])
+	return verifyCanonical(canonical, r.Proof.Type, r.Proof.ProofValue, publicKeyPEM)
+}
+
+// VerifyRaw checks the Ed25519 signature on a receipt directly from its on-wire
+// JSON bytes, without round-tripping through the Go struct.
+//
+// This is the verification counterpart to HashRawReceipt: it canonicalizes the
+// verbatim wire bytes (minus the proof block), so every field present on the
+// wire — including ones the current Go struct does not know about — contributes
+// to the verified payload. Sign canonicalizes the whole UnsignedAgentReceipt,
+// so a newer SDK that adds and signs over a field nested in the payload produces
+// a receipt that VerifyRaw accepts but the struct-based Verify rejects.
+//
+// The proof block is read from the raw bytes and stripped before
+// canonicalization, matching Sign's "unsigned receipt" signing scheme.
+//
+// Returns an error if rawJSON is not a JSON object, carries no usable proof, or
+// the proof encoding is malformed; returns (false, nil) when the signature is
+// well-formed but does not verify against publicKeyPEM.
+func VerifyRaw(rawJSON []byte, publicKeyPEM string) (bool, error) {
+	var generic map[string]any
+	if err := json.Unmarshal(rawJSON, &generic); err != nil {
+		return false, fmt.Errorf("unmarshal raw receipt: %w", err)
+	}
+	// json.Unmarshal of "null" into *map sets generic to nil rather than
+	// failing — reject explicitly, mirroring HashRawReceipt.
+	if generic == nil {
+		return false, errors.New("raw receipt is not a JSON object")
 	}
 
-	signature, err := base64.RawURLEncoding.DecodeString(r.Proof.ProofValue[1:])
+	proofType, proofValue, err := rawProof(generic)
+	if err != nil {
+		return false, err
+	}
+
+	delete(generic, "proof")
+	canonical, err := Canonicalize(generic)
+	if err != nil {
+		return false, fmt.Errorf("canonicalize raw receipt: %w", err)
+	}
+
+	return verifyCanonical(canonical, proofType, proofValue, publicKeyPEM)
+}
+
+// rawProof extracts proof.type and proof.proofValue from a raw receipt's
+// generic representation. A missing field yields the empty string, which
+// verifyCanonical rejects with the same error a struct receipt would produce.
+// A field that is present but not a JSON string is malformed and rejected here,
+// rather than being coerced to "" and producing a misleading downstream error.
+func rawProof(generic map[string]any) (proofType, proofValue string, err error) {
+	proof, ok := generic["proof"].(map[string]any)
+	if !ok {
+		return "", "", errors.New("raw receipt has no proof object")
+	}
+	if v, present := proof["type"]; present {
+		if proofType, ok = v.(string); !ok {
+			return "", "", errors.New("raw receipt proof.type is not a string")
+		}
+	}
+	if v, present := proof["proofValue"]; present {
+		if proofValue, ok = v.(string); !ok {
+			return "", "", errors.New("raw receipt proof.proofValue is not a string")
+		}
+	}
+	return proofType, proofValue, nil
+}
+
+// verifyCanonical checks an Ed25519 proof over an already-canonicalized payload.
+// It is the shared crypto core of Verify and VerifyRaw; the two differ only in
+// how they derive the canonical bytes (struct re-marshal vs verbatim wire bytes).
+func verifyCanonical(canonical, proofType, proofValue, publicKeyPEM string) (bool, error) {
+	if proofType != ProofTypeEd25519Signature2020 {
+		return false, fmt.Errorf("unsupported proof type %q: only %s is accepted", proofType, ProofTypeEd25519Signature2020)
+	}
+	if len(proofValue) < 2 {
+		return false, errors.New("proof value too short")
+	}
+	if proofValue[0] != 'u' {
+		return false, fmt.Errorf("unsupported multibase prefix: %q", proofValue[0])
+	}
+
+	signature, err := base64.RawURLEncoding.DecodeString(proofValue[1:])
 	if err != nil {
 		return false, fmt.Errorf("decode proof value: %w", err)
 	}
@@ -105,21 +197,6 @@ func Verify(r AgentReceipt, publicKeyPEM string) (bool, error) {
 	pubKey, err := parsePublicKey(publicKeyPEM)
 	if err != nil {
 		return false, err
-	}
-
-	unsigned := UnsignedAgentReceipt{
-		Context:           r.Context,
-		ID:                r.ID,
-		Type:              r.Type,
-		Version:           r.Version,
-		Issuer:            r.Issuer,
-		IssuanceDate:      r.IssuanceDate,
-		CredentialSubject: r.CredentialSubject,
-	}
-
-	canonical, err := Canonicalize(unsigned)
-	if err != nil {
-		return false, fmt.Errorf("canonicalize for verification: %w", err)
 	}
 
 	return ed25519.Verify(pubKey, []byte(canonical), signature), nil
