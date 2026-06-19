@@ -199,6 +199,13 @@ type Event struct {
 	// for filesystem tools). Optional; omitted from the frame when System and
 	// Resource are both empty.
 	Target Target
+
+	// PromptPreview is a plaintext preview of the prompt that triggered the
+	// action. The daemon stores it in intent.prompt_preview, truncating it to a
+	// configured rune cap and flagging intent.prompt_preview_truncated when it
+	// cuts. It is the only plaintext intent field carried inline; conversation
+	// and reasoning are hash-only. Optional; omitted from the frame when empty.
+	PromptPreview string
 }
 
 // Option configures an Emitter at construction.
@@ -367,6 +374,7 @@ type frame struct {
 	CaptureMethod  string          `json:"capture_method,omitempty"`
 	TargetSystem   string          `json:"target_system,omitempty"`
 	TargetResource string          `json:"target_resource,omitempty"`
+	PromptPreview  string          `json:"prompt_preview,omitempty"`
 }
 
 type frameTool struct {
@@ -530,6 +538,7 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 		CaptureMethod:  ev.CaptureMethod,
 		TargetSystem:   ev.Target.System,
 		TargetResource: ev.Target.Resource,
+		PromptPreview:  ev.PromptPreview,
 	})
 	if err != nil {
 		// Marshal failure is a caller bug, not a transient outage. Restore

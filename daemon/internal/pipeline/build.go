@@ -42,6 +42,29 @@ const maxIdentityFieldLen = 256
 // rather than the identity-field limit.
 const maxTargetResourceLen = 4096
 
+// DefaultMaxErrorLen and DefaultMaxPromptPreviewLen are the default rune caps
+// for the two plaintext-bearing fields the daemon still writes inline (issue
+// #478). Both default to 256 runes — the same order of magnitude as the
+// identity-field byte cap — so a hostile or runaway value cannot inflate the
+// receipt, slow canonicalisation, or degrade audit-trail readability. Unlike
+// the identity fields (which are rejected outright), these two are truncated:
+// an error message or prompt preview is descriptive context, so dropping the
+// whole receipt to punch a hole in the audit trail is the worse outcome. The
+// caps are rune-based so truncation never splits a UTF-8 sequence. Exported so
+// the daemon's config layer shares one source of truth for the default.
+const (
+	DefaultMaxErrorLen         = 256
+	DefaultMaxPromptPreviewLen = 256
+)
+
+// errorTruncatedSuffix is appended to a truncated outcome.error. The outcome
+// object's schema sets additionalProperties:false (spec
+// agent-receipt.schema.json), so there is no room for a dedicated
+// error_truncated flag without a protocol change; the marker keeps the
+// truncation visible in-band, inside the existing error string, the same way
+// prompt_preview signals truncation via its own typed flag.
+const errorTruncatedSuffix = " […error truncated]"
+
 // SupportedFrameVersion is the only emitter-frame schema this daemon accepts.
 // Bumping it requires a migration plan and a daemon-side translator for the
 // old version; until that exists, accepting unknown versions would silently
@@ -133,6 +156,13 @@ type EmitterFrame struct {
 	// Both are optional; omitted when the tool has no addressable resource.
 	TargetSystem   string `json:"target_system,omitempty"`
 	TargetResource string `json:"target_resource,omitempty"`
+	// PromptPreview is a plaintext preview of the prompt that triggered the
+	// action. When set, the daemon stores it (truncated to MaxPromptPreviewLen
+	// runes) in intent.prompt_preview and flags intent.prompt_preview_truncated
+	// when it had to cut. It is the only plaintext intent field carried inline;
+	// conversation/reasoning are hash-only. Optional; omitted when the emitter
+	// has no prompt to preview.
+	PromptPreview string `json:"prompt_preview,omitempty"`
 }
 
 // EmitterTool identifies the tool the agent invoked.
@@ -181,6 +211,15 @@ type Pipeline struct {
 	// original emitter payload. Nil = no redaction.
 	Redactor *Redactor
 
+	// MaxErrorLen and MaxPromptPreviewLen bound, in runes, the two plaintext
+	// fields the daemon writes inline (issue #478): outcome.error and
+	// intent.prompt_preview. New installs the defaults; the daemon overrides them
+	// from config. A non-positive value disables truncation for that field — set
+	// it deliberately, never by leaving the struct zero-valued (New guards
+	// against that).
+	MaxErrorLen         int
+	MaxPromptPreviewLen int
+
 	// Checkpointer, when set, receives the chain HEAD after every committed
 	// receipt and emits an out-of-band signed checkpoint per its cadence
 	// (ADR-0008 follow-through, truncation anchor). Nil = checkpointing
@@ -219,14 +258,16 @@ type Pipeline struct {
 // time.Now.UTC.
 func New(s *chain.State, ks keysource.KeySource, store pipelineStore, issuerID string) *Pipeline {
 	return &Pipeline{
-		State:       s,
-		Keys:        ks,
-		Store:       store,
-		IssuerID:    issuerID,
-		Now:         func() time.Time { return time.Now().UTC() },
-		TraceLog:    nil,
-		rootChainID: s.ChainID(),
-		agentChains: make(map[string]*chain.State),
+		State:               s,
+		Keys:                ks,
+		Store:               store,
+		IssuerID:            issuerID,
+		Now:                 func() time.Time { return time.Now().UTC() },
+		TraceLog:            nil,
+		MaxErrorLen:         DefaultMaxErrorLen,
+		MaxPromptPreviewLen: DefaultMaxPromptPreviewLen,
+		rootChainID:         s.ChainID(),
+		agentChains:         make(map[string]*chain.State),
 	}
 }
 
@@ -785,10 +826,17 @@ func (p *Pipeline) buildAndSign(
 	// canonical bytes; redaction only sanitises the human-readable string
 	// fields written into the receipt body. The error field is not hashed, so
 	// it is redacted unconditionally when a Redactor is set.
+	//
+	// Bound the error AFTER redaction so the cap reflects what is actually
+	// stored: redaction can grow the string (a long match replaced by a longer
+	// placeholder), so capping first could still leave an over-cap value. The
+	// error is plaintext written inline (issue #478); truncating keeps a hostile
+	// or runaway message from inflating the receipt and slowing canonicalisation.
 	errText := f.Error
 	if p.Redactor != nil {
 		errText = p.Redactor.Redact(errText)
 	}
+	errText = truncateError(errText, p.MaxErrorLen)
 
 	outcome := receipt.Outcome{
 		Status: status,
@@ -812,6 +860,7 @@ func (p *Pipeline) buildAndSign(
 		Principal:     principalFromPeer(peer),
 		Action:        action,
 		Outcome:       outcome,
+		Intent:        intentFromFrame(f, p.MaxPromptPreviewLen),
 		CorrelationID: f.CorrelationID,
 		Delegation:    delegation,
 		Chain: receipt.Chain{
@@ -861,6 +910,52 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 		SessionID: f.SessionID,
 		Runtime:   runtime,
 	}
+}
+
+// intentFromFrame builds the receipt Intent from the emitter frame, truncating
+// the plaintext prompt_preview to maxPreviewLen runes (issue #478). It returns
+// nil when the emitter sent no preview, so the receipt omits the intent block
+// entirely rather than emitting an empty object. The conversation/reasoning
+// hashes are not carried on the daemon emit path today — only the one inline
+// plaintext intent field is, which is why it is the only one bounded here.
+func intentFromFrame(f *EmitterFrame, maxPreviewLen int) *receipt.Intent {
+	if f.PromptPreview == "" {
+		return nil
+	}
+	// A non-positive cap disables truncation, matching truncateError and the
+	// flag/env/TOML contract ("negative disables"). The shared
+	// TruncatePromptPreview helper instead treats maxLen <= 0 as "drop the
+	// whole preview", so guard it here rather than route a disable through it.
+	if maxPreviewLen <= 0 {
+		return &receipt.Intent{PromptPreview: f.PromptPreview}
+	}
+	preview, truncated := receipt.TruncatePromptPreview(f.PromptPreview, maxPreviewLen)
+	intent := &receipt.Intent{PromptPreview: preview}
+	if truncated {
+		intent.PromptPreviewTruncated = &truncated
+	}
+	return intent
+}
+
+// truncateError caps an outcome.error to maxLen runes, appending
+// errorTruncatedSuffix when it had to cut. A non-positive maxLen disables the
+// cap (returns s unchanged) — the daemon never passes one, but a library caller
+// can opt out explicitly. The cap is rune-based so it never splits a UTF-8
+// sequence. Unlike prompt_preview, the truncation is recorded in-band: the
+// outcome schema is closed (additionalProperties:false), so there is no field
+// for an error_truncated flag without a protocol change.
+func truncateError(s string, maxLen int) string {
+	if maxLen <= 0 {
+		return s
+	}
+	count := 0
+	for i := range s { // walk only up to the cap; never materialise []rune(s)
+		if count == maxLen {
+			return s[:i] + errorTruncatedSuffix
+		}
+		count++
+	}
+	return s
 }
 
 // buildAndSignDropReceipt constructs a synthetic events_dropped receipt.

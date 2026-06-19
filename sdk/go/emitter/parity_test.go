@@ -33,6 +33,7 @@ func TestFrameParityKnownFields(t *testing.T) {
 		"operator_id",
 		"operator_name",
 		"output",
+		"prompt_preview",
 		"session_id",
 		"target_resource",
 		"target_system",

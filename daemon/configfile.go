@@ -47,6 +47,11 @@ type FileConfig struct {
 	// mirrors --checkpoint-cadence.
 	CheckpointAnchor  *string `toml:"checkpoint_anchor"`
 	CheckpointCadence *int    `toml:"checkpoint_cadence"`
+	// MaxErrorLen and MaxPromptPreviewLen mirror --max-error-len and
+	// --max-prompt-preview-len: rune caps on the inline outcome.error and
+	// intent.prompt_preview fields (issue #478).
+	MaxErrorLen         *int `toml:"max_error_len"`
+	MaxPromptPreviewLen *int `toml:"max_prompt_preview_len"`
 }
 
 // DisclosureConfig is the parsed `parameter_disclosure` config-file value. It

@@ -326,6 +326,8 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 	fs.DurationVar(&cfg.ShutdownDeadline, "shutdown-deadline", cfg.ShutdownDeadline, "Best-effort time budget for emitting interrupted-chain terminators on SIGTERM/SIGINT (cannot preempt in-progress SQLite I/O)")
 	checkpointAnchor := fs.String("checkpoint-anchor", strings.Join(cfg.CheckpointAnchors, ","), "Comma-separated out-of-band checkpoint anchor sinks (ADR-0008 truncation anchor): file:<path>, git:<dir>, syslog:<tag>, or a bare path (=file:). Empty disables checkpointing. (env: AGENTRECEIPTS_CHECKPOINT_ANCHOR)")
 	fs.IntVar(&cfg.CheckpointCadence, "checkpoint-cadence", cfg.CheckpointCadence, "Receipts between checkpoint emissions per chain; 0/1 = every receipt. A graceful shutdown always forces a final checkpoint. (env: AGENTRECEIPTS_CHECKPOINT_CADENCE)")
+	fs.IntVar(&cfg.MaxErrorLen, "max-error-len", cfg.MaxErrorLen, "Rune cap on the inline outcome.error string; oversized values are truncated, not rejected. 0 = default (256); negative disables truncation. (env: AGENTRECEIPTS_MAX_ERROR_LEN)")
+	fs.IntVar(&cfg.MaxPromptPreviewLen, "max-prompt-preview-len", cfg.MaxPromptPreviewLen, "Rune cap on the inline intent.prompt_preview string; oversized values are truncated and prompt_preview_truncated is set. 0 = default (256); negative disables truncation. (env: AGENTRECEIPTS_MAX_PROMPT_PREVIEW_LEN)")
 
 	// scanConfigFlag (via loadConfigLayer) is the source of truth for --config:
 	// it has already consumed the value, so we never read *configPath. The flag
@@ -510,6 +512,12 @@ func applyFileConfig(cfg *daemon.Config, fc *daemon.FileConfig) {
 	if fc.CheckpointCadence != nil {
 		cfg.CheckpointCadence = *fc.CheckpointCadence
 	}
+	if fc.MaxErrorLen != nil {
+		cfg.MaxErrorLen = *fc.MaxErrorLen
+	}
+	if fc.MaxPromptPreviewLen != nil {
+		cfg.MaxPromptPreviewLen = *fc.MaxPromptPreviewLen
+	}
 }
 
 // envOverlay applies AGENTRECEIPTS_* environment variables over cfg. An unset
@@ -570,6 +578,20 @@ func envOverlay(cfg *daemon.Config, getenv func(string) string) error {
 		}
 		cfg.CheckpointCadence = n
 	}
+	if v := getenv("AGENTRECEIPTS_MAX_ERROR_LEN"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("invalid AGENTRECEIPTS_MAX_ERROR_LEN %q: want an integer", v)
+		}
+		cfg.MaxErrorLen = n
+	}
+	if v := getenv("AGENTRECEIPTS_MAX_PROMPT_PREVIEW_LEN"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("invalid AGENTRECEIPTS_MAX_PROMPT_PREVIEW_LEN %q: want an integer", v)
+		}
+		cfg.MaxPromptPreviewLen = n
+	}
 	return nil
 }
 
@@ -604,4 +626,19 @@ func printConfig(w io.Writer, cfg daemon.Config) {
 	fmt.Fprintf(w, "shutdown_deadline = %q\n", cfg.ShutdownDeadline.String())
 	fmt.Fprintf(w, "checkpoint_anchor = %q\n", strings.Join(cfg.CheckpointAnchors, ","))
 	fmt.Fprintf(w, "checkpoint_cadence = %d\n", cfg.CheckpointCadence)
+	// Resolve 0 (unset) to the effective default so the printed config reflects
+	// the cap the daemon will actually apply, not a confusing 0. A negative value
+	// (truncation disabled) is printed verbatim.
+	fmt.Fprintf(w, "max_error_len = %d\n", resolveCap(cfg.MaxErrorLen, daemon.DefaultMaxErrorLen))
+	fmt.Fprintf(w, "max_prompt_preview_len = %d\n", resolveCap(cfg.MaxPromptPreviewLen, daemon.DefaultMaxPromptPreviewLen))
+}
+
+// resolveCap returns def when v is 0 (unset) and v otherwise, so a printed cap
+// reflects the value the daemon will apply. A negative v (truncation disabled)
+// is returned as-is.
+func resolveCap(v, def int) int {
+	if v == 0 {
+		return def
+	}
+	return v
 }
