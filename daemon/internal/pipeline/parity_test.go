@@ -11,13 +11,12 @@ import (
 // exactly match the expected list. The expected list is the contract:
 // updating it forces a deliberate review of the wire format change.
 //
-// EmitterFrame mirrors sdk/go/emitter.frame field-for-field, plus the
-// extra "action_type" field that the daemon reads but the emitter omits.
-// A divergence here means a daemon that reads fields the emitter never
-// writes, or vice versa.
+// EmitterFrame mirrors sdk/go/emitter.frame field-for-field. A divergence
+// here means a daemon that reads fields the emitter never writes, or vice
+// versa.
 func TestEmitterFrameParityKnownFields(t *testing.T) {
 	expected := []string{
-		"action_type", // EmitterFrame-only: taxonomic action type resolved by emitter
+		"action_type", // taxonomic action type the emitter resolved (e.g. filesystem.file.delete)
 		"agent_id",
 		"agent_type",
 		"capture_method",

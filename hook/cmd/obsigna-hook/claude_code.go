@@ -69,10 +69,23 @@ func readClaudeCode(stdin []byte, env func(string) string) (emitter.Event, strin
 	// slices and the daemon expects nil to mean "no payload".
 	if len(f.ToolInput) > 0 {
 		ev.Input = f.ToolInput
-		if sys, res, warn := extractFileTarget(f.ToolName, f.ToolInput); res != "" {
-			ev.Target = emitter.Target{System: sys, Resource: res}
-		} else if warn != "" {
-			fmt.Fprintln(os.Stderr, warn)
+		switch {
+		case f.ToolName == "Bash":
+			// Best-effort: classify common filesystem-mutating shell commands
+			// (rm/mv/cp and > redirects) so a destructive delete carries a
+			// filesystem target and its real (high) risk instead of looking
+			// like a harmless command. Unparseable commands fall through with
+			// no target, preserving current behaviour.
+			if sys, res, at := extractBashTarget(f.ToolInput); res != "" {
+				ev.Target = emitter.Target{System: sys, Resource: res}
+				ev.ActionType = at
+			}
+		default:
+			if sys, res, warn := extractFileTarget(f.ToolName, f.ToolInput); res != "" {
+				ev.Target = emitter.Target{System: sys, Resource: res}
+			} else if warn != "" {
+				fmt.Fprintln(os.Stderr, warn)
+			}
 		}
 	}
 	if len(f.ToolResponse) > 0 {

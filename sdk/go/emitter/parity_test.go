@@ -11,11 +11,12 @@ import (
 // exactly match the expected list. The expected list is the contract:
 // updating it forces a deliberate review of the wire format change.
 //
-// frame mirrors daemon/internal/pipeline.EmitterFrame field-for-field
-// (minus EmitterFrame's extra "action_type" field). A divergence here
-// means a daemon that reads fields the emitter never writes, or vice versa.
+// frame mirrors daemon/internal/pipeline.EmitterFrame field-for-field.
+// A divergence here means a daemon that reads fields the emitter never
+// writes, or vice versa.
 func TestFrameParityKnownFields(t *testing.T) {
 	expected := []string{
+		"action_type",
 		"agent_id",
 		"agent_type",
 		"capture_method",
