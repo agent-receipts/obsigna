@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (2026-06-19). All Post 3 / v1 gaps are implemented; the remaining
+gaps are documented limitations sequenced for v1.5 / v2 per `ROADMAP.md`
+(the authoritative sequencing source).
 
 ## Context
 

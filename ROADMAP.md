@@ -168,5 +168,5 @@ The following were originally targeted for v2 but elevated to v1.5
 | ADR | Title | Status |
 |---|---|---|
 | ADR-0018 | Signer abstraction and cloud-agnostic KeyProvider design | Accepted |
-| ADR-0019 | Protocol integrity gaps and mitigations | Proposed |
+| ADR-0019 | Protocol integrity gaps and mitigations | Accepted |
 | ADR-0020 | Emitter abstraction and remote receipt delivery | Accepted |
