@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Superseded by ADR-0037 (the canonical path moves to the `obsigna.dev/sdk/go`
+vanity import path; the standalone-module deprecation, D2, still stands).
 
 ## Context
 

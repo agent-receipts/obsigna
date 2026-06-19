@@ -36,7 +36,7 @@ Use `0000-template.md` as the starting point for new ADRs. Name each new ADR fil
 | [ADR-0020](0020-emitter-abstraction-and-remote-receipt-delivery.md) | Emitter Abstraction and Remote Receipt Delivery | Accepted |
 | [ADR-0021](0021-spec-and-context-versioning.md) | Spec and JSON-LD Context Versioning, with Permanent Per-Version URLs | Accepted |
 | [ADR-0022](0022-canonical-deployment-shape.md) | Canonical Agent Receipts Deployment Shape (Daemon-Mediated Primary, In-Process Tutorial-Only) | Accepted |
-| [ADR-0023](0023-canonical-go-module-path.md) | Canonical Go Module Path | Accepted |
+| [ADR-0023](0023-canonical-go-module-path.md) | Canonical Go Module Path | Superseded by ADR-0037 |
 | [ADR-0024](0024-project-verification-contract.md) | Project Verification Contract — Every Asserted Property Has a Gate | Accepted |
 | [ADR-0025](0025-emit-failure-contract.md) | Emit Failure Contract | Accepted |
 | [ADR-0026](0026-issuer-runtime-open-metadata.md) | Issuer Runtime Open Metadata Sub-object | Accepted |
@@ -50,6 +50,7 @@ Use `0000-template.md` as the starting point for new ADRs. Name each new ADR fil
 | [ADR-0034](0034-consolidate-go-toolset-release-train.md) | Consolidate the Go Toolset into One obsigna Release Train | Accepted |
 | [ADR-0035](0035-collector-binary-topology.md) | Collector Binary Topology — Minimal obsigna-collector, obsigna collector run | Accepted |
 | [ADR-0036](0036-hook-binary-topology.md) | Hook Binary Topology — Minimal obsigna-hook, no launcher | Accepted |
+| [ADR-0037](0037-vanity-go-module-path.md) | Vanity Go Module Path on obsigna.dev | Accepted |
 
 ## References
 
