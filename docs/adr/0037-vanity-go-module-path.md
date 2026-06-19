@@ -35,8 +35,9 @@ project:
    cloning that exact repository location. `github.com/agent-receipts/ar/sdk/go`
    works today only because GitHub redirects `agent-receipts/ar.git` to
    `agent-receipts/obsigna.git`. **That redirect is conditional: it lasts only
-   while the old name stays vacant.** The moment anyone (re)creates a repository
-   at `agent-receipts/ar`, GitHub stops redirecting and Go resolves the import
+   while the old name stays vacant.** The moment the `agent-receipts` org (or
+   an attacker who gains access to it) (re)creates a repository at
+   `agent-receipts/ar`, GitHub stops redirecting and Go resolves the import
    against the *new* occupant of that path. For a project whose entire purpose
    is cryptographically trustworthy provenance, leaving the resolution of our
    own module identity hostage to a vacated repository name is unacceptable. The
