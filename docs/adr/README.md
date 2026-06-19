@@ -51,6 +51,7 @@ Use `0000-template.md` as the starting point for new ADRs. Name each new ADR fil
 | [ADR-0035](0035-collector-binary-topology.md) | Collector Binary Topology — Minimal obsigna-collector, obsigna collector run | Accepted |
 | [ADR-0036](0036-hook-binary-topology.md) | Hook Binary Topology — Minimal obsigna-hook, no launcher | Accepted |
 | [ADR-0037](0037-vanity-go-module-path.md) | Vanity Go Module Path on obsigna.dev | Accepted |
+| [ADR-0038](0038-grounded-principal-conformance-tier.md) | Grounded-Principal Conformance Tier | Proposed |
 
 ## References
 
