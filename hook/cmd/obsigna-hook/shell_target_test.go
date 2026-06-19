@@ -122,6 +122,41 @@ func TestExtractBashTarget(t *testing.T) {
 			wantRes:    "a b.txt",
 			wantAction: actionFileCreate,
 		},
+		// --- quoted metacharacters must NOT read as operators ---
+		{
+			name:    "redirect arrow inside a quoted commit message is not a redirect",
+			command: `git commit -m "rename foo -> bar"`,
+		},
+		{
+			name:    "gt inside a quoted grep pattern is not a redirect",
+			command: `grep "a>b" file.txt`,
+		},
+		{
+			name:    "quoted semicolon is not a chain operator",
+			command: `git commit -m "first; second"`,
+		},
+		{
+			name:       "rm of a filename literally containing gt stays a delete",
+			command:    `rm "weird>name.txt"`,
+			wantSys:    "filesystem",
+			wantRes:    "weird>name.txt",
+			wantAction: actionFileDelete,
+		},
+		// --- destructive verb wins over a redirect (no risk downgrade) ---
+		{
+			name:       "rm with output redirect is still a delete, not a create",
+			command:    "rm -v foo > log.txt",
+			wantSys:    "filesystem",
+			wantRes:    "foo",
+			wantAction: actionFileDelete,
+		},
+		{
+			name:       "mv with output redirect is still a move",
+			command:    "mv -v a.txt b.txt > log.txt",
+			wantSys:    "filesystem",
+			wantRes:    "b.txt",
+			wantAction: actionFileMove,
+		},
 		// --- non-extractable: fall back cleanly ---
 		{
 			name:    "glob target not claimed",
