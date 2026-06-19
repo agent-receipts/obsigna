@@ -463,12 +463,14 @@ func TestVerifyRaw_RejectsMalformedInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases := map[string]string{
-		"non-object array":  `[1,2,3]`,
-		"non-object number": `42`,
-		"non-object null":   `null`,
-		"empty":             ``,
-		"no proof block":    `{"id":"urn:r:1","credentialSubject":{"x":1}}`,
-		"proof not object":  `{"id":"urn:r:1","proof":"u-AAA"}`,
+		"non-object array":            `[1,2,3]`,
+		"non-object number":           `42`,
+		"non-object null":             `null`,
+		"empty":                       ``,
+		"no proof block":              `{"id":"urn:r:1","credentialSubject":{"x":1}}`,
+		"proof not object":            `{"id":"urn:r:1","proof":"u-AAA"}`,
+		"proof.type not string":       `{"id":"urn:r:1","proof":{"type":123,"proofValue":"uAAA"}}`,
+		"proof.proofValue not string": `{"id":"urn:r:1","proof":{"type":"Ed25519Signature2020","proofValue":123}}`,
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

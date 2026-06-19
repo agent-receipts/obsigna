@@ -152,13 +152,23 @@ func VerifyRaw(rawJSON []byte, publicKeyPEM string) (bool, error) {
 // rawProof extracts proof.type and proof.proofValue from a raw receipt's
 // generic representation. A missing field yields the empty string, which
 // verifyCanonical rejects with the same error a struct receipt would produce.
+// A field that is present but not a JSON string is malformed and rejected here,
+// rather than being coerced to "" and producing a misleading downstream error.
 func rawProof(generic map[string]any) (proofType, proofValue string, err error) {
 	proof, ok := generic["proof"].(map[string]any)
 	if !ok {
 		return "", "", errors.New("raw receipt has no proof object")
 	}
-	proofType, _ = proof["type"].(string)
-	proofValue, _ = proof["proofValue"].(string)
+	if v, present := proof["type"]; present {
+		if proofType, ok = v.(string); !ok {
+			return "", "", errors.New("raw receipt proof.type is not a string")
+		}
+	}
+	if v, present := proof["proofValue"]; present {
+		if proofValue, ok = v.(string); !ok {
+			return "", "", errors.New("raw receipt proof.proofValue is not a string")
+		}
+	}
 	return proofType, proofValue, nil
 }
 
