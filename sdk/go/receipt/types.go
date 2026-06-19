@@ -460,13 +460,18 @@ type KeyPair struct {
 }
 
 // TruncatePromptPreview truncates s to maxLen runes and sets the truncated flag.
+// It walks runes only up to the cap rather than materialising the whole string
+// as []rune, so a large (untrusted) input is bounded in both time and memory.
 func TruncatePromptPreview(s string, maxLen int) (preview string, truncated bool) {
 	if maxLen <= 0 {
 		return "", len(s) > 0
 	}
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s, false
+	count := 0
+	for i := range s { // range yields the byte index at each rune boundary
+		if count == maxLen {
+			return s[:i], true
+		}
+		count++
 	}
-	return string(runes[:maxLen]), true
+	return s, false
 }

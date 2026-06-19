@@ -948,11 +948,14 @@ func truncateError(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return s
 	}
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
+	count := 0
+	for i := range s { // walk only up to the cap; never materialise []rune(s)
+		if count == maxLen {
+			return s[:i] + errorTruncatedSuffix
+		}
+		count++
 	}
-	return string(runes[:maxLen]) + errorTruncatedSuffix
+	return s
 }
 
 // buildAndSignDropReceipt constructs a synthetic events_dropped receipt.
