@@ -294,13 +294,13 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 			}
 			return emit(ExitOK)
 		}
-		anchorResult := "fail"
+		anchorResultLabel := "fail"
 		label := "FAIL"
 		if ar.Truncated {
-			anchorResult = "fail_truncation"
+			anchorResultLabel = "fail_truncation"
 			label = "FAIL (truncation)"
 		}
-		outcome.Anchor = &anchorOutcome{Checked: ar.Checked, Result: anchorResult, Reason: ar.Reason, HeadSeq: headSeq}
+		outcome.Anchor = &anchorOutcome{Checked: ar.Checked, Result: anchorResultLabel, Reason: ar.Reason, HeadSeq: headSeq}
 		if !*asJSON {
 			fmt.Fprintf(stdout, "Anchor %s: %s — %s\n", *againstAnchor, label, ar.Reason)
 		}
