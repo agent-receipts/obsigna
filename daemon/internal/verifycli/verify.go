@@ -18,6 +18,7 @@ package verifycli
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/agent-receipts/ar/daemon"
@@ -40,6 +42,41 @@ const (
 	ExitChainBad   = 1 // chain failed verification
 	ExitUsageError = 2 // bad flags / unreadable DB or key file
 )
+
+// receiptStatus is one receipt's per-check status in a broken-chain --json
+// report, mirroring the human `[i] id — STATUS` lines.
+type receiptStatus struct {
+	Index     int    `json:"index"`
+	ReceiptID string `json:"receipt_id"`
+	Status    string `json:"status"` // "ok" | "bad_signature" | "bad_hash_link" | "bad_sequence"
+}
+
+// anchorOutcome is the structured --against-anchor result carried in --json
+// output (ADR-0008). Reason is empty on pass.
+type anchorOutcome struct {
+	Checked int    `json:"checked"` // verified checkpoints for the chain
+	Result  string `json:"result"`  // "pass" | "fail" | "fail_truncation"
+	Reason  string `json:"reason,omitempty"`
+	HeadSeq int64  `json:"head_seq"`
+}
+
+// verifyOutcome is the full result of a `receipt verify` run, emitted as a
+// single JSON object under --json. A wrapper object (rather than a bare value)
+// mirrors the verify-event pattern so the contract can grow new fields without
+// breaking parsers that key off the existing ones. ExitCode duplicates the
+// process exit code so a caller capturing only stdout still sees the verdict.
+type verifyOutcome struct {
+	ChainID    string          `json:"chain_id"`
+	Verified   bool            `json:"verified"`
+	ExitCode   int             `json:"exit_code"`
+	Length     int             `json:"length"`
+	Head       string          `json:"head,omitempty"`
+	BrokenAt   *int            `json:"broken_at,omitempty"`
+	Cause      string          `json:"cause,omitempty"`
+	Receipts   []receiptStatus `json:"receipts,omitempty"`
+	Advisories []string        `json:"advisories"`
+	Anchor     *anchorOutcome  `json:"anchor,omitempty"`
+}
 
 // Run executes the verify subcommand with the given args (sans the program
 // name and "verify" subcommand token), writing human-readable output to
@@ -74,6 +111,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	pubKeyPath := fs.String("public-key", defaultPubKey, "PEM-encoded SPKI public key path (env: AGENTRECEIPTS_PUBLIC_KEY)")
 	chainID := fs.String("chain-id", envOr("AGENTRECEIPTS_CHAIN_ID", time.Now().UTC().Format("2006-01-02")), "Chain id to verify (env: AGENTRECEIPTS_CHAIN_ID)")
 	againstAnchor := fs.String("against-anchor", envOr("AGENTRECEIPTS_AGAINST_ANCHOR", ""), "Path to an out-of-band checkpoint anchor log (ADR-0008). When set, verify additionally checks the chain HEAD against the latest signed checkpoint and fails on tail truncation. Default off: behaviour without this flag is unchanged. (env: AGENTRECEIPTS_AGAINST_ANCHOR)")
+	asJSON := fs.Bool("json", false, "Emit a single machine-readable JSON object on stdout instead of human-readable text. Exit codes are unchanged; diagnostics stay on stderr.")
 	if err := fs.Parse(args); err != nil {
 		// `-h` / `--help` is intentional, not an error — flag.ContinueOnError
 		// surfaces it as flag.ErrHelp after writing the usage message. Exit 0
@@ -145,6 +183,30 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 
 	result := receipt.VerifyChain(receipts, genesisPEM)
 
+	// Accumulate the structured outcome alongside the human-readable output so
+	// --json can emit it without a second code path. Advisories starts as a
+	// non-nil empty slice so it serialises as [] rather than null. emit renders
+	// JSON when --json is set, otherwise it is a no-op and the inline
+	// fmt.Fprintf calls (guarded by !*asJSON) carry the human output.
+	outcome := verifyOutcome{
+		ChainID:    *chainID,
+		Length:     result.Length,
+		Advisories: []string{},
+	}
+	if n := len(receipts); n > 0 {
+		if head, herr := receipt.HashReceipt(receipts[n-1]); herr == nil {
+			outcome.Head = head
+		}
+	}
+	emit := func(code int) int {
+		if *asJSON {
+			outcome.ExitCode = code
+			outcome.Verified = code == ExitOK
+			return writeJSON(stdout, stderr, outcome)
+		}
+		return code
+	}
+
 	// Pin a rotation-resolved chain back to the operator's published key.
 	// resolveGenesisKey anchors on whatever archived key signed receipt[0], so a
 	// chain forged end-to-end under an attacker key — with a matching
@@ -165,13 +227,19 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		currentFp, rotated := currentChainKeyFingerprint(receipts)
 		switch {
 		case !rotated:
-			fmt.Fprintf(stdout, "Chain %s: BROKEN — verified against an archived key, but the chain has no key rotation that installs the published key %s\n", *chainID, *pubKeyPath)
-			return ExitChainBad
+			outcome.Cause = fmt.Sprintf("verified against an archived key, but the chain has no key rotation that installs the published key %s", *pubKeyPath)
+			if !*asJSON {
+				fmt.Fprintf(stdout, "Chain %s: BROKEN — %s\n", *chainID, outcome.Cause)
+			}
+			return emit(ExitChainBad)
 		case currentFp != publishedFp:
-			fmt.Fprintf(stdout, "Chain %s: BROKEN — rotation chain does not terminate at the published key\n", *chainID)
-			fmt.Fprintf(stdout, "  cause: verified from archived genesis %s, but the chain's current key %s is not the published key %s (%s)\n",
+			outcome.Cause = fmt.Sprintf("verified from archived genesis %s, but the chain's current key %s is not the published key %s (%s)",
 				genesisPath, currentFp, *pubKeyPath, publishedFp)
-			return ExitChainBad
+			if !*asJSON {
+				fmt.Fprintf(stdout, "Chain %s: BROKEN — rotation chain does not terminate at the published key\n", *chainID)
+				fmt.Fprintf(stdout, "  cause: %s\n", outcome.Cause)
+			}
+			return emit(ExitChainBad)
 		}
 	}
 
@@ -184,18 +252,26 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	// ADR-0020). It does NOT break the chain, so it never changes the exit
 	// code — surface it as an advisory line regardless of Valid.
 	if result.IncompleteToolRoundtrip {
-		fmt.Fprintln(stdout, "Advisory: incomplete tool roundtrip: final tool call has no result receipt")
+		outcome.Advisories = append(outcome.Advisories, "incomplete tool roundtrip: final tool call has no result receipt")
+		if !*asJSON {
+			fmt.Fprintln(stdout, "Advisory: incomplete tool roundtrip: final tool call has no result receipt")
+		}
 	}
 	if result.IncompleteSession {
-		fmt.Fprintln(stdout, "Advisory: incomplete session: PTY open/close imbalance")
+		outcome.Advisories = append(outcome.Advisories, "incomplete session: PTY open/close imbalance")
+		if !*asJSON {
+			fmt.Fprintln(stdout, "Advisory: incomplete session: PTY open/close imbalance")
+		}
 	}
 
 	if result.Valid {
-		noun := "receipts"
-		if result.Length == 1 {
-			noun = "receipt"
+		if !*asJSON {
+			noun := "receipts"
+			if result.Length == 1 {
+				noun = "receipt"
+			}
+			fmt.Fprintf(stdout, "Chain %s: VALID (%d %s)\n", *chainID, result.Length, noun)
 		}
-		fmt.Fprintf(stdout, "Chain %s: VALID (%d %s)\n", *chainID, result.Length, noun)
 
 		// Out-of-band anchor check (ADR-0008), opt-in via --against-anchor. A
 		// tail-truncated chain still verifies as VALID above — its remaining
@@ -203,7 +279,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		// that can catch a dropped tail. Default off: without the flag this
 		// returns here, byte-identical to before.
 		if *againstAnchor == "" {
-			return ExitOK
+			return emit(ExitOK)
 		}
 		headSeq, headHash, headFound, terr := s.GetChainTail(*chainID)
 		if terr != nil {
@@ -212,36 +288,90 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		}
 		ar := verifyAgainstAnchor(*againstAnchor, *chainID, string(pubPEM), headSeq, headHash, headFound)
 		if ar.OK {
-			fmt.Fprintf(stdout, "Anchor %s: PASS (%d checkpoint(s); head seq %d anchored)\n", *againstAnchor, ar.Checked, headSeq)
-			return ExitOK
+			outcome.Anchor = &anchorOutcome{Checked: ar.Checked, Result: "pass", HeadSeq: headSeq}
+			if !*asJSON {
+				fmt.Fprintf(stdout, "Anchor %s: PASS (%d checkpoint(s); head seq %d anchored)\n", *againstAnchor, ar.Checked, headSeq)
+			}
+			return emit(ExitOK)
 		}
+		anchorResultLabel := "fail"
 		label := "FAIL"
 		if ar.Truncated {
+			anchorResultLabel = "fail_truncation"
 			label = "FAIL (truncation)"
 		}
-		fmt.Fprintf(stdout, "Anchor %s: %s — %s\n", *againstAnchor, label, ar.Reason)
-		return ExitChainBad
-	}
-	fmt.Fprintf(stdout, "Chain %s: BROKEN at receipt %d\n", *chainID, result.BrokenAt)
-	if result.Error != "" {
-		// Surface the structured failure cause from VerifyChain — for hash
-		// recompute / response_hash / chain-length / terminal-receipt errors
-		// it carries detail the per-receipt status lines can't express.
-		fmt.Fprintf(stdout, "  cause: %s\n", result.Error)
-	}
-	for _, rv := range result.Receipts {
-		status := "ok"
-		switch {
-		case !rv.SignatureValid:
-			status = "BAD SIGNATURE"
-		case !rv.HashLinkValid:
-			status = "BAD HASH LINK"
-		case !rv.SequenceValid:
-			status = "BAD SEQUENCE"
+		outcome.Anchor = &anchorOutcome{Checked: ar.Checked, Result: anchorResultLabel, Reason: ar.Reason, HeadSeq: headSeq}
+		if !*asJSON {
+			fmt.Fprintf(stdout, "Anchor %s: %s — %s\n", *againstAnchor, label, ar.Reason)
 		}
-		fmt.Fprintf(stdout, "  [%d] %s — %s\n", rv.Index, rv.ReceiptID, status)
+		return emit(ExitChainBad)
 	}
-	return ExitChainBad
+
+	brokenAt := result.BrokenAt
+	outcome.BrokenAt = &brokenAt
+	// Surface the structured failure cause from VerifyChain — for hash
+	// recompute / response_hash / chain-length / terminal-receipt errors it
+	// carries detail the per-receipt status lines can't express.
+	outcome.Cause = result.Error
+	for _, rv := range result.Receipts {
+		outcome.Receipts = append(outcome.Receipts, receiptStatus{Index: rv.Index, ReceiptID: rv.ReceiptID, Status: receiptStatusCode(rv)})
+	}
+	if !*asJSON {
+		fmt.Fprintf(stdout, "Chain %s: BROKEN at receipt %d\n", *chainID, result.BrokenAt)
+		if result.Error != "" {
+			fmt.Fprintf(stdout, "  cause: %s\n", result.Error)
+		}
+		for _, rv := range result.Receipts {
+			fmt.Fprintf(stdout, "  [%d] %s — %s\n", rv.Index, rv.ReceiptID, receiptStatusLabel(rv))
+		}
+	}
+	return emit(ExitChainBad)
+}
+
+// receiptStatusCode maps a per-receipt verification to its machine-readable
+// --json status token.
+func receiptStatusCode(rv receipt.ReceiptVerification) string {
+	switch {
+	case !rv.SignatureValid:
+		return "bad_signature"
+	case !rv.HashLinkValid:
+		return "bad_hash_link"
+	case !rv.SequenceValid:
+		return "bad_sequence"
+	default:
+		return "ok"
+	}
+}
+
+// receiptStatusLabel maps a per-receipt verification to its human-readable
+// status label.
+func receiptStatusLabel(rv receipt.ReceiptVerification) string {
+	switch {
+	case !rv.SignatureValid:
+		return "BAD SIGNATURE"
+	case !rv.HashLinkValid:
+		return "BAD HASH LINK"
+	case !rv.SequenceValid:
+		return "BAD SEQUENCE"
+	default:
+		return "ok"
+	}
+}
+
+// writeJSON encodes the outcome as an indented JSON object on stdout and
+// returns the process exit code. A closed stdout pipe (the reader hung up) is
+// not a verify failure, so the verdict exit code is preserved.
+func writeJSON(stdout, stderr io.Writer, o verifyOutcome) int {
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(o); err != nil {
+		if errors.Is(err, syscall.EPIPE) || errors.Is(err, io.ErrClosedPipe) {
+			return o.ExitCode
+		}
+		fmt.Fprintf(stderr, "obsigna receipt verify: encode JSON: %v\n", err)
+		return ExitUsageError
+	}
+	return o.ExitCode
 }
 
 // validatePublicKeyPEM rejects PEM bytes that don't decode to an Ed25519 SPKI
