@@ -610,6 +610,81 @@ func TestReadClaudeCode_Target(t *testing.T) {
 	}
 }
 
+// TestReadClaudeCode_BashTarget verifies that readClaudeCode classifies common
+// filesystem-mutating Bash commands, populating ev.Target and ev.ActionType so
+// a destructive delete carries a filesystem target and its real risk, while
+// non-mutating or unparseable commands leave both empty (current behaviour).
+func TestReadClaudeCode_BashTarget(t *testing.T) {
+	cases := []struct {
+		name       string
+		command    string
+		wantSys    string
+		wantRes    string
+		wantAction string
+	}{
+		{
+			name:       "rm -rf gets filesystem target and delete action",
+			command:    "rm -rf build",
+			wantSys:    "filesystem",
+			wantRes:    "build",
+			wantAction: "filesystem.file.delete",
+		},
+		{
+			name:       "mv gets move action with dest target",
+			command:    "mv a.txt b.txt",
+			wantSys:    "filesystem",
+			wantRes:    "b.txt",
+			wantAction: "filesystem.file.move",
+		},
+		{
+			name:       "redirect gets create action",
+			command:    "echo hi > out.txt",
+			wantSys:    "filesystem",
+			wantRes:    "out.txt",
+			wantAction: "filesystem.file.create",
+		},
+		{
+			name:    "non-mutating command leaves target and action empty",
+			command: "go test ./...",
+		},
+		{
+			name:    "glob falls back cleanly",
+			command: "rm *.log",
+		},
+	}
+	noEnv := func(string) string { return "" }
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			input, err := json.Marshal(map[string]string{"command": tc.command})
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			stdin, err := json.Marshal(map[string]any{
+				"hook_event_name": "PostToolUse",
+				"session_id":      "s",
+				"tool_name":       "Bash",
+				"tool_input":      json.RawMessage(input),
+			})
+			if err != nil {
+				t.Fatalf("marshal stdin: %v", err)
+			}
+			ev, _, err := readClaudeCode(stdin, noEnv)
+			if err != nil {
+				t.Fatalf("readClaudeCode: %v", err)
+			}
+			if ev.Target.System != tc.wantSys {
+				t.Errorf("Target.System = %q; want %q", ev.Target.System, tc.wantSys)
+			}
+			if ev.Target.Resource != tc.wantRes {
+				t.Errorf("Target.Resource = %q; want %q", ev.Target.Resource, tc.wantRes)
+			}
+			if ev.ActionType != tc.wantAction {
+				t.Errorf("ActionType = %q; want %q", ev.ActionType, tc.wantAction)
+			}
+		})
+	}
+}
+
 // --- resolveVersion unit tests ---
 
 // TestResolveVersion_PrefersLDFlagInjection pins the precedence the

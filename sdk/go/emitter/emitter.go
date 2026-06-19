@@ -133,6 +133,17 @@ type Event struct {
 	Error    string
 	Decision string
 
+	// ActionType, when set, is the taxonomic action type the emitter has
+	// already resolved for this call (e.g. "filesystem.file.delete"). The
+	// daemon uses it verbatim as action.type and derives risk_level from it via
+	// the taxonomy, so a known-destructive call carries its real risk instead of
+	// the UnknownAction medium a synthetic "<channel>.<tool>" type would yield.
+	// The daemon derives risk only from this type and never accepts a separate
+	// emitter-supplied risk level — but risk follows the type, so a mislabeled
+	// type yields that type's risk. Emitters must send the true action type, not
+	// a lower-risk one. Optional; omitted from the frame when empty.
+	ActionType string
+
 	// optional issuer/operator identity fields — forwarded to the daemon so
 	// it can stamp receipt.Issuer.Name, receipt.Issuer.Model, and
 	// receipt.Issuer.Operator. When empty, the Emitter's Defaults are used.
@@ -337,6 +348,7 @@ type frame struct {
 	SessionID      string          `json:"session_id"`
 	Channel        string          `json:"channel"`
 	Tool           frameTool       `json:"tool"`
+	ActionType     string          `json:"action_type,omitempty"`
 	Input          json.RawMessage `json:"input,omitempty"`
 	Output         json.RawMessage `json:"output,omitempty"`
 	Error          string          `json:"error,omitempty"`
@@ -475,7 +487,7 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 	}
 	// Mirror the daemon's per-field length cap so oversized values are caught
 	// at the emitter rather than silently rejected by the daemon after the write.
-	for _, f := range [9]struct{ name, val string }{
+	for _, f := range [10]struct{ name, val string }{
 		{"issuer_name", issuerName},
 		{"issuer_model", issuerModel},
 		{"operator_id", operatorID},
@@ -485,6 +497,7 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 		{"agent_id", ev.AgentID},
 		{"model", ev.Model},
 		{"capture_method", ev.CaptureMethod},
+		{"action_type", ev.ActionType},
 	} {
 		if len(f.val) > MaxIdentityFieldLen {
 			e.dropCount.Add(pendingDrops)
@@ -498,6 +511,7 @@ func (e *DaemonEmitter) Emit(ctx context.Context, ev Event) error {
 		SessionID:      e.sessionID,
 		Channel:        ev.Channel,
 		Tool:           frameTool{Server: ev.Tool.Server, Name: ev.Tool.Name},
+		ActionType:     ev.ActionType,
 		Input:          ev.Input,
 		Output:         ev.Output,
 		Error:          ev.Error,
