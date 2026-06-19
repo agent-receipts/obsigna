@@ -922,6 +922,13 @@ func intentFromFrame(f *EmitterFrame, maxPreviewLen int) *receipt.Intent {
 	if f.PromptPreview == "" {
 		return nil
 	}
+	// A non-positive cap disables truncation, matching truncateError and the
+	// flag/env/TOML contract ("negative disables"). The shared
+	// TruncatePromptPreview helper instead treats maxLen <= 0 as "drop the
+	// whole preview", so guard it here rather than route a disable through it.
+	if maxPreviewLen <= 0 {
+		return &receipt.Intent{PromptPreview: f.PromptPreview}
+	}
 	preview, truncated := receipt.TruncatePromptPreview(f.PromptPreview, maxPreviewLen)
 	intent := &receipt.Intent{PromptPreview: preview}
 	if truncated {

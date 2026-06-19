@@ -180,6 +180,27 @@ func TestBuildAndSign_PromptPreviewAtCapUntouched(t *testing.T) {
 	}
 }
 
+// TestBuildAndSign_NegativePromptPreviewCapDisables verifies a non-positive cap
+// disables truncation (the documented "negative disables" contract) rather than
+// dropping the whole preview. The shared TruncatePromptPreview helper treats
+// maxLen <= 0 as "return empty, mark truncated"; intentFromFrame must not.
+func TestBuildAndSign_NegativePromptPreviewCapDisables(t *testing.T) {
+	preview := strings.Repeat("p", 4096)
+	r := processFrame(t, previewFrame(preview), func(p *Pipeline) { p.MaxPromptPreviewLen = -1 })
+
+	intent := r.CredentialSubject.Intent
+	if intent == nil {
+		t.Fatal("intent nil; a disabled cap must still store the preview")
+	}
+	if intent.PromptPreview != preview {
+		t.Errorf("prompt_preview = %q (len %d), want full preview untruncated (len %d)",
+			intent.PromptPreview, len(intent.PromptPreview), len(preview))
+	}
+	if intent.PromptPreviewTruncated != nil {
+		t.Errorf("prompt_preview_truncated = %v, want absent when truncation is disabled", *intent.PromptPreviewTruncated)
+	}
+}
+
 // TestBuildAndSign_NoPromptPreviewNoIntent verifies a frame without a prompt
 // preview produces no intent block at all (omitempty), keeping the receipt
 // byte-identical to today's output for emitters that send no preview.
