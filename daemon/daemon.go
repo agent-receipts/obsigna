@@ -127,6 +127,18 @@ type Config struct {
 	// CheckpointAnchors is non-empty. Set from --checkpoint-cadence
 	// (env: AGENTRECEIPTS_CHECKPOINT_CADENCE).
 	CheckpointCadence int
+
+	// MaxErrorLen and MaxPromptPreviewLen bound, in runes, the two plaintext
+	// fields the daemon still writes inline (issue #478): outcome.error and
+	// intent.prompt_preview. An oversized value is truncated, not rejected — the
+	// descriptive context is worth keeping even clipped, and dropping the whole
+	// receipt would punch a hole in the audit trail. Default to 256 (matching the
+	// identity-field cap's order of magnitude) when zero; a negative value
+	// disables truncation for that field. Set from --max-error-len /
+	// --max-prompt-preview-len (env: AGENTRECEIPTS_MAX_ERROR_LEN /
+	// AGENTRECEIPTS_MAX_PROMPT_PREVIEW_LEN).
+	MaxErrorLen         int
+	MaxPromptPreviewLen int
 }
 
 // DefaultSocketPath returns the per-OS default socket path. Phase 1 resolves
@@ -217,6 +229,15 @@ func DefaultPublicKeyPath(keyPath string) string {
 const (
 	DefaultIssuerID             = "did:agent-receipts-daemon:local"
 	DefaultVerificationMethodID = DefaultIssuerID + "#k1"
+)
+
+// DefaultMaxErrorLen and DefaultMaxPromptPreviewLen are the default rune caps
+// for the inline plaintext fields outcome.error and intent.prompt_preview
+// (issue #478). They re-export the pipeline package's defaults so the config
+// layer (flags, --print-config) shares the pipeline's single source of truth.
+const (
+	DefaultMaxErrorLen         = pipeline.DefaultMaxErrorLen
+	DefaultMaxPromptPreviewLen = pipeline.DefaultMaxPromptPreviewLen
 )
 
 // DefaultForensicKeyPath returns the default forensic private-key path,
@@ -564,6 +585,17 @@ func Run(ctx context.Context, cfg Config) error {
 	pp.ErrorLog = cfg.Logger.Printf
 	pp.DisclosurePolicy = policy
 	pp.ForensicPublicKey = forensicPublicKey
+
+	// Bound the inline plaintext fields (issue #478). New already installed sane
+	// defaults; only override when the operator configured a non-zero cap, so a
+	// zero/unset Config value keeps the default rather than disabling truncation.
+	// A negative value is a deliberate opt-out and is forwarded as-is.
+	if cfg.MaxErrorLen != 0 {
+		pp.MaxErrorLen = cfg.MaxErrorLen
+	}
+	if cfg.MaxPromptPreviewLen != 0 {
+		pp.MaxPromptPreviewLen = cfg.MaxPromptPreviewLen
+	}
 
 	// Always enable redaction with the built-in patterns. If the operator
 	// supplied a patterns file, load and merge the custom patterns.

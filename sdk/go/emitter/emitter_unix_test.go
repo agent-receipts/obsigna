@@ -19,6 +19,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1201,5 +1202,78 @@ func TestEmit_ConcurrentCallsAreSerialised(t *testing.T) {
 		if err := json.Unmarshal(f, &got); err != nil {
 			t.Errorf("frame %d: unmarshal: %v (raw: %s)", i, err, f)
 		}
+	}
+}
+
+// TestEmit_PromptPreviewStampedOnFrame verifies the optional PromptPreview
+// event field reaches the wire frame as prompt_preview, so the daemon can store
+// (and bound) intent.prompt_preview. The emitter forwards it verbatim; the
+// daemon owns truncation (issue #478).
+func TestEmit_PromptPreviewStampedOnFrame(t *testing.T) {
+	dir := shortSocketDir(t)
+	rl := newRecordingListener(t, dir)
+
+	em, err := NewDaemon(
+		WithSocketPath(rl.path),
+		WithSessionID("preview-test"),
+		WithLogger(silentLogger()),
+	)
+	if err != nil {
+		t.Fatalf("NewDaemon: %v", err)
+	}
+	defer em.Close()
+
+	const preview = "Send the Q3 report to the team"
+	ev := Event{
+		Channel:       "claude-code",
+		Tool:          Tool{Name: "Bash"},
+		Decision:      "allowed",
+		PromptPreview: preview,
+	}
+	if err := em.Emit(context.Background(), ev); err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+
+	frames := rl.waitForFrames(t, 1, 2*time.Second)
+	if len(frames) != 1 {
+		t.Fatalf("got %d frames; want 1", len(frames))
+	}
+	var got frame
+	if err := json.Unmarshal(frames[0], &got); err != nil {
+		t.Fatalf("unmarshal frame: %v (raw: %s)", err, frames[0])
+	}
+	if got.PromptPreview != preview {
+		t.Errorf("frame.prompt_preview = %q; want %q", got.PromptPreview, preview)
+	}
+}
+
+// TestEmit_NoPromptPreviewOmitted verifies an empty PromptPreview is omitted
+// from the frame entirely (omitempty), so emitters that send no preview produce
+// the same bytes as before this field existed.
+func TestEmit_NoPromptPreviewOmitted(t *testing.T) {
+	dir := shortSocketDir(t)
+	rl := newRecordingListener(t, dir)
+
+	em, err := NewDaemon(
+		WithSocketPath(rl.path),
+		WithSessionID("no-preview-test"),
+		WithLogger(silentLogger()),
+	)
+	if err != nil {
+		t.Fatalf("NewDaemon: %v", err)
+	}
+	defer em.Close()
+
+	ev := Event{Channel: "claude-code", Tool: Tool{Name: "Bash"}, Decision: "allowed"}
+	if err := em.Emit(context.Background(), ev); err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+
+	frames := rl.waitForFrames(t, 1, 2*time.Second)
+	if len(frames) != 1 {
+		t.Fatalf("got %d frames; want 1", len(frames))
+	}
+	if strings.Contains(string(frames[0]), "prompt_preview") {
+		t.Errorf("frame should omit prompt_preview when unset; got %s", frames[0])
 	}
 }
