@@ -3,8 +3,10 @@
 package daemon
 
 import (
+	"errors"
 	"net"
 	"sort"
+	"syscall"
 	"testing"
 	"time"
 
@@ -113,10 +115,12 @@ func TestResumesChainAfterUncleanShutdown(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		conn, err := net.DialTimeout("unix", cfg.SocketPath, 100*time.Millisecond)
-		if err != nil {
-			break // Socket is unconnectable, safe to restart
+		if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
+			break // Socket is truly gone, safe to restart
 		}
-		conn.Close()
+		if err == nil {
+			conn.Close()
+		}
 		if time.Now().After(deadline) {
 			t.Fatalf("first daemon socket still listening after 2s, restart would conflict")
 		}

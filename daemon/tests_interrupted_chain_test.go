@@ -10,11 +10,13 @@ package daemon_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -356,10 +358,12 @@ func TestNoTerminatorOnAlreadyTerminatedChain(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		conn, dialErr := net.DialTimeout("unix", mkCfg().SocketPath, 100*time.Millisecond)
-		if dialErr != nil {
+		if errors.Is(dialErr, syscall.ENOENT) || errors.Is(dialErr, syscall.ECONNREFUSED) {
 			break
 		}
-		conn.Close()
+		if dialErr == nil {
+			conn.Close()
+		}
 		if time.Now().After(deadline) {
 			t.Fatal("first daemon socket still listening — cannot start second run")
 		}
@@ -425,10 +429,12 @@ func TestDaemonAutoAdvancesTerminatedChain(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		conn, dialErr := net.DialTimeout("unix", cfg.SocketPath, 100*time.Millisecond)
-		if dialErr != nil {
+		if errors.Is(dialErr, syscall.ENOENT) || errors.Is(dialErr, syscall.ECONNREFUSED) {
 			break
 		}
-		conn.Close()
+		if dialErr == nil {
+			conn.Close()
+		}
 		if time.Now().After(deadline) {
 			t.Fatal("first daemon socket still listening — cannot start second daemon")
 		}
