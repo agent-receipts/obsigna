@@ -5,14 +5,18 @@ import (
 	"strings"
 )
 
-// Taxonomy action types for filesystem mutations. These mirror the entries in
+// Taxonomy action types for filesystem operations. These mirror the entries in
 // sdk/go/taxonomy so the daemon resolves a real risk level from action.type
-// (delete → high, move/copy/create → medium/low) instead of defaulting to the
-// UnknownAction medium risk a synthetic "claude-code.Bash" type would yield.
+// (delete → high, modify/move/copy → medium, create/read → low) instead of
+// defaulting to the UnknownAction medium risk a synthetic "claude-code.<tool>"
+// type would yield. Shared across the Bash-command classifier (extractBashTarget)
+// and the native-tool classifier (nativeToolActionType).
 const (
 	actionFileDelete = "filesystem.file.delete"
 	actionFileMove   = "filesystem.file.move"
 	actionFileCreate = "filesystem.file.create"
+	actionFileRead   = "filesystem.file.read"
+	actionFileModify = "filesystem.file.modify"
 )
 
 // forbiddenOps are unquoted shell metacharacters that make a command line

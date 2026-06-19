@@ -685,6 +685,103 @@ func TestReadClaudeCode_BashTarget(t *testing.T) {
 	}
 }
 
+// TestNativeToolActionType verifies the native-tool → taxonomy mapping: Read
+// reads, Write/Edit/MultiEdit modify, and any tool we cannot map honestly
+// (MCP-namespaced, Bash, or an unknown opportunistic tool) returns "".
+func TestNativeToolActionType(t *testing.T) {
+	cases := []struct {
+		toolName string
+		want     string
+	}{
+		{"Read", "filesystem.file.read"},
+		{"Write", "filesystem.file.modify"},
+		{"Edit", "filesystem.file.modify"},
+		{"MultiEdit", "filesystem.file.modify"},
+		{"Bash", ""},
+		{"Move", ""},
+		{"mcp__github-audited__create_or_update_file", ""},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.toolName, func(t *testing.T) {
+			if got := nativeToolActionType(tc.toolName); got != tc.want {
+				t.Errorf("nativeToolActionType(%q) = %q; want %q", tc.toolName, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestReadClaudeCode_NativeActionType verifies that readClaudeCode stamps the
+// taxonomic action_type on native file tools (so the daemon resolves real risk),
+// while leaving it empty for opportunistically-captured tools and MCP tools whose
+// verb the hook cannot honestly name.
+func TestReadClaudeCode_NativeActionType(t *testing.T) {
+	cases := []struct {
+		name       string
+		stdin      string
+		wantRes    string
+		wantAction string
+	}{
+		{
+			name: "Read carries read action",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Read",` +
+				`"tool_input":{"file_path":"/etc/hosts"},"tool_response":{"content":"127.0.0.1"}}`,
+			wantRes:    "/etc/hosts",
+			wantAction: "filesystem.file.read",
+		},
+		{
+			name: "Write carries modify action",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Write",` +
+				`"tool_input":{"file_path":"out.go","content":"package main"}}`,
+			wantRes:    "out.go",
+			wantAction: "filesystem.file.modify",
+		},
+		{
+			name: "Edit carries modify action",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Edit",` +
+				`"tool_input":{"file_path":"x.go","old_string":"a","new_string":"b"}}`,
+			wantRes:    "x.go",
+			wantAction: "filesystem.file.modify",
+		},
+		{
+			name: "MultiEdit carries modify action",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"MultiEdit",` +
+				`"tool_input":{"file_path":"z.go","edits":[]}}`,
+			wantRes:    "z.go",
+			wantAction: "filesystem.file.modify",
+		},
+		{
+			name: "opportunistic non-file tool with file_path carries empty action",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Move",` +
+				`"tool_input":{"file_path":"old.go","destination":"new.go"}}`,
+			wantRes:    "old.go",
+			wantAction: "",
+		},
+		{
+			name: "MCP tool carries empty action",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s",` +
+				`"tool_name":"mcp__github-audited__list_issues","tool_input":{"owner":"foo"}}`,
+			wantRes:    "",
+			wantAction: "",
+		},
+	}
+	noEnv := func(string) string { return "" }
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ev, _, err := readClaudeCode([]byte(tc.stdin), noEnv)
+			if err != nil {
+				t.Fatalf("readClaudeCode: %v", err)
+			}
+			if ev.Target.Resource != tc.wantRes {
+				t.Errorf("Target.Resource = %q; want %q", ev.Target.Resource, tc.wantRes)
+			}
+			if ev.ActionType != tc.wantAction {
+				t.Errorf("ActionType = %q; want %q", ev.ActionType, tc.wantAction)
+			}
+		})
+	}
+}
+
 // --- resolveVersion unit tests ---
 
 // TestResolveVersion_PrefersLDFlagInjection pins the precedence the
