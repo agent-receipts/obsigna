@@ -7,7 +7,7 @@ import (
 
 // Taxonomy action types for filesystem operations. These mirror the entries in
 // sdk/go/taxonomy so the daemon resolves a real risk level from action.type
-// (delete → high, modify/move/copy → medium, create/read → low) instead of
+// (delete → high; modify/move → medium; create/read → low) instead of
 // defaulting to the UnknownAction medium risk a synthetic "claude-code.<tool>"
 // type would yield. Shared across the Bash-command classifier (extractBashTarget)
 // and the native-tool classifier (nativeToolActionType).
