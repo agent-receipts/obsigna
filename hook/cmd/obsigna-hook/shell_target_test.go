@@ -157,6 +157,26 @@ func TestExtractBashTarget(t *testing.T) {
 			wantRes:    "b.txt",
 			wantAction: actionFileMove,
 		},
+		// --- double quotes do not suppress expansion; single quotes do ---
+		{
+			name:    "variable expansion inside double quotes not claimed",
+			command: `rm "$TARGET"`,
+		},
+		{
+			name:    "command substitution inside double quotes not claimed",
+			command: `rm "$(find . -name '*.tmp')"`,
+		},
+		{
+			name:    "backtick substitution inside double quotes not claimed",
+			command: "rm \"`echo x`\"",
+		},
+		{
+			name:       "single-quoted dollar is a literal filename",
+			command:    `rm '$TARGET'`,
+			wantSys:    "filesystem",
+			wantRes:    "$TARGET",
+			wantAction: actionFileDelete,
+		},
 		// --- non-extractable: fall back cleanly ---
 		{
 			name:    "glob target not claimed",

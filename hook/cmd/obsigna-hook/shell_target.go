@@ -137,11 +137,14 @@ func extractBashTarget(input json.RawMessage) (system, resource, actionType stri
 
 // lex splits a single shell command into word and output-redirect tokens,
 // honouring single and double quotes so a quoted metacharacter (`"a > b"`,
-// `"x;y"`) is part of a word, never an operator. It returns ok=false when the
-// command contains a construct we refuse to classify: an unquoted forbidden
-// operator (pipe, chain, substitution, input redirect, brace/paren group), an
-// fd-prefixed or fd-duplicating redirect (`2>`, `>&`), a tripled redirect, or
-// an unterminated quote. Quotes are stripped from the emitted word text.
+// `"x;y"`) is part of a word, never an operator. Single quotes make their
+// contents fully literal; double quotes do not suppress `$`/backtick, so those
+// still mean expansion and cause a decline. It returns ok=false when the command
+// contains a construct we refuse to classify: an unquoted forbidden operator
+// (pipe, chain, substitution, input redirect, brace/paren group), a `$`/backtick
+// inside double quotes, an fd-prefixed or fd-duplicating redirect (`2>`, `>&`),
+// a tripled redirect, or an unterminated quote. Quotes are stripped from the
+// emitted word text.
 func lex(s string) ([]token, bool) {
 	var tokens []token
 	var cur strings.Builder
@@ -166,9 +169,14 @@ func lex(s string) ([]token, bool) {
 				cur.WriteRune(r)
 			}
 		case inDouble:
-			if r == '"' {
+			switch {
+			case r == '"':
 				inDouble = false
-			} else {
+			case r == '$' || r == '`':
+				// Double quotes don't suppress variable expansion or command
+				// substitution, so the literal tokens aren't the real target.
+				return nil, false
+			default:
 				cur.WriteRune(r)
 			}
 		case r == '\'':

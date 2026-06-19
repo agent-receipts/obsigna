@@ -138,9 +138,10 @@ type Event struct {
 	// daemon uses it verbatim as action.type and derives risk_level from it via
 	// the taxonomy, so a known-destructive call carries its real risk instead of
 	// the UnknownAction medium a synthetic "<channel>.<tool>" type would yield.
-	// The daemon resolves risk itself rather than trusting an emitter-supplied
-	// risk, so an emitter cannot downgrade risk by setting this. Optional;
-	// omitted from the frame when empty.
+	// The daemon derives risk only from this type and never accepts a separate
+	// emitter-supplied risk level — but risk follows the type, so a mislabeled
+	// type yields that type's risk. Emitters must send the true action type, not
+	// a lower-risk one. Optional; omitted from the frame when empty.
 	ActionType string
 
 	// optional issuer/operator identity fields — forwarded to the daemon so
