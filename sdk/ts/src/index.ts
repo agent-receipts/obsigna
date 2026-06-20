@@ -43,6 +43,13 @@ export {
 	type ForensicKeyPair,
 	generateForensicKeyPair,
 } from "./receipt/disclosure.js";
+export {
+	type GrantInfo,
+	type GrantResolver,
+	GroundedOutcome,
+	type GroundedPrincipalViolation,
+	verifyGroundedPrincipalTier,
+} from "./receipt/grant-resolver.js";
 export { canonicalize, hashReceipt, sha256 } from "./receipt/hash.js";
 export {
 	GeneratingKeyProvider,

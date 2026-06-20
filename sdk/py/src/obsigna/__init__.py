@@ -49,6 +49,13 @@ from obsigna.receipt.disclosure import (
     encrypt_response,
     generate_forensic_key_pair,
 )
+from obsigna.receipt.grant_resolver import (
+    GrantInfo,
+    GrantResolver,
+    GroundedOutcome,
+    GroundedPrincipalViolation,
+    verify_grounded_principal_tier,
+)
 from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
 from obsigna.receipt.key_provider import (
     GeneratingKeyProvider,
@@ -125,6 +132,7 @@ encryptDisclosure = encrypt_disclosure
 decryptDisclosure = decrypt_disclosure
 encryptResponse = encrypt_response
 decryptResponse = decrypt_response
+verifyGroundedPrincipalTier = verify_grounded_principal_tier
 
 # RECEIPT_VERSION is the receipt schema version (from types), not the package version
 from obsigna.receipt.types import VERSION as RECEIPT_VERSION  # noqa: E402
@@ -163,6 +171,13 @@ __all__ = [
     "CreateReceiptInput",
     "create_receipt",
     "createReceipt",
+    # Grounded-principal conformance tier (ADR-0038)
+    "GrantInfo",
+    "GrantResolver",
+    "GroundedOutcome",
+    "GroundedPrincipalViolation",
+    "verify_grounded_principal_tier",
+    "verifyGroundedPrincipalTier",
     # Disclosure (HPKE envelope, ADR-0012)
     "DisclosureEnvelope",
     "DisclosureRecipient",

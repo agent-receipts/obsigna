@@ -598,6 +598,37 @@ A receipt that passes steps 1–4 is individually valid. Steps 5–6 provide cha
 
 > **Note:** This algorithm depends on DID resolution (step 2), which is not fully specified in this version. Implementations MUST document their DID resolution strategy. See §9.6.
 
+### 7.9 Grounded-principal tier verification (ADR-0038)
+
+This section defines additional verification steps applied when a verifier operates in the **grounded-principal conformance tier** (ADR-0038). The tier is opt-in: a base-tier verifier that has no grant resolver configured MUST NOT apply these steps, and their absence is never a verification failure in the base tier.
+
+A verifier enters the grounded-principal tier by supplying a **grant resolver** — an external function that, given `(grant_ref, principal_id)`, returns a resolved grant exposing at minimum `{ subject, scopes, issued_at, expires_at, issuer }`, or a resolution failure. The resolver is an implementation concern; the spec defines only the contract it must satisfy.
+
+**Grounded-principal check (applied per receipt, after step 6 of §7.8):**
+
+For any receipt whose `action.risk_level` is `high` or `critical`, when a grant resolver is configured:
+
+1. **Grant presence check.** If `credentialSubject.authorization` is absent or `credentialSubject.authorization.grant_ref` is absent or empty, the receipt outcome is `UNGROUNDED_PRINCIPAL`. This is a hard failure in the grounded-principal tier.
+
+2. **Grant resolution.** Resolve `authorization.grant_ref` via the configured grant resolver, passing the receipt's `credentialSubject.principal.id` as the principal hint. If resolution fails (network error, token not found, token revoked), the receipt outcome is `UNGROUNDED_PRINCIPAL`.
+
+3. **Subject match.** If the resolved grant's `subject` does not equal `credentialSubject.principal.id` (exact string equality), the receipt outcome is `PRINCIPAL_GRANT_MISMATCH`.
+
+A receipt that passes all three steps is **grounded**: an external authorization server confirms the named principal delegated authority under which the action was taken.
+
+**Receipts at `risk_level` `low` or `medium` are not subject to these checks**, even in the grounded-principal tier. D1 of ADR-0038 targets only the action classes where reasonable-oversight regimes apply.
+
+**Absence of a resolver is not a failure.** A verifier without a configured grant resolver behaves as a base-tier verifier for all receipts regardless of risk level. No error is raised. This mirrors the ADR-0008 pattern where `RequireTerminal` is absent by default.
+
+**New verification outcomes (grounded-principal tier only):**
+
+| Outcome | Meaning |
+|---|---|
+| `UNGROUNDED_PRINCIPAL` | A `high`/`critical` receipt lacks a resolvable `grant_ref` in the grounded-principal tier. |
+| `PRINCIPAL_GRANT_MISMATCH` | The resolved grant's subject does not equal `principal.id`. |
+
+These outcomes supplement the base-tier outcomes (`MALFORMED_RECEIPT`, `UNRESOLVABLE_DID`, `INVALID_SIGNATURE`, `INVALID_TIMESTAMP`) defined in §7.8. They are never raised in the base tier.
+
 ---
 
 ## 8. Relationship to Existing Work
