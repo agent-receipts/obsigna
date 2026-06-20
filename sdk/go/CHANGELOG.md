@@ -11,6 +11,16 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.21.0-alpha.1] - 2026-06-20
+
+### Added
+
+- **`emitter.Event.ActionType`** ([#893](https://github.com/agent-receipts/obsigna/pull/893)) — optional field on `Event` carrying a pre-resolved taxonomic action type (e.g. `"filesystem.file.delete"`). When set, the daemon uses it verbatim as `action.type` and derives `risk_level` from the taxonomy, so a known-destructive call carries its real risk instead of the `UnknownAction` medium a synthetic `<channel>.<tool>` type would yield. The field is validated against `MaxIdentityFieldLen` client-side and omitted from the wire frame when empty, so emitters that do not set it are unchanged.
+
+- **`emitter.Event.PromptPreview`** ([#894](https://github.com/agent-receipts/obsigna/pull/894)) — optional field carrying a plaintext preview of the prompt that triggered the action. The daemon stores it in `intent.prompt_preview`, truncating to a configured rune cap and setting `intent.prompt_preview_truncated: true` when the cut fires. The emitter forwards the value verbatim and the daemon owns truncation. Omitted from the wire frame when empty.
+
+- **`receipt.TruncatePromptPreview`** ([#894](https://github.com/agent-receipts/obsigna/pull/894)) — rune-bounded implementation that walks rune boundaries up to the cap rather than materialising the full string as `[]rune`, so a large untrusted input is bounded in both time and memory. Behaviour is otherwise unchanged.
+
 ## [0.20.0] - 2026-06-20
 
 Graduates `0.20.0-alpha.2` after the alpha pass. No source changes since the alpha; see the `0.20.0-alpha.2` and `0.20.0-alpha.1` entries below for the full surface. Since the last stable `0.19.0`, this line ships `receipt.VerifyRaw` for raw-bytes Ed25519 signature verification and `Store.LatestRootChainID` for active-chain detection.
