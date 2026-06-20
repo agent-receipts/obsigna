@@ -29,7 +29,7 @@ from obsigna.receipt.types import (
     Principal,
 )
 
-LIVE_EMIT_VERSION = "0.5.0"
+LIVE_EMIT_VERSION = "0.6.0"
 
 
 class TestCreateReceiptCrossSDKVersion:

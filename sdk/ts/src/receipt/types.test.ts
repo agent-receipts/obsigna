@@ -31,7 +31,7 @@ describe("receipt schema constants", () => {
 	it("has the correct context URIs", () => {
 		expect(CONTEXT).toEqual([
 			"https://www.w3.org/ns/credentials/v2",
-			"https://agentreceipts.ai/context/v2",
+			"https://agentreceipts.ai/context/v3",
 		]);
 	});
 
@@ -39,8 +39,8 @@ describe("receipt schema constants", () => {
 		expect(CREDENTIAL_TYPE).toEqual(["VerifiableCredential", "AgentReceipt"]);
 	});
 
-	it("has version 0.5.0", () => {
-		expect(VERSION).toBe("0.5.0");
+	it("has version 0.6.0", () => {
+		expect(VERSION).toBe("0.6.0");
 	});
 });
 

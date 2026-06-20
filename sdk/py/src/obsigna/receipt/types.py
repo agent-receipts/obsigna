@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 CONTEXT: list[str] = [
     "https://www.w3.org/ns/credentials/v2",
-    "https://agentreceipts.ai/context/v2",
+    "https://agentreceipts.ai/context/v3",
 ]
 
 CREDENTIAL_TYPE: list[str] = [
@@ -24,7 +24,7 @@ CREDENTIAL_TYPE: list[str] = [
     "AgentReceipt",
 ]
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 RiskLevel = Literal["low", "medium", "high", "critical"]
 
@@ -224,6 +224,17 @@ class Outcome(BaseModel):
     reversal_of: str | None = None
     state_change: StateChange | None = None
     response_hash: str | None = None
+    response_disclosure: DisclosureEnvelope | None = Field(
+        default=None,
+        description=(
+            "HPKE asymmetric encryption envelope sealing the tool response "
+            "(ADR-0012, v0.6.0+). Mirrors action.parameters_disclosure for "
+            "the response side: the signed receipt commits to the ciphertext; "
+            "only the holder of the forensic private key can recover the "
+            "plaintext. response_hash remains the cryptographic commitment and "
+            "is always authoritative; this field is additive."
+        ),
+    )
 
 
 class Authorization(BaseModel):
@@ -376,4 +387,6 @@ from obsigna.receipt.disclosure import (  # noqa: E402
     DisclosureEnvelope as _DisclosureEnvelope,
 )
 
-Action.model_rebuild(_types_namespace={"DisclosureEnvelope": _DisclosureEnvelope})
+_ns = {"DisclosureEnvelope": _DisclosureEnvelope}
+Action.model_rebuild(_types_namespace=_ns)
+Outcome.model_rebuild(_types_namespace=_ns)

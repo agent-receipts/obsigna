@@ -9,7 +9,7 @@ import { VERSION } from "./types.js";
 // breaks that SDK's test in isolation, closing the gap surfaced by #512 where
 // the existing v030 cross-SDK byte-identicality tests load a pre-built JSON
 // fixture and never consult the SDK's VERSION constant.
-const LIVE_EMIT_VERSION = "0.5.0";
+const LIVE_EMIT_VERSION = "0.6.0";
 
 describe("createReceipt cross-SDK version invariant", () => {
 	it("stamps the cross-SDK literal version on freshly-emitted receipts", () => {

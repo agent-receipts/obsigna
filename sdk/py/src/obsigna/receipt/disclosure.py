@@ -391,6 +391,90 @@ def _encrypt_disclosure_with_seed(  # pyright: ignore[reportUnusedFunction]
     return _encrypt_with_options(params, recipient_public_key, kid, ikm_e)
 
 
+def encrypt_response(
+    response: dict[str, Any],
+    recipient_public_key: bytes,
+    kid: str,
+) -> DisclosureEnvelope:
+    """Encrypt ``response`` as a v1 HPKE envelope for ``outcome.response_disclosure``.
+
+    Identical to :func:`encrypt_disclosure` in primitive and encoding — uses
+    the same forensic key pair, same HPKE ciphersuite, and same JCS
+    canonicalisation. The separation exists so operators can enable response
+    disclosure independently of parameter disclosure via separate
+    ``--response-disclosure`` / ``--parameter-disclosure`` policy flags.
+
+    Args:
+        response: The response object to encrypt. MUST be a plain ``dict``.
+        recipient_public_key: 32-byte X25519 forensic public key.
+        kid: Recipient key identifier (did:key DID URL or
+            ``sha256:<hex>`` fingerprint).
+    """
+    if not _is_plain_dict(response):
+        msg = "response must be a plain dict"
+        raise TypeError(msg)
+    if len(recipient_public_key) != 32:
+        msg = f"recipient_public_key must be 32 bytes, got {len(recipient_public_key)}"
+        raise ValueError(msg)
+    if not kid:
+        msg = "kid must not be empty"
+        raise ValueError(msg)
+    return _encrypt_with_options(response, recipient_public_key, kid, None)
+
+
+def _encrypt_response_with_seed(  # pyright: ignore[reportUnusedFunction]
+    response: dict[str, Any],
+    recipient_public_key: bytes,
+    kid: str,
+    ikm_e: bytes,
+) -> DisclosureEnvelope:
+    """Deterministic variant of :func:`encrypt_response` for cross-SDK vectors.
+
+    Identical to :func:`_encrypt_disclosure_with_seed` — both delegate to
+    :func:`_encrypt_with_options`. Provided as a separate entry point so tests
+    can import it by its response-specific name.
+
+    .. warning::
+        For tests only. Reusing ``ikm_e`` across real encryptions breaks
+        confidentiality.
+    """
+    if not _is_plain_dict(response):
+        msg = "response must be a plain dict"
+        raise TypeError(msg)
+    if len(recipient_public_key) != 32:
+        msg = f"recipient_public_key must be 32 bytes, got {len(recipient_public_key)}"
+        raise ValueError(msg)
+    if not kid:
+        msg = "kid must not be empty"
+        raise ValueError(msg)
+    if len(ikm_e) != 32:
+        msg = f"ikm_e must be 32 bytes, got {len(ikm_e)}"
+        raise ValueError(msg)
+    return _encrypt_with_options(response, recipient_public_key, kid, ikm_e)
+
+
+def decrypt_response(
+    env: DisclosureEnvelope,
+    recipient_private_key: bytes,
+) -> dict[str, Any]:
+    """Recover the plaintext response from a v1 HPKE disclosure envelope.
+
+    Identical to :func:`decrypt_disclosure` — the same envelope format is used
+    for both ``action.parameters_disclosure`` and ``outcome.response_disclosure``.
+
+    Args:
+        env: The disclosure envelope from ``outcome.response_disclosure``.
+        recipient_private_key: 32-byte X25519 forensic private key.
+
+    Returns:
+        The decrypted response object.
+
+    Raises:
+        ValueError: On any envelope-shape, encoding, or authentication failure.
+    """
+    return decrypt_disclosure(env, recipient_private_key)
+
+
 def decrypt_disclosure(
     env: DisclosureEnvelope,
     recipient_private_key: bytes,

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
 	type DisclosureEnvelope,
 	decryptDisclosure,
+	decryptResponse,
 	encryptDisclosure,
 	encryptDisclosureWithSeed,
+	encryptResponse,
+	encryptResponseWithSeed,
 	generateForensicKeyPair,
 } from "./disclosure.js";
 import { canonicalize } from "./hash.js";
@@ -259,6 +262,109 @@ describe("encryptDisclosureWithSeed input validation", () => {
 		await expect(
 			encryptDisclosureWithSeed({}, alicePub, "kid", ikmE0),
 		).rejects.toThrow("32 bytes");
+	});
+});
+
+describe("encryptResponse / decryptResponse", () => {
+	it("produces a valid v1 envelope shape (mirrors encryptDisclosure)", async () => {
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		const env = await encryptResponse(
+			{ content: "file contents here", exit_code: 0 },
+			alicePub,
+			"did:key:z6LSeu9HkTHSfLLeUs2nnzUSNedgDUevfNQUQUaHL9XJ7Z5W#enc-1",
+		);
+
+		expect(env.v).toBe("1");
+		expect(env.alg).toBe("hpke-x25519-hkdf-sha256-aes-256-gcm");
+		expect(env.recipients).toHaveLength(1);
+		expect(env.recipients[0].enc).toHaveLength(43);
+		expect(env.recipients[0].enc).not.toMatch(/[+/=]/);
+		expect(env.ct).not.toMatch(/[+/=]/);
+		expect(env.ct.length).toBeGreaterThanOrEqual(24);
+		expect(JSON.stringify(env)).not.toContain('"nonce"');
+	});
+
+	it("round-trips with Alice's RFC 7748 key pair", async () => {
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		const alicePriv = fromHex(ALICE_PRIV_HEX);
+		const response = { content: "hello world", exit_code: 0 };
+		const env = await encryptResponse(response, alicePub, "test-kid");
+		const got = await decryptResponse(env, alicePriv);
+		expect(got.content).toBe("hello world");
+		expect(got.exit_code).toBe(0);
+	});
+
+	it("JCS-canonicalizes response before encryption", async () => {
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		const alicePriv = fromHex(ALICE_PRIV_HEX);
+		const response = { z_last: "last", a_first: "first", m_mid: "middle" };
+		const env = await encryptResponse(response, alicePub, "test-kid");
+		const got = await decryptResponse(env, alicePriv);
+		expect(canonicalize(got)).toBe(canonicalize(response));
+	});
+
+	it("rejects short recipient public key", async () => {
+		await expect(
+			encryptResponse({} as Record<string, unknown>, new Uint8Array(16), "kid"),
+		).rejects.toThrow("32 bytes");
+	});
+
+	it("rejects empty kid", async () => {
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		await expect(
+			encryptResponse({} as Record<string, unknown>, alicePub, ""),
+		).rejects.toThrow("kid");
+	});
+
+	it("rejects wrong private key (authentication failure)", async () => {
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		const bobPriv = fromHex(BOB_PRIV_HEX);
+		const env = await encryptResponse({ x: 1 }, alicePub, "kid");
+		await expect(decryptResponse(env, bobPriv)).rejects.toThrow();
+	});
+
+	it("JSON round-trips cleanly", async () => {
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		const alicePriv = fromHex(ALICE_PRIV_HEX);
+		const env = await encryptResponse({ output: "ok" }, alicePub, "test-kid");
+		const parsed: DisclosureEnvelope = JSON.parse(JSON.stringify(env));
+		const got = await decryptResponse(parsed, alicePriv);
+		expect(got.output).toBe("ok");
+	});
+
+	it("encryptResponseWithSeed rejects ikmE of wrong length", async () => {
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		const ikmE31 = new Uint8Array(31);
+		await expect(
+			encryptResponseWithSeed({}, alicePub, "kid", ikmE31),
+		).rejects.toThrow("32 bytes");
+	});
+
+	it("uses the same HPKE primitive as encryptDisclosure (cross-field interop)", async () => {
+		// encryptResponse and encryptDisclosure are the same primitive —
+		// given identical inputs they MUST produce the same ciphertext.
+		const alicePub = fromHex(ALICE_PUB_HEX);
+		const alicePriv = fromHex(ALICE_PRIV_HEX);
+		const ikmE = fromHex(VECTOR1_IKME_HEX);
+		const payload = { command: 'echo "build complete"' };
+		const kid =
+			"did:key:z6LSeu9HkTHSfLLeUs2nnzUSNedgDUevfNQUQUaHL9XJ7Z5W#enc-1";
+
+		const envParam = await encryptDisclosureWithSeed(
+			payload,
+			alicePub,
+			kid,
+			ikmE,
+		);
+		const envResp = await encryptResponseWithSeed(payload, alicePub, kid, ikmE);
+
+		// Same primitive → same envelope bytes.
+		expect(envResp.ct).toBe(envParam.ct);
+		expect(envResp.recipients[0].enc).toBe(envParam.recipients[0].enc);
+
+		// decryptResponse recovers the same plaintext that decryptDisclosure does.
+		const got = await decryptResponse(envResp, alicePriv);
+		expect(got.command).toBe('echo "build complete"');
 	});
 });
 

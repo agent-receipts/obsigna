@@ -20,11 +20,11 @@
       "type": "array",
       "prefixItems": [
         { "const": "https://www.w3.org/ns/credentials/v2" },
-        { "enum": ["https://agentreceipts.ai/context/v1", "https://agentreceipts.ai/context/v2"] }
+        { "enum": ["https://agentreceipts.ai/context/v1", "https://agentreceipts.ai/context/v2", "https://agentreceipts.ai/context/v3"] }
       ],
       "minItems": 2,
       "items": { "type": "string" },
-      "description": "JSON-LD context. First two entries MUST be the W3C VC v2 and Agent Receipts context URIs in order. The Agent Receipts context is v1 for receipts at versions 0.1.0–0.4.0 and v2 (which adds issuer.runtime) for 0.5.0+; both remain permanent. Additional context URIs MAY follow."
+      "description": "JSON-LD context. First two entries MUST be the W3C VC v2 and Agent Receipts context URIs in order. The Agent Receipts context is v1 for receipts at versions 0.1.0–0.4.0, v2 (which adds issuer.runtime) for 0.5.0, and v3 (which adds outcome.response_disclosure) for 0.6.0+; all remain permanent. Additional context URIs MAY follow."
     },
     "id": {
       "type": "string",
@@ -42,8 +42,8 @@
       "description": "MUST be [\"VerifiableCredential\", \"AgentReceipt\"]."
     },
     "version": {
-      "enum": ["0.1.0", "0.2.0", "0.2.1", "0.3.0", "0.4.0", "0.5.0"],
-      "description": "Protocol version. MUST be one of \"0.1.0\", \"0.2.0\", \"0.2.1\", \"0.3.0\", \"0.4.0\", or \"0.5.0\". Verifiers MUST accept all six."
+      "enum": ["0.1.0", "0.2.0", "0.2.1", "0.3.0", "0.4.0", "0.5.0", "0.6.0"],
+      "description": "Protocol version. MUST be one of \"0.1.0\", \"0.2.0\", \"0.2.1\", \"0.3.0\", \"0.4.0\", \"0.5.0\", or \"0.6.0\". Verifiers MUST accept all seven."
     },
     "issuer": { "$ref": "#/$defs/issuer" },
     "issuanceDate": {
@@ -58,7 +58,7 @@
   "allOf": [
     {
       "title": "Context is pinned to the protocol version",
-      "description": "Versions 0.1.0–0.4.0 MUST reference Agent Receipts context v1; 0.5.0 (which adds issuer.runtime) MUST reference v2. This couples the two so a receipt cannot declare a version whose context does not define its fields.",
+      "description": "Versions 0.1.0–0.4.0 MUST reference Agent Receipts context v1; 0.5.0 (which adds issuer.runtime) MUST reference v2; 0.6.0 (which adds outcome.response_disclosure) MUST reference v3. This couples the two so a receipt cannot declare a version whose context does not define its fields.",
       "if": {
         "properties": { "version": { "enum": ["0.1.0", "0.2.0", "0.2.1", "0.3.0", "0.4.0"] } }
       },
@@ -78,6 +78,18 @@
         "properties": {
           "@context": {
             "prefixItems": [{}, { "const": "https://agentreceipts.ai/context/v2" }]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "version": { "const": "0.6.0" } }
+      },
+      "then": {
+        "properties": {
+          "@context": {
+            "prefixItems": [{}, { "const": "https://agentreceipts.ai/context/v3" }]
           }
         }
       }
@@ -410,6 +422,10 @@
         "response_hash": {
           "$ref": "#/$defs/sha256Hash",
           "description": "SHA-256 hash of the RFC 8785 canonical JSON of the server's response, computed after secret redaction (redact → hash → sign). Absent when the issuer did not commit to the response."
+        },
+        "response_disclosure": {
+          "$ref": "#/$defs/parametersDisclosureEnvelope",
+          "description": "HPKE asymmetric encryption envelope sealing the tool response (ADR-0012, v0.6.0+). Mirrors action.parameters_disclosure for the response side: the signed receipt commits to the ciphertext; only the forensic private-key holder can recover the plaintext. `response_hash` remains the tamper-evidence commitment and is always authoritative; this field is additive. Operators MUST enable response disclosure via a separate --response-disclosure policy flag (independent of --parameter-disclosure), so sealing outputs without sealing inputs (or vice versa) is possible. Absent when the issuer did not enable response disclosure."
         }
       }
     },
