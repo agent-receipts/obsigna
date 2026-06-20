@@ -304,16 +304,16 @@ describe("encryptResponse / decryptResponse", () => {
 	});
 
 	it("rejects short recipient public key", async () => {
+		const body: Record<string, unknown> = {};
 		await expect(
-			encryptResponse({} as Record<string, unknown>, new Uint8Array(16), "kid"),
+			encryptResponse(body, new Uint8Array(16), "kid"),
 		).rejects.toThrow("32 bytes");
 	});
 
 	it("rejects empty kid", async () => {
 		const alicePub = fromHex(ALICE_PUB_HEX);
-		await expect(
-			encryptResponse({} as Record<string, unknown>, alicePub, ""),
-		).rejects.toThrow("kid");
+		const body: Record<string, unknown> = {};
+		await expect(encryptResponse(body, alicePub, "")).rejects.toThrow("kid");
 	});
 
 	it("rejects wrong private key (authentication failure)", async () => {
