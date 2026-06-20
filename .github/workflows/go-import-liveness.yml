@@ -6,7 +6,7 @@ name: go-import liveness
 # import redirect is broken and PR2 / PR3 must not land until it is fixed.
 on:
   workflow_run:
-    workflows: ["Site (obsigna.dev)"]
+    workflows: ["Site (obsigna.dev)"] # triggers after .github/workflows/site-obsigna.yml completes
     types: [completed]
     branches: [main]
 
@@ -24,9 +24,13 @@ jobs:
           # Use -sL (no -f) so curl succeeds even on 404; the Go toolchain
           # accepts meta tags from non-200 responses, and static hosts serve
           # 404.html for unrecognised subpaths such as /sdk/go.
-          body=$(curl -sL "https://obsigna.dev/sdk/go?go-get=1")
+          body=$(curl -sL --max-time 30 --connect-timeout 10 "https://obsigna.dev/sdk/go?go-get=1")
           if ! echo "$body" | grep -q 'name="go-import"'; then
             echo "ERROR: go-import meta tag missing from https://obsigna.dev/sdk/go?go-get=1"
+            exit 1
+          fi
+          if ! echo "$body" | grep -q 'name="go-source"'; then
+            echo "ERROR: go-source meta tag missing from https://obsigna.dev/sdk/go?go-get=1"
             exit 1
           fi
           if ! echo "$body" | grep -q 'obsigna.dev git https://github.com/agent-receipts/obsigna'; then
@@ -39,9 +43,13 @@ jobs:
 
       - name: Check go-import meta — daemon subpath
         run: |
-          body=$(curl -sL "https://obsigna.dev/daemon?go-get=1")
+          body=$(curl -sL --max-time 30 --connect-timeout 10 "https://obsigna.dev/daemon?go-get=1")
           if ! echo "$body" | grep -q 'name="go-import"'; then
             echo "ERROR: go-import meta tag missing from https://obsigna.dev/daemon?go-get=1"
+            exit 1
+          fi
+          if ! echo "$body" | grep -q 'name="go-source"'; then
+            echo "ERROR: go-source meta tag missing from https://obsigna.dev/daemon?go-get=1"
             exit 1
           fi
           if ! echo "$body" | grep -q 'obsigna.dev git https://github.com/agent-receipts/obsigna'; then
