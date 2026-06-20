@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-06-20
+
+Graduates `0.27.0-alpha.2` after the alpha pass. The out-of-band checkpoint anchor for tail-truncation resistance (see `0.27.0-alpha.1`) is the primary new feature since `0.26.0`. Two additional changes landed after the alpha and ship in this stable:
+
 ### Changed
 
 - **`--init` now sets up disclosure in one step.** Alongside the Ed25519 signing pair, `obsigna-daemon --init` also generates an X25519 forensic key pair (ADR-0012) and writes a starter `daemon.toml` with `parameter_disclosure = "true"`, so a fresh daemon records each action's parameters — encrypted to the forensic key and recoverable with `obsigna receipt disclose` — out of the box rather than hashes alone. Previously the forensic key was a separate `--init-forensic-key` step and disclosure defaulted off, which meant the common evaluation path showed only hashes. Writes stay fail-closed: `--init` refuses to overwrite an existing signing or forensic key and never clobbers an existing config (it reports leaving it untouched). The bare-daemon default is unchanged — run with no config and no forensic key, the daemon still hashes only; `--init` is what turns disclosure on. The forensic **private** key is written locally for immediate use; operators should move it off-host for production, where the daemon only needs the public key. `--init-forensic-key` remains for generating a forensic key independently.
+
+### Added
+
+- **`obsigna receipt verify --json`** — the `verify` subcommand now accepts `--json` to emit a single structured JSON object on stdout carrying the full verdict: `verified`, `exit_code`, chain length, HEAD hash, per-receipt break statuses, the structured cause, advisories, and the `--against-anchor` result. Exit-code semantics (0/1/2) are unchanged; `--json` alters output format only. Diagnostics stay on stderr. Enables CI trust gates to parse outcomes without scraping human-readable strings.
 
 ## [0.27.0-alpha.1] - 2026-06-16
 
