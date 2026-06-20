@@ -22,6 +22,26 @@ export default defineConfig({
       favicon: "/favicon.svg",
       plugins: [starlightThemeFlexoki({ accentColor: "orange" })],
       head: [
+        // Go vanity import path — resolves obsigna.dev/{sdk/go,daemon,...} for `go get`.
+        // Must be present on every page (including 404) so the Go toolchain can fetch
+        // any subpath with ?go-get=1 and find the redirect. Starlight's head config
+        // injects into all generated pages including the 404 route.
+        {
+          tag: "meta",
+          attrs: {
+            name: "go-import",
+            content:
+              "obsigna.dev git https://github.com/agent-receipts/obsigna",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "go-source",
+            content:
+              "obsigna.dev https://github.com/agent-receipts/obsigna https://github.com/agent-receipts/obsigna/tree/main{/dir} https://github.com/agent-receipts/obsigna/blob/main{/dir}/{file}#L{line}",
+          },
+        },
         {
           tag: "link",
           attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
