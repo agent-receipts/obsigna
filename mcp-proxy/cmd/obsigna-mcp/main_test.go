@@ -839,7 +839,7 @@ func TestDiagnoseConfigNoApproverReturnsNotConfigured(t *testing.T) {
 
 func TestEmitToContextNilEmitterNoOp(t *testing.T) {
 	// Must not panic with nil emitter.
-	emitToContext(nil, "server", "tool", nil, nil, "", "allowed", "", "", "")
+	emitToContext(nil, "server", "tool", nil, nil, "", "allowed", "", "", "", "", "")
 }
 
 // ---------------------------------------------------------------------------

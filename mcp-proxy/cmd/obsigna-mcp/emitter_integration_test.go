@@ -201,6 +201,8 @@ func TestEmitToContext_AllowedToolCall(t *testing.T) {
 		"jsonrpc-req-42",
 		"",
 		"",
+		"test-server",
+		"/tmp/test.txt",
 	)
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
@@ -222,6 +224,17 @@ func TestEmitToContext_AllowedToolCall(t *testing.T) {
 	if got := receipts[0].CredentialSubject.Action.IdempotencyKey; got != "jsonrpc-req-42" {
 		t.Errorf("action.idempotency_key = %q, want %q", got, "jsonrpc-req-42")
 	}
+
+	// The resource identity passed through emitToContext must materialise on
+	// action.target so cross-agent contention can draw edges (#852).
+	target := receipts[0].CredentialSubject.Action.Target
+	if target == nil {
+		t.Fatal("action.target is nil; want system/resource populated")
+	}
+	if target.System != "test-server" || target.Resource != "/tmp/test.txt" {
+		t.Errorf("action.target = {%q, %q}, want {%q, %q}",
+			target.System, target.Resource, "test-server", "/tmp/test.txt")
+	}
 }
 
 // TestEmitToContext_DeniedToolCall verifies that a "denied" decision (blocked by
@@ -240,6 +253,8 @@ func TestEmitToContext_DeniedToolCall(t *testing.T) {
 		"",
 		"",
 		"",
+		"test-server",
+		"all",
 	)
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
@@ -264,7 +279,7 @@ func TestEmitToContext_MultipleEvents(t *testing.T) {
 	}
 
 	for _, ev := range events {
-		emitToContext(em, "multi-server", ev.tool, ev.input, ev.output, "", ev.decision, "", "", "")
+		emitToContext(em, "multi-server", ev.tool, ev.input, ev.output, "", ev.decision, "", "", "", "", "")
 	}
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, len(events), 5*time.Second)
@@ -309,7 +324,7 @@ func TestEmitToContext_FireAndForgetWhenNoDaemon(t *testing.T) {
 
 	start := time.Now()
 	// emitToContext logs the drop via log.Printf — that's fine for tests.
-	emitToContext(em, "srv", "noop", nil, nil, "", "allowed", "", "", "")
+	emitToContext(em, "srv", "noop", nil, nil, "", "allowed", "", "", "", "", "")
 	elapsed := time.Since(start)
 
 	// 25ms dial timeout + 100ms write deadline = 125ms worst-case. We allow
@@ -337,7 +352,7 @@ func TestEmitToContext_NilInputsAreValid(t *testing.T) {
 
 	// nil input and output are valid: the emitter accepts them and the daemon
 	// treats them as absent. No panic, no error returned.
-	emitToContext(em, "srv", "tool-with-no-io", nil, nil, "", "allowed", "", "", "")
+	emitToContext(em, "srv", "tool-with-no-io", nil, nil, "", "allowed", "", "", "", "", "")
 }
 
 // TestEmitToContext_NilEmitterIsNoOp guards the nil-emitter path in serve():
@@ -347,7 +362,7 @@ func TestEmitToContext_NilInputsAreValid(t *testing.T) {
 // explicit guard at the call sites is kept for clarity.
 func TestEmitToContext_NilEmitterIsNoOp(t *testing.T) {
 	// Must not panic.
-	emitToContext(nil, "srv", "tool", nil, nil, "", "allowed", "", "", "")
+	emitToContext(nil, "srv", "tool", nil, nil, "", "allowed", "", "", "", "", "")
 }
 
 // TestEmitToContext_SessionIDPropagatesToReceipts verifies the ADR-0010 OQ4
@@ -361,7 +376,7 @@ func TestEmitToContext_SessionIDPropagatesToReceipts(t *testing.T) {
 	em := newSilentEmitter(t, d.cfg.SocketPath, sid)
 
 	for i := 0; i < 3; i++ {
-		emitToContext(em, "srv", "tool", json.RawMessage(`{"i":1}`), nil, "", "allowed", "", "", "")
+		emitToContext(em, "srv", "tool", json.RawMessage(`{"i":1}`), nil, "", "allowed", "", "", "", "", "")
 	}
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 3, 5*time.Second)
@@ -404,7 +419,7 @@ func TestEmitToContext_MappedToolForwardsActionType(t *testing.T) {
 	}
 
 	emitToContext(em, "github", tool,
-		json.RawMessage(`{"path":"secrets.txt"}`), nil, "", "allowed", "", "", actionType)
+		json.RawMessage(`{"path":"secrets.txt"}`), nil, "", "allowed", "", "", actionType, "", "")
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
 
@@ -450,7 +465,7 @@ func TestEmitToContext_UnknownToolOmitsActionType(t *testing.T) {
 
 	// Mirror the proxy: an unmapped tool forwards an empty action_type.
 	emitToContext(em, "github", tool,
-		json.RawMessage(`{"q":"x"}`), nil, "", "allowed", "", "", resolveActionType(tool, mappings))
+		json.RawMessage(`{"q":"x"}`), nil, "", "allowed", "", "", resolveActionType(tool, mappings), "", "")
 
 	waitForDaemonReceipts(t, d.cfg.DBPath, d.cfg.ChainID, 1, 5*time.Second)
 

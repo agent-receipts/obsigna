@@ -242,6 +242,8 @@ func serve() int {
 		idempotencyKey string
 		correlationID  string
 		actionType     string
+		targetSystem   string
+		targetResource string
 	}
 	pendingCalls := make(map[string]*pendingCall)
 	var pendingMu sync.Mutex
@@ -326,6 +328,12 @@ func serve() int {
 					argJSON = nil
 				}
 
+				// Best-effort resource identity for cross-agent contention
+				// (#852): two agents hitting the same API/table/repo draw an
+				// edge the way two hitting the same file already do. Empty when
+				// the arguments match no known resource shape.
+				targetSystem, targetResource := audit.ExtractTarget(*serverName, toolName, params.Arguments)
+
 				pendingMu.Lock()
 				pendingCalls[jsonrpcID] = &pendingCall{
 					toolName:       toolName,
@@ -333,6 +341,8 @@ func serve() int {
 					idempotencyKey: jsonrpcID,
 					correlationID:  params.ToolUseID(),
 					actionType:     actionType,
+					targetSystem:   targetSystem,
+					targetResource: targetResource,
 				}
 				pendingMu.Unlock()
 
@@ -343,7 +353,7 @@ func serve() int {
 					blockedCorrelationID := pendingCalls[jsonrpcID].correlationID
 					delete(pendingCalls, jsonrpcID)
 					pendingMu.Unlock()
-					emitToContext(em, *serverName, toolName, argJSON, nil, fmt.Sprintf("blocked by policy: %s", decision.Reason), "denied", jsonrpcID, blockedCorrelationID, actionType)
+					emitToContext(em, *serverName, toolName, argJSON, nil, fmt.Sprintf("blocked by policy: %s", decision.Reason), "denied", jsonrpcID, blockedCorrelationID, actionType, targetSystem, targetResource)
 					return &proxy.HandlerResult{
 						Block:          true,
 						ClientResponse: proxy.MakeErrorResponse(msg.ID, -32001, fmt.Sprintf("blocked by policy: %s", decision.Reason)),
@@ -370,7 +380,7 @@ func serve() int {
 						deniedCorrelationID := pendingCalls[jsonrpcID].correlationID
 						delete(pendingCalls, jsonrpcID)
 						pendingMu.Unlock()
-						emitToContext(em, *serverName, toolName, argJSON, nil, message, "denied", jsonrpcID, deniedCorrelationID, actionType)
+						emitToContext(em, *serverName, toolName, argJSON, nil, message, "denied", jsonrpcID, deniedCorrelationID, actionType, targetSystem, targetResource)
 						return &proxy.HandlerResult{
 							Block: true,
 							ClientResponse: proxy.MakeErrorResponseWithData(
@@ -434,7 +444,7 @@ func serve() int {
 				if resultStr != "" && json.Valid([]byte(resultStr)) {
 					outputRaw = json.RawMessage(resultStr)
 				}
-				emitToContext(em, *serverName, pc.toolName, pc.argJSON, outputRaw, errorStr, "allowed", pc.idempotencyKey, pc.correlationID, pc.actionType)
+				emitToContext(em, *serverName, pc.toolName, pc.argJSON, outputRaw, errorStr, "allowed", pc.idempotencyKey, pc.correlationID, pc.actionType, pc.targetSystem, pc.targetResource)
 			}
 		}
 
@@ -726,7 +736,15 @@ func resolveActionType(toolName string, mappings []taxonomy.TaxonomyMapping) str
 // it is empty for unknown tools, in which case the emitter omits the frame
 // field and the daemon's fallback applies. The daemon always resolves risk
 // itself from the type — the proxy never sends a risk level.
-func emitToContext(em *emitter.DaemonEmitter, serverName, toolName string, input, output json.RawMessage, errStr, decision, idempotencyKey, correlationID, actionType string) {
+//
+// targetSystem and targetResource carry the resource identity the action
+// operates on (#852): targetSystem is the MCP server, targetResource the
+// endpoint/table/repo derived by audit.ExtractTarget. Both are empty when the
+// arguments matched no known resource shape; passing them through populates
+// action.target so cross-agent contention on shared external state draws an
+// edge. They are always both set or both empty, satisfying the emitter's
+// all-or-nothing Target rule.
+func emitToContext(em *emitter.DaemonEmitter, serverName, toolName string, input, output json.RawMessage, errStr, decision, idempotencyKey, correlationID, actionType, targetSystem, targetResource string) {
 	if em == nil {
 		return
 	}
@@ -740,6 +758,7 @@ func emitToContext(em *emitter.DaemonEmitter, serverName, toolName string, input
 		Decision:       decision,
 		IdempotencyKey: idempotencyKey,
 		CorrelationID:  correlationID,
+		Target:         emitter.Target{System: targetSystem, Resource: targetResource},
 	}); err != nil {
 		log.Printf("mcp-proxy: emitter: %v", err)
 	}
