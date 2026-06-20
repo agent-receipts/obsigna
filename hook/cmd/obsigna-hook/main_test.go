@@ -703,7 +703,11 @@ func TestNativeToolActionType(t *testing.T) {
 		{"", ""},
 	}
 	for _, tc := range cases {
-		t.Run(tc.toolName, func(t *testing.T) {
+		name := tc.toolName
+		if name == "" {
+			name = "<empty>"
+		}
+		t.Run(name, func(t *testing.T) {
 			if got := nativeToolActionType(tc.toolName); got != tc.want {
 				t.Errorf("nativeToolActionType(%q) = %q; want %q", tc.toolName, got, tc.want)
 			}
