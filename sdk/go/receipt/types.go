@@ -5,6 +5,8 @@ package receipt
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/agent-receipts/ar/sdk/go/risk"
 )
 
 // Protocol constants (unexported to prevent mutation).
@@ -21,14 +23,16 @@ func CredentialType() []string { return append([]string{}, protocolCredentialTyp
 
 const Version = "0.5.0"
 
-// RiskLevel classifies the security risk of an action.
-type RiskLevel string
+// RiskLevel classifies the security risk of an action. It aliases risk.Level
+// (the receipt-free leaf type) so callers that must classify tool calls without
+// importing receipt can share the same type — see package risk.
+type RiskLevel = risk.Level
 
 const (
-	RiskLow      RiskLevel = "low"
-	RiskMedium   RiskLevel = "medium"
-	RiskHigh     RiskLevel = "high"
-	RiskCritical RiskLevel = "critical"
+	RiskLow      = risk.Low
+	RiskMedium   = risk.Medium
+	RiskHigh     = risk.High
+	RiskCritical = risk.Critical
 )
 
 // ChainStatus is the issuer-asserted termination reason carried in
@@ -59,11 +63,12 @@ const (
 )
 
 // ActionTypePTYOpen and ActionTypePTYClose are the action.type values for PTY
-// lifecycle events (ADR-0027 §/pty). Defined here so chain.go can reference
-// them without importing the taxonomy package (which imports receipt).
+// lifecycle events (ADR-0027 §/pty). They re-export the risk leaf constants so
+// chain.go can reference them without importing the taxonomy package, and so the
+// taxonomy registry can reference them without importing receipt.
 const (
-	ActionTypePTYOpen  = "system.pty.open"
-	ActionTypePTYClose = "system.pty.close"
+	ActionTypePTYOpen  = risk.ActionTypePTYOpen
+	ActionTypePTYClose = risk.ActionTypePTYClose
 )
 
 // Operator identifies the AI model executing actions.

@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"github.com/agent-receipts/ar/sdk/go/risk"
 )
 
 // ActionTypeEntry describes a known action type.
 type ActionTypeEntry struct {
-	Type        string            `json:"type"`
-	Description string            `json:"description"`
-	RiskLevel   receipt.RiskLevel `json:"risk_level"`
+	Type        string     `json:"type"`
+	Description string     `json:"description"`
+	RiskLevel   risk.Level `json:"risk_level"`
 }
 
 // TaxonomyMapping maps a tool name to an action type.
@@ -29,44 +29,44 @@ type TaxonomyConfig struct {
 
 // ClassificationResult holds the result of classifying a tool call.
 type ClassificationResult struct {
-	ActionType string            `json:"action_type"`
-	RiskLevel  receipt.RiskLevel `json:"risk_level"`
+	ActionType string     `json:"action_type"`
+	RiskLevel  risk.Level `json:"risk_level"`
 }
 
 // Built-in action types.
 var (
 	FilesystemActions = []ActionTypeEntry{
-		{Type: "filesystem.file.create", Description: "Create a file", RiskLevel: receipt.RiskLow},
-		{Type: "filesystem.file.read", Description: "Read a file", RiskLevel: receipt.RiskLow},
-		{Type: "filesystem.file.modify", Description: "Modify a file", RiskLevel: receipt.RiskMedium},
-		{Type: "filesystem.file.delete", Description: "Delete a file", RiskLevel: receipt.RiskHigh},
-		{Type: "filesystem.file.move", Description: "Move or rename a file", RiskLevel: receipt.RiskMedium},
-		{Type: "filesystem.directory.create", Description: "Create a directory", RiskLevel: receipt.RiskLow},
-		{Type: "filesystem.directory.delete", Description: "Delete a directory", RiskLevel: receipt.RiskHigh},
-		{Type: "filesystem.directory.list", Description: "List directory contents", RiskLevel: receipt.RiskLow},
+		{Type: "filesystem.file.create", Description: "Create a file", RiskLevel: risk.Low},
+		{Type: "filesystem.file.read", Description: "Read a file", RiskLevel: risk.Low},
+		{Type: "filesystem.file.modify", Description: "Modify a file", RiskLevel: risk.Medium},
+		{Type: "filesystem.file.delete", Description: "Delete a file", RiskLevel: risk.High},
+		{Type: "filesystem.file.move", Description: "Move or rename a file", RiskLevel: risk.Medium},
+		{Type: "filesystem.directory.create", Description: "Create a directory", RiskLevel: risk.Low},
+		{Type: "filesystem.directory.delete", Description: "Delete a directory", RiskLevel: risk.High},
+		{Type: "filesystem.directory.list", Description: "List directory contents", RiskLevel: risk.Low},
 	}
 
 	SystemActions = []ActionTypeEntry{
-		{Type: "system.application.launch", Description: "Launch an application", RiskLevel: receipt.RiskLow},
-		{Type: "system.application.control", Description: "Control an application via UI automation", RiskLevel: receipt.RiskMedium},
-		{Type: "system.settings.modify", Description: "Modify system or app settings", RiskLevel: receipt.RiskHigh},
-		{Type: "system.command.execute", Description: "Execute a shell command", RiskLevel: receipt.RiskHigh},
-		{Type: "system.code.execute", Description: "Execute code in a sandbox code interpreter", RiskLevel: receipt.RiskHigh},
-		{Type: receipt.ActionTypePTYOpen, Description: "Open an interactive PTY session", RiskLevel: receipt.RiskCritical},
-		{Type: receipt.ActionTypePTYClose, Description: "Close a PTY session", RiskLevel: receipt.RiskHigh},
-		{Type: "system.browser.navigate", Description: "Navigate to a URL", RiskLevel: receipt.RiskLow},
-		{Type: "system.browser.form_submit", Description: "Submit a web form", RiskLevel: receipt.RiskMedium},
-		{Type: "system.browser.authenticate", Description: "Log into a service", RiskLevel: receipt.RiskHigh},
+		{Type: "system.application.launch", Description: "Launch an application", RiskLevel: risk.Low},
+		{Type: "system.application.control", Description: "Control an application via UI automation", RiskLevel: risk.Medium},
+		{Type: "system.settings.modify", Description: "Modify system or app settings", RiskLevel: risk.High},
+		{Type: "system.command.execute", Description: "Execute a shell command", RiskLevel: risk.High},
+		{Type: "system.code.execute", Description: "Execute code in a sandbox code interpreter", RiskLevel: risk.High},
+		{Type: risk.ActionTypePTYOpen, Description: "Open an interactive PTY session", RiskLevel: risk.Critical},
+		{Type: risk.ActionTypePTYClose, Description: "Close a PTY session", RiskLevel: risk.High},
+		{Type: "system.browser.navigate", Description: "Navigate to a URL", RiskLevel: risk.Low},
+		{Type: "system.browser.form_submit", Description: "Submit a web form", RiskLevel: risk.Medium},
+		{Type: "system.browser.authenticate", Description: "Log into a service", RiskLevel: risk.High},
 	}
 
 	DataActions = []ActionTypeEntry{
-		{Type: "data.api.read", Description: "Read data from an external API", RiskLevel: receipt.RiskLow},
-		{Type: "data.api.write", Description: "Write data to an external API", RiskLevel: receipt.RiskMedium},
-		{Type: "data.api.delete", Description: "Delete data via an external API", RiskLevel: receipt.RiskHigh},
+		{Type: "data.api.read", Description: "Read data from an external API", RiskLevel: risk.Low},
+		{Type: "data.api.write", Description: "Write data to an external API", RiskLevel: risk.Medium},
+		{Type: "data.api.delete", Description: "Delete data via an external API", RiskLevel: risk.High},
 	}
 
 	NetworkActions = []ActionTypeEntry{
-		{Type: "network.egress.observed", Description: "Observed outbound network connection crossing a sandbox boundary", RiskLevel: receipt.RiskMedium},
+		{Type: "network.egress.observed", Description: "Observed outbound network connection crossing a sandbox boundary", RiskLevel: risk.Medium},
 	}
 
 	// DiagnosticActions classify daemon/CLI self-checks rather than agent tool
@@ -74,13 +74,13 @@ var (
 	// agent — but they land in the real chain like any other event so operators
 	// can see (and filter) them.
 	DiagnosticActions = []ActionTypeEntry{
-		{Type: DiagnosticRoundtripActionType, Description: "agent-receipts doctor synthetic round-trip probe (diagnostic.roundtrip)", RiskLevel: receipt.RiskLow},
+		{Type: DiagnosticRoundtripActionType, Description: "agent-receipts doctor synthetic round-trip probe (diagnostic.roundtrip)", RiskLevel: risk.Low},
 	}
 
 	UnknownAction = ActionTypeEntry{
 		Type:        "unknown",
 		Description: "Tool call that does not map to any known action type",
-		RiskLevel:   receipt.RiskMedium,
+		RiskLevel:   risk.Medium,
 	}
 )
 
