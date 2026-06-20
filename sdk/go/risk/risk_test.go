@@ -17,7 +17,7 @@ func TestLevelValues(t *testing.T) {
 	}
 	for level, want := range cases {
 		if string(level) != want {
-			t.Errorf("risk.Level %q = %q, want %q", want, string(level), want)
+			t.Errorf("risk.Level = %q, want %q", string(level), want)
 		}
 	}
 }

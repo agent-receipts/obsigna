@@ -13,8 +13,8 @@ import (
 // proxy, ADR-0033) can depend on taxonomy without pulling in the receipt writer
 // surface ADR-0010 reserves for the daemon.
 //
-// `go list -deps` reports the non-test (production) dependency graph, so the
-// fact that this test file's package imports receipt elsewhere does not count.
+// `go list -deps` reports only the non-test (production) dependency graph, so a
+// test-only import of receipt (in this package or any other) does not count.
 func TestTaxonomyDoesNotImportReceipt(t *testing.T) {
 	const receiptPkg = "github.com/agent-receipts/ar/sdk/go/receipt"
 
