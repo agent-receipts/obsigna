@@ -105,6 +105,9 @@ func (l *FileLog) Write(eventType string, payload []byte) error {
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.f == nil {
+		return fmt.Errorf("anchor: write on closed file log")
+	}
 	if _, err := l.f.Write(line); err != nil {
 		return fmt.Errorf("anchor: write record: %w", err)
 	}

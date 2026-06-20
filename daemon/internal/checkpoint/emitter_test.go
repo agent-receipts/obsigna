@@ -163,3 +163,27 @@ func TestEmitterClosesAllSinks(t *testing.T) {
 		t.Errorf("Close did not close all sinks: a=%v b=%v", a.closed, b.closed)
 	}
 }
+
+// TestEnqueueAfterCloseDropsNotLoses verifies that an Observe racing with Close
+// does not silently lose the job: after Close returns and the worker has exited,
+// any further enqueue attempt is counted as dropped rather than vanishing into
+// the still-buffered (but now unread) channel.
+func TestEnqueueAfterCloseDropsNotLoses(t *testing.T) {
+	signer, _ := newTestSigner(t)
+	sink := &recordingSink{okWrite: true}
+	var logged int
+	logf := func(string, ...any) { logged++ }
+	e := NewEmitter([]anchor.Sink{sink}, signer, 1, logf)
+	if err := e.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	droppedBefore := e.Dropped()
+	// Directly call enqueue (package-internal) to simulate the race window.
+	e.enqueue(emitJob{chainID: "c", seq: 99, headHash: "sha256:x"})
+	if got := e.Dropped(); got != droppedBefore+1 {
+		t.Errorf("Dropped = %d, want %d (job after Close must be counted, not silently lost)", got, droppedBefore+1)
+	}
+	if logged == 0 {
+		t.Error("expected a log line for the post-Close drop, got none")
+	}
+}

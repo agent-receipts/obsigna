@@ -49,6 +49,7 @@ type Emitter struct {
 	emitted  atomic.Int64
 	failures atomic.Int64
 	dropped  atomic.Int64
+	closed   atomic.Bool
 
 	// workerCh receives emitJobs for the worker goroutine. Never closed;
 	// the worker is stopped via stopCh instead (see worker()).
@@ -233,9 +234,14 @@ func (e *Emitter) FlushAll() error {
 	return nil
 }
 
-// enqueue sends a fire-and-forget job to the worker. If the channel is full,
-// the job is dropped, logged, and counted.
+// enqueue sends a fire-and-forget job to the worker. If the emitter is closed
+// or the channel is full, the job is dropped, logged, and counted.
 func (e *Emitter) enqueue(job emitJob) {
+	if e.closed.Load() {
+		e.dropped.Add(1)
+		e.log("level=warn checkpoint drop: emitter closed: chain=%s seq=%d", job.chainID, job.seq)
+		return
+	}
 	select {
 	case e.workerCh <- job:
 	default:
@@ -326,6 +332,10 @@ func (e *Emitter) log(format string, args ...any) {
 func (e *Emitter) Close() error {
 	var firstErr error
 	e.closeOnce.Do(func() {
+		// Mark closed before signalling the worker so that any concurrent
+		// enqueue() call after this point is counted as dropped rather than
+		// silently lost to a dead-but-buffered channel.
+		e.closed.Store(true)
 		// Signal the worker to stop accepting new items and drain the buffer.
 		close(e.stopCh)
 		// Wait for the worker to finish processing all buffered items and exit.
