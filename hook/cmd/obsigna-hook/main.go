@@ -1,7 +1,7 @@
 // Command obsigna-hook is a short-lived hook binary invoked by agent runtimes
 // (Claude Code, Codex, …) on PostToolUse, PostToolUseFailure, and PreToolUse
 // events. It reads a JSON frame from stdin, maps it to an emitter.Event, and
-// forwards it to the agent-receipts daemon over a Unix-domain socket.
+// forwards it to obsigna-daemon over a Unix-domain socket.
 //
 // It is the primary hook entrypoint (ADR-0036). The legacy agent-receipts-hook
 // binary is a thin deprecation shim that forwards here (see
