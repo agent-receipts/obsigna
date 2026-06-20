@@ -29,6 +29,10 @@ from obsigna.receipt.types import (
     Principal,
 )
 
+# NOTE: Go SDK live-emit version is intentionally behind at "0.5.0" until the
+# vanity module path migration (#899 PR3) lands and the Go SDK bump follows.
+# When that PR lands, update sdk/go/receipt/live_emit_version_test.go to
+# "0.6.0" to restore the three-way invariant documented in that file's header.
 LIVE_EMIT_VERSION = "0.6.0"
 
 

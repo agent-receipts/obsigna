@@ -9,6 +9,10 @@ import { VERSION } from "./types.js";
 // breaks that SDK's test in isolation, closing the gap surfaced by #512 where
 // the existing v030 cross-SDK byte-identicality tests load a pre-built JSON
 // fixture and never consult the SDK's VERSION constant.
+// NOTE: Go SDK live-emit version is intentionally behind at "0.5.0" until the
+// vanity module path migration (#899 PR3) lands and the Go SDK bump follows.
+// When that PR lands, update sdk/go/receipt/live_emit_version_test.go to
+// "0.6.0" to restore the three-way invariant documented in that file's header.
 const LIVE_EMIT_VERSION = "0.6.0";
 
 describe("createReceipt cross-SDK version invariant", () => {
