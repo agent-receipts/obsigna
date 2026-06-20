@@ -49,8 +49,10 @@ func TestEmitterFanOut(t *testing.T) {
 	a := &recordingSink{okWrite: true}
 	b := &recordingSink{okWrite: true}
 	e := NewEmitter([]anchor.Sink{a, b}, signer, 1, nil)
+	defer func() { _ = e.Close() }()
 
 	e.Observe("chain-1", 1, "sha256:aa")
+	_ = e.FlushAll() // drain the async worker before asserting
 
 	if a.count() != 1 || b.count() != 1 {
 		t.Fatalf("fan-out incomplete: a=%d b=%d, want 1 each", a.count(), b.count())
@@ -67,12 +69,14 @@ func TestEmitterCadence(t *testing.T) {
 	signer, _ := newTestSigner(t)
 	sink := &recordingSink{okWrite: true}
 	e := NewEmitter([]anchor.Sink{sink}, signer, 3, nil)
+	defer func() { _ = e.Close() }()
 
 	// Cadence 3 over 5 receipts: only the 3rd observation emits (seqs 4,5 leave
 	// the counter at 2, below the cadence).
 	for seq := int64(1); seq <= 5; seq++ {
 		e.Observe("chain-1", seq, "sha256:h")
 	}
+	_ = e.FlushAll() // drain before checking
 	if got := sink.count(); got != 1 {
 		t.Fatalf("with cadence 3 over 5 receipts, got %d checkpoints, want 1", got)
 	}
@@ -94,11 +98,13 @@ func TestEmitterFailVisibleNotSilent(t *testing.T) {
 	var logged int
 	logf := func(string, ...any) { logged++ }
 	e := NewEmitter([]anchor.Sink{down, up}, signer, 1, logf)
+	defer func() { _ = e.Close() }()
 
 	// One sink fails; the other still receives the checkpoint. The failure is
 	// counted and logged (visible), and Observe never panics or blocks — it runs
 	// after the receipt is already committed and must not undo it.
 	e.Observe("chain-1", 1, "sha256:aa")
+	_ = e.FlushAll() // drain the async worker before asserting
 
 	if up.count() != 1 {
 		t.Errorf("healthy sink got %d writes, want 1 (a failing sibling must not block it)", up.count())
@@ -119,9 +125,11 @@ func TestEmitterFlushDoesNotReEmitAlreadyAnchoredHead(t *testing.T) {
 	signer, _ := newTestSigner(t)
 	sink := &recordingSink{okWrite: true}
 	e := NewEmitter([]anchor.Sink{sink}, signer, 1, nil)
+	defer func() { _ = e.Close() }()
 
 	// Per-receipt Observe anchors head seq 3 (cadence 1).
 	e.Observe("c", 3, "sha256:h3")
+	_ = e.FlushAll() // drain before asserting
 	if sink.count() != 1 {
 		t.Fatalf("after Observe(3): got %d checkpoints, want 1", sink.count())
 	}

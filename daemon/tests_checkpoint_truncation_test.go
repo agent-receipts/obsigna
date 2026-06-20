@@ -73,6 +73,11 @@ func TestCheckpointAnchorCatchesTailTruncation(t *testing.T) {
 			t.Fatalf("process frame %d: %v", i, err)
 		}
 	}
+	// Drain the async worker before reading the emitted counter; Observe enqueues
+	// asynchronously so in-flight emissions may not have landed yet.
+	if err := emitter.FlushAll(); err != nil {
+		t.Fatalf("FlushAll: %v", err)
+	}
 	if got := emitter.Emitted(); got != total {
 		t.Fatalf("emitted %d checkpoints, want %d", got, total)
 	}

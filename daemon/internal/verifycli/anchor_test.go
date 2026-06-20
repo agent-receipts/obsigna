@@ -72,8 +72,8 @@ func TestAnchorPassesWhenHeadMatches(t *testing.T) {
 	if !got.OK {
 		t.Fatalf("expected PASS, got fail: %s", got.Reason)
 	}
-	if got.Checked != 3 {
-		t.Errorf("Checked = %d, want 3", got.Checked)
+	if got.Checked != 1 {
+		t.Errorf("Checked = %d, want 1 (only the latest checkpoint is read)", got.Checked)
 	}
 }
 
