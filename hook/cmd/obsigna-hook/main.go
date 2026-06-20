@@ -1,7 +1,7 @@
 // Command obsigna-hook is a short-lived hook binary invoked by agent runtimes
-// (Claude Code, Codex, …) on PostToolUse and PreToolUse events. It reads a JSON
-// frame from stdin, maps it to an emitter.Event, and forwards it to the
-// agent-receipts daemon over a Unix-domain socket.
+// (Claude Code, Codex, …) on PostToolUse, PostToolUseFailure, and PreToolUse
+// events. It reads a JSON frame from stdin, maps it to an emitter.Event, and
+// forwards it to obsigna-daemon over a Unix-domain socket.
 //
 // It is the primary hook entrypoint (ADR-0036). The legacy agent-receipts-hook
 // binary is a thin deprecation shim that forwards here (see
@@ -66,7 +66,7 @@ var formats = map[string]reader{
 // Claude Code does not set CLAUDE_SESSION_ID as an environment variable; it
 // passes hook_event_name in the stdin JSON payload instead. We check both
 // signals so the binary works with runtimes that take either approach.
-// Both "PostToolUse" and "PreToolUse" are accepted from stdin.
+// "PostToolUse", "PostToolUseFailure", and "PreToolUse" are accepted from stdin.
 func detect(stdin []byte, env func(string) string) string {
 	if env("CLAUDE_SESSION_ID") != "" {
 		return "claude-code"
@@ -76,7 +76,7 @@ func detect(stdin []byte, env func(string) string) string {
 	}
 	if json.Unmarshal(stdin, &probe) == nil {
 		switch probe.HookEventName {
-		case "PostToolUse", "PreToolUse":
+		case "PostToolUse", "PostToolUseFailure", "PreToolUse":
 			return "claude-code"
 		}
 	}

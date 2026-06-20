@@ -131,6 +131,7 @@ type wireFrame struct {
 	} `json:"tool"`
 	Input    json.RawMessage `json:"input,omitempty"`
 	Output   json.RawMessage `json:"output,omitempty"`
+	Error    string          `json:"error,omitempty"`
 	Decision string          `json:"decision"`
 	TsEmit   string          `json:"ts_emit"`
 }
@@ -202,6 +203,63 @@ func TestIntegration_ClaudeCodeFrame(t *testing.T) {
 	}
 	if !json.Valid(got.Output) {
 		t.Errorf("output not valid JSON: %s", got.Output)
+	}
+}
+
+// TestIntegration_ClaudeCodeFailureFrame exercises a PostToolUseFailure frame
+// end-to-end: the failure error must reach the listener on the wire so the
+// daemon can stamp outcome.status=failure. This is the path that records a
+// failed (e.g. lost concurrent write) tool call as a failure row in the chain.
+func TestIntegration_ClaudeCodeFailureFrame(t *testing.T) {
+	dir := shortSocketDir(t)
+	rl := newRecordingListener(t, dir)
+
+	const sessionID = "integ-fail-2026"
+	stdin := `{
+		"hook_event_name": "PostToolUseFailure",
+		"session_id": "` + sessionID + `",
+		"tool_use_id": "tu-lost-write",
+		"tool_name": "Edit",
+		"tool_input": {"file_path":"/repo/shared.go","old_string":"a","new_string":"b"},
+		"error": "String to replace not found in file."
+	}`
+
+	ev, sid, err := readClaudeCode([]byte(stdin), func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("readClaudeCode: %v", err)
+	}
+
+	em, err := emitter.NewDaemon(
+		emitter.WithSocketPath(rl.path),
+		emitter.WithSessionID(sid),
+		emitter.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	)
+	if err != nil {
+		t.Fatalf("emitter.NewDaemon: %v", err)
+	}
+	defer em.Close()
+
+	if err := em.Emit(context.Background(), ev); err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+
+	frames := rl.waitForFrames(t, 1, 2*time.Second)
+
+	var got wireFrame
+	if err := json.Unmarshal(frames[0], &got); err != nil {
+		t.Fatalf("unmarshal frame: %v (raw: %s)", err, frames[0])
+	}
+	if got.Decision != "allowed" {
+		t.Errorf("decision = %q; want allowed", got.Decision)
+	}
+	if got.Error != "String to replace not found in file." {
+		t.Errorf("error = %q; want the failure message on the wire", got.Error)
+	}
+	if got.Output != nil {
+		t.Errorf("output = %s; want absent on a failure frame", got.Output)
+	}
+	if !json.Valid(got.Input) {
+		t.Errorf("input not valid JSON: %s", got.Input)
 	}
 }
 

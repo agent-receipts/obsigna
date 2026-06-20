@@ -215,6 +215,148 @@ func TestReadClaudeCode_InputOutputAreValidJSON(t *testing.T) {
 	}
 }
 
+// TestReadClaudeCode_PostToolUseFailure verifies a PostToolUseFailure frame is
+// mapped to an "allowed" decision carrying the failure error, so the daemon
+// records it as outcome.status=failure rather than leaving no receipt. The
+// frame still carries tool_input (so the target/parameters are captured) but no
+// tool_response.
+func TestReadClaudeCode_PostToolUseFailure(t *testing.T) {
+	noEnv := func(string) string { return "" }
+
+	t.Run("error message passes through", func(t *testing.T) {
+		stdin := `{
+			"hook_event_name": "PostToolUseFailure",
+			"session_id": "sess-fail",
+			"tool_use_id": "tu-fail",
+			"tool_name": "Edit",
+			"tool_input": {"file_path":"/repo/shared.go","old_string":"a","new_string":"b"},
+			"error": "String to replace not found in file.",
+			"is_interrupt": false
+		}`
+		ev, sid, err := readClaudeCode([]byte(stdin), noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode: %v", err)
+		}
+		if ev.Decision != "allowed" {
+			t.Errorf("Decision = %q; want allowed", ev.Decision)
+		}
+		if ev.Error != "String to replace not found in file." {
+			t.Errorf("Error = %q; want the frame error", ev.Error)
+		}
+		if sid != "sess-fail" {
+			t.Errorf("sessionID = %q; want sess-fail", sid)
+		}
+		if ev.Input == nil {
+			t.Error("Input is nil; want non-nil (tool_input present on failure frames)")
+		}
+		if ev.Output != nil {
+			t.Errorf("Output = %s; want nil (no tool_response on failure frames)", ev.Output)
+		}
+		if ev.Target.System != "filesystem" || ev.Target.Resource != "/repo/shared.go" {
+			t.Errorf("Target = %+v; want filesystem /repo/shared.go", ev.Target)
+		}
+	})
+
+	t.Run("empty error falls back to a non-empty message", func(t *testing.T) {
+		stdin := `{
+			"hook_event_name": "PostToolUseFailure",
+			"session_id": "s",
+			"tool_name": "Bash",
+			"tool_input": {"command":"false"},
+			"error": "   "
+		}`
+		ev, _, err := readClaudeCode([]byte(stdin), noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode: %v", err)
+		}
+		// A blank error must not be forwarded as-is: the daemon treats an empty
+		// error on an "allowed" decision as success, which would silently lose
+		// the failure.
+		if ev.Error != "tool call failed" {
+			t.Errorf("Error = %q; want fallback %q", ev.Error, "tool call failed")
+		}
+	})
+
+	t.Run("interrupt with no message falls back to interrupted", func(t *testing.T) {
+		stdin := `{
+			"hook_event_name": "PostToolUseFailure",
+			"session_id": "s",
+			"tool_name": "Bash",
+			"tool_input": {"command":"sleep 100"},
+			"error": "",
+			"is_interrupt": true
+		}`
+		ev, _, err := readClaudeCode([]byte(stdin), noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode: %v", err)
+		}
+		if ev.Error != "tool call interrupted" {
+			t.Errorf("Error = %q; want fallback %q", ev.Error, "tool call interrupted")
+		}
+	})
+
+	t.Run("non-string error does not abort the frame parse", func(t *testing.T) {
+		// Claude Code sends `error` as a string today; a schema variation must
+		// not break parsing and drop the failure receipt entirely. The raw JSON
+		// is kept as the message text.
+		stdin := `{
+			"hook_event_name": "PostToolUseFailure",
+			"session_id": "s",
+			"tool_name": "Edit",
+			"tool_input": {"file_path":"/x.go"},
+			"error": {"message":"nested"}
+		}`
+		ev, _, err := readClaudeCode([]byte(stdin), noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode returned error on non-string error field: %v", err)
+		}
+		if ev.Decision != "allowed" {
+			t.Errorf("Decision = %q; want allowed", ev.Decision)
+		}
+		if ev.Error != `{"message":"nested"}` {
+			t.Errorf("Error = %q; want the raw JSON text of the error object", ev.Error)
+		}
+	})
+
+	t.Run("oversized error is truncated, not dropped", func(t *testing.T) {
+		big := strings.Repeat("x", maxErrorTextLen+500)
+		stdin, _ := json.Marshal(map[string]any{
+			"hook_event_name": "PostToolUseFailure",
+			"session_id":      "s",
+			"tool_name":       "Bash",
+			"tool_input":      map[string]string{"command": "false"},
+			"error":           big,
+		})
+		ev, _, err := readClaudeCode(stdin, noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode: %v", err)
+		}
+		if len(ev.Error) > maxErrorTextLen+len("…(truncated)") {
+			t.Errorf("Error length = %d; want capped near %d", len(ev.Error), maxErrorTextLen)
+		}
+		if !strings.HasSuffix(ev.Error, "…(truncated)") {
+			t.Errorf("Error = %q…; want a truncation marker suffix", ev.Error[:64])
+		}
+	})
+
+	t.Run("success frame carries no error", func(t *testing.T) {
+		stdin := `{
+			"hook_event_name": "PostToolUse",
+			"session_id": "s",
+			"tool_name": "Bash",
+			"tool_input": {"command":"true"},
+			"tool_response": {"output":"ok"}
+		}`
+		ev, _, err := readClaudeCode([]byte(stdin), noEnv)
+		if err != nil {
+			t.Fatalf("readClaudeCode: %v", err)
+		}
+		if ev.Error != "" {
+			t.Errorf("Error = %q; want empty on a success frame", ev.Error)
+		}
+	})
+}
+
 // --- detect unit tests ---
 
 func TestDetect(t *testing.T) {
@@ -250,6 +392,12 @@ func TestDetect(t *testing.T) {
 		{
 			name:  "PreToolUse hook_event_name is detected as claude-code",
 			stdin: `{"hook_event_name":"PreToolUse","session_id":"s","tool_name":"Bash","tool_input":{}}`,
+			env:   map[string]string{},
+			want:  "claude-code",
+		},
+		{
+			name:  "PostToolUseFailure hook_event_name is detected as claude-code",
+			stdin: `{"hook_event_name":"PostToolUseFailure","session_id":"s","tool_name":"Edit","tool_input":{},"error":"old_string not found"}`,
 			env:   map[string]string{},
 			want:  "claude-code",
 		},
