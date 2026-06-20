@@ -83,6 +83,11 @@ func readClaudeCode(stdin []byte, env func(string) string) (emitter.Event, strin
 		default:
 			if sys, res, warn := extractFileTarget(f.ToolName, f.ToolInput); res != "" {
 				ev.Target = emitter.Target{System: sys, Resource: res}
+				// Set the taxonomic action type only for native tools whose verb we
+				// can name honestly (Read → read, Write/Edit/MultiEdit → modify).
+				// Opportunistically-captured tools yield a path but no known verb, so
+				// nativeToolActionType returns "" and ActionType stays empty.
+				ev.ActionType = nativeToolActionType(f.ToolName)
 			} else if warn != "" {
 				fmt.Fprintln(os.Stderr, warn)
 			}
@@ -123,6 +128,28 @@ func readClaudeCode(stdin []byte, env func(string) string) (emitter.Event, strin
 // schema drift without failing the hook.
 var fileTools = map[string]bool{
 	"Read": true, "Write": true, "Edit": true, "MultiEdit": true,
+}
+
+// nativeActionTypes maps a native Claude Code tool name to its taxonomic
+// filesystem action type. Only tools whose effect is unambiguous are listed:
+// Read reads, while Write/Edit/MultiEdit all modify an existing path (Write
+// clobbers it in place). Tools absent from the map have no honestly-derivable
+// verb, so nativeToolActionType returns "" and the daemon falls back to its
+// UnknownAction default. The action types are the shared consts from
+// shell_target.go so there is one source of truth across both classifiers.
+var nativeActionTypes = map[string]string{
+	"Read":      actionFileRead,
+	"Write":     actionFileModify,
+	"Edit":      actionFileModify,
+	"MultiEdit": actionFileModify,
+}
+
+// nativeToolActionType returns the taxonomic action type for a native Claude
+// Code tool, or "" when the tool's verb is not known. Callers should only set
+// ev.ActionType when a file target was resolved; an empty string leaves it
+// unset so the daemon does not over-claim a verb we cannot derive.
+func nativeToolActionType(toolName string) string {
+	return nativeActionTypes[toolName]
 }
 
 // skipTools is the set of non-filesystem tools excluded from file_path
