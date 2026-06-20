@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0-alpha.1] - 2026-06-20
+
+### Added
+
+- **Hook classifies shell `rm`, `mv`, and `cp` operations** ([#893](https://github.com/agent-receipts/obsigna/pull/893)) — when `obsigna-hook` intercepts a Claude Code `Bash` tool call running `rm`, `mv`, or `cp`, the hook now resolves the primary path argument as `action.target.resource` and sets `action.type` to `filesystem.file.delete`, `filesystem.file.move`, or `filesystem.file.copy`. Receipts for these destructive operations carry the real taxonomy risk level (`high` for delete and move, `medium` for copy) instead of the generic `UnknownAction` medium assigned to any unclassified shell command. The pre-resolved action type is passed to the daemon via the new `action_type` frame field (sdk/go `emitter.Event.ActionType`); the daemon uses it verbatim and derives `risk_level` from the taxonomy, so a mislabeled type would yield that type's risk — emitters must send the true type.
+
+- **Inline `prompt_preview` and plaintext error fields are bounded** ([#894](https://github.com/agent-receipts/obsigna/pull/894)) — `obsigna-daemon` now caps `intent.prompt_preview` at a configurable rune limit (default 500) and any plaintext error field at the same cap, enforced at the daemon boundary so oversized emitter payloads cannot bloat receipts. When the cap fires, `intent.prompt_preview_truncated: true` is stamped on the receipt. The sdk/go emitter gains the corresponding `Event.PromptPreview` field; the emitter forwards the value verbatim and the daemon owns truncation. The emitter also gains `Event.ActionType` (see above) with matching length validation.
+
 ## [0.27.0] - 2026-06-20
 
 Graduates `0.27.0-alpha.2` after the alpha pass. The out-of-band checkpoint anchor for tail-truncation resistance (see `0.27.0-alpha.1`) is the primary new feature since `0.26.0`. Two additional changes landed after the alpha and ship in this stable:
