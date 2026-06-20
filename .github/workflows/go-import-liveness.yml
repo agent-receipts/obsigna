@@ -1,0 +1,53 @@
+name: go-import liveness
+
+# Runs after the obsigna.dev site deploy completes (main-branch pushes only).
+# Asserts that the live site returns the go-import meta tag on the paths the
+# Go toolchain will fetch with ?go-get=1.  A failure here means the vanity
+# import redirect is broken and PR2 / PR3 must not land until it is fixed.
+on:
+  workflow_run:
+    workflows: ["Site (obsigna.dev)"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # Only run when the triggering deploy actually succeeded.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check go-import meta — sdk/go subpath
+        run: |
+          # Use -sL (no -f) so curl succeeds even on 404; the Go toolchain
+          # accepts meta tags from non-200 responses, and static hosts serve
+          # 404.html for unrecognised subpaths such as /sdk/go.
+          body=$(curl -sL "https://obsigna.dev/sdk/go?go-get=1")
+          if ! echo "$body" | grep -q 'name="go-import"'; then
+            echo "ERROR: go-import meta tag missing from https://obsigna.dev/sdk/go?go-get=1"
+            exit 1
+          fi
+          if ! echo "$body" | grep -q 'obsigna.dev git https://github.com/agent-receipts/obsigna'; then
+            echo "ERROR: go-import content mismatch on https://obsigna.dev/sdk/go?go-get=1"
+            echo "--- body ---"
+            echo "$body" | grep -i 'go-import' || true
+            exit 1
+          fi
+          echo "OK: go-import present on /sdk/go"
+
+      - name: Check go-import meta — daemon subpath
+        run: |
+          body=$(curl -sL "https://obsigna.dev/daemon?go-get=1")
+          if ! echo "$body" | grep -q 'name="go-import"'; then
+            echo "ERROR: go-import meta tag missing from https://obsigna.dev/daemon?go-get=1"
+            exit 1
+          fi
+          if ! echo "$body" | grep -q 'obsigna.dev git https://github.com/agent-receipts/obsigna'; then
+            echo "ERROR: go-import content mismatch on https://obsigna.dev/daemon?go-get=1"
+            echo "--- body ---"
+            echo "$body" | grep -i 'go-import' || true
+            exit 1
+          fi
+          echo "OK: go-import present on /daemon"
