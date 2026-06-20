@@ -425,7 +425,7 @@
         },
         "response_disclosure": {
           "$ref": "#/$defs/parametersDisclosureEnvelope",
-          "description": "HPKE asymmetric encryption envelope sealing the tool response (ADR-0012, v0.6.0+). Mirrors action.parameters_disclosure for the response side: the signed receipt commits to the ciphertext; only the forensic private-key holder can recover the plaintext. `response_hash` remains the tamper-evidence commitment and is always authoritative; this field is additive. Operators MUST enable response disclosure via a separate --response-disclosure policy flag (independent of --parameter-disclosure), so sealing outputs without sealing inputs (or vice versa) is possible. Absent when the issuer did not enable response disclosure."
+          "description": "HPKE asymmetric encryption envelope sealing the tool response (ADR-0012, v0.6.0+). Mirrors action.parameters_disclosure for the response side: the signed receipt commits to the ciphertext; only the forensic private-key holder can recover the plaintext. `response_hash` remains the tamper-evidence commitment and is always authoritative; this field is additive. Response disclosure is controlled independently of parameter disclosure, so issuers may seal outputs without sealing inputs (or vice versa). Absent when the issuer did not enable response disclosure."
         }
       }
     },
