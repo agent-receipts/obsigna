@@ -32,7 +32,7 @@ class GrantInfo:
     # MUST equal credentialSubject.principal.id for the tier check to pass.
     subject: str
     # Authorization scopes active under the grant.
-    scopes: list[str] = field(default_factory=list[str])
+    scopes: list[str] = field(default_factory=list)
     # When the authorization server minted the grant.
     issued_at: datetime | None = None
     # When the grant expires.

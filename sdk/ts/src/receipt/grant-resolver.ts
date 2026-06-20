@@ -111,7 +111,7 @@ export async function verifyGroundedPrincipalTier(
 	receipts: AgentReceipt[],
 	resolver: GrantResolver | null,
 ): Promise<GroundedPrincipalViolation[]> {
-	if (resolver === null) {
+	if (resolver == null) {
 		return [];
 	}
 
