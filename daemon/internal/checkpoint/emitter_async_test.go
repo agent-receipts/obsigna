@@ -99,12 +99,6 @@ func TestQueueDropsWhenFull(t *testing.T) {
 // have been sent to the sink before returning.
 func TestFlushAllDrains(t *testing.T) {
 	signer, _ := newTestSigner(t)
-	var mu sync.Mutex
-	var received []int64
-	sink := &recordingSink{okWrite: true}
-
-	// Wrap the recording sink to capture seq order independently.
-	_ = sink
 	counter := &countSink{}
 	e := NewEmitter([]anchor.Sink{counter}, signer, 1, nil)
 	defer func() { _ = e.Close() }()
@@ -118,9 +112,6 @@ func TestFlushAllDrains(t *testing.T) {
 		t.Fatalf("FlushAll: %v", err)
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-	_ = received // keep linter happy
 	if got := counter.count(); int(got) != n {
 		t.Errorf("after FlushAll, sink received %d writes, want %d", got, n)
 	}
