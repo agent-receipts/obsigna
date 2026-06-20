@@ -650,31 +650,37 @@ def _capture_one_frame(emit_kwargs: dict[str, Any]) -> dict[str, Any]:
 
     def _server() -> None:
         srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        srv.bind(sock_path)
-        srv.listen(1)
-        ready.set()
-        conn, _ = srv.accept()
-        hdr = b""
-        while len(hdr) < 4:
-            chunk = conn.recv(4 - len(hdr))
-            if not chunk:
-                break
-            hdr += chunk
-        if len(hdr) == 4:
-            length = struct.unpack(">I", hdr)[0]
-            body = b""
-            while len(body) < length:
-                chunk = conn.recv(length - len(body))
-                if not chunk:
-                    break
-                body += chunk
-            frames.append(body)
-        conn.close()
-        srv.close()
+        srv.settimeout(5)
+        try:
+            srv.bind(sock_path)
+            srv.listen(1)
+            ready.set()
+            conn, _ = srv.accept()
+            try:
+                conn.settimeout(5)
+                hdr = b""
+                while len(hdr) < 4:
+                    chunk = conn.recv(4 - len(hdr))
+                    if not chunk:
+                        break
+                    hdr += chunk
+                if len(hdr) == 4:
+                    length = struct.unpack(">I", hdr)[0]
+                    body = b""
+                    while len(body) < length:
+                        chunk = conn.recv(length - len(body))
+                        if not chunk:
+                            break
+                        body += chunk
+                    frames.append(body)
+            finally:
+                conn.close()
+        finally:
+            srv.close()
 
     t = threading.Thread(target=_server, daemon=True)
     t.start()
-    ready.wait(timeout=2)
+    assert ready.wait(timeout=2), "echo server did not become ready"
     try:
         e = DaemonEmitter(socket_path=sock_path)
         e.emit(**emit_kwargs)
