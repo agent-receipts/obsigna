@@ -5,7 +5,7 @@
 ### An open protocol for cryptographically signed, tamper-evident records of AI agent actions
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Status: Draft](https://img.shields.io/badge/Status-Draft_v0.4.0-orange.svg)](v0.4.0/spec.md)
+[![Status: Draft](https://img.shields.io/badge/Status-Draft_v0.5.0-orange.svg)](v0.5.0/spec.md)
 
 ---
 
@@ -64,7 +64,7 @@ The protocol is designed for receipts to travel — publishing to a shared ledge
 
 | Document | Description |
 |:---|:---|
-| [v0.4.0/spec.md](v0.4.0/spec.md) | Protocol specification (Draft v0.4.0; latest) |
+| [v0.5.0/spec.md](v0.5.0/spec.md) | Protocol specification (Draft v0.5.0; latest) |
 | [schema/agent-receipt.schema.json](schema/agent-receipt.schema.json) | JSON Schema for receipts (Draft 2020-12) |
 | [spec/taxonomy/action-types.json](spec/taxonomy/action-types.json) | Canonical action type definitions |
 | [schema/taxonomy.schema.json](schema/taxonomy.schema.json) | JSON Schema for the taxonomy |
