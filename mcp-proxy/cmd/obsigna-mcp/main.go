@@ -21,11 +21,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/agent-receipts/ar/mcp-proxy/configs"
 	"github.com/agent-receipts/ar/mcp-proxy/internal/audit"
 	"github.com/agent-receipts/ar/mcp-proxy/internal/host"
 	"github.com/agent-receipts/ar/mcp-proxy/internal/policy"
 	"github.com/agent-receipts/ar/mcp-proxy/internal/proxy"
 	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"github.com/agent-receipts/ar/sdk/go/taxonomy"
 	"github.com/google/uuid"
 )
 
@@ -210,6 +212,19 @@ func serve() int {
 	}
 	engine := policy.NewEngine(rules)
 
+	// Load the bundled per-server taxonomy mappings so we can forward a
+	// taxonomic action_type to the daemon (issue #721). The daemon resolves
+	// risk_level from that type; without it, the synthetic "<channel>.<tool>"
+	// fallback classifies nearly everything as medium risk. Taxonomy is
+	// best-effort enrichment — never fatal. On error we log and continue with
+	// an empty mapping set, in which case every tool resolves to "unknown" and
+	// the proxy sends no action_type (the daemon's fallback still applies).
+	taxonomyMappings, err := configs.BundledTaxonomies()
+	if err != nil {
+		log.Printf("mcp-proxy: load bundled taxonomies: %v; action_type enrichment disabled", err)
+		taxonomyMappings = nil
+	}
+
 	// Approval channels for pause actions.
 	approvalToken := generateToken(32)
 	approvals := audit.NewApprovalManager()
@@ -226,6 +241,7 @@ func serve() int {
 		argJSON        json.RawMessage
 		idempotencyKey string
 		correlationID  string
+		actionType     string
 	}
 	pendingCalls := make(map[string]*pendingCall)
 	var pendingMu sync.Mutex
@@ -290,6 +306,7 @@ func serve() int {
 			if params != nil {
 				toolName := proxy.StripMCPPrefix(params.Name)
 				opType := audit.ClassifyOperation(toolName)
+				actionType := resolveActionType(toolName, taxonomyMappings)
 				riskScore, _ := audit.ScoreRisk(toolName, params.Arguments)
 
 				decision := engine.Evaluate(policy.EvalContext{
@@ -315,6 +332,7 @@ func serve() int {
 					argJSON:        argJSON,
 					idempotencyKey: jsonrpcID,
 					correlationID:  params.ToolUseID(),
+					actionType:     actionType,
 				}
 				pendingMu.Unlock()
 
@@ -325,7 +343,7 @@ func serve() int {
 					blockedCorrelationID := pendingCalls[jsonrpcID].correlationID
 					delete(pendingCalls, jsonrpcID)
 					pendingMu.Unlock()
-					emitToContext(em, *serverName, toolName, argJSON, nil, fmt.Sprintf("blocked by policy: %s", decision.Reason), "denied", jsonrpcID, blockedCorrelationID)
+					emitToContext(em, *serverName, toolName, argJSON, nil, fmt.Sprintf("blocked by policy: %s", decision.Reason), "denied", jsonrpcID, blockedCorrelationID, actionType)
 					return &proxy.HandlerResult{
 						Block:          true,
 						ClientResponse: proxy.MakeErrorResponse(msg.ID, -32001, fmt.Sprintf("blocked by policy: %s", decision.Reason)),
@@ -352,7 +370,7 @@ func serve() int {
 						deniedCorrelationID := pendingCalls[jsonrpcID].correlationID
 						delete(pendingCalls, jsonrpcID)
 						pendingMu.Unlock()
-						emitToContext(em, *serverName, toolName, argJSON, nil, message, "denied", jsonrpcID, deniedCorrelationID)
+						emitToContext(em, *serverName, toolName, argJSON, nil, message, "denied", jsonrpcID, deniedCorrelationID, actionType)
 						return &proxy.HandlerResult{
 							Block: true,
 							ClientResponse: proxy.MakeErrorResponseWithData(
@@ -416,7 +434,7 @@ func serve() int {
 				if resultStr != "" && json.Valid([]byte(resultStr)) {
 					outputRaw = json.RawMessage(resultStr)
 				}
-				emitToContext(em, *serverName, pc.toolName, pc.argJSON, outputRaw, errorStr, "allowed", pc.idempotencyKey, pc.correlationID)
+				emitToContext(em, *serverName, pc.toolName, pc.argJSON, outputRaw, errorStr, "allowed", pc.idempotencyKey, pc.correlationID, pc.actionType)
 			}
 		}
 
@@ -658,6 +676,22 @@ func emitStartupBanner(summary policy.Summary, approvalURL string, approverDisab
 	}
 }
 
+// resolveActionType classifies toolName against the bundled taxonomy mappings
+// and returns the taxonomic action type ONLY on a real match (issue #721).
+// toolName is already StripMCPPrefix'd, matching the bundled JSON keys.
+//
+// On no match ClassifyToolCall yields taxonomy.UnknownAction.Type ("unknown");
+// we return "" in that case (and for any empty result) so the emitter omits
+// action_type and the daemon's synthetic "<channel>.<tool>" fallback applies.
+// The proxy never sends a guessed or synthetic type.
+func resolveActionType(toolName string, mappings []taxonomy.TaxonomyMapping) string {
+	at := taxonomy.ClassifyToolCall(toolName, mappings).ActionType
+	if at == "" || at == taxonomy.UnknownAction.Type {
+		return ""
+	}
+	return at
+}
+
 // emitToContext forwards one tool-call event to the daemon emitter (ADR-0010,
 // fire-and-forget). The emitter returns nil on transient failures (no daemon,
 // broken socket); the only errors emerging here are caller bugs that no retry
@@ -684,13 +718,22 @@ func emitStartupBanner(summary policy.Summary, approvalURL string, approverDisab
 // correlationID is the Claude Code tool_use_id from _meta, used to link this
 // proxy post-action receipt to the hook pre-check receipt for the same
 // logical tool invocation. Empty when not available (non-Claude-Code clients).
-func emitToContext(em *emitter.DaemonEmitter, serverName, toolName string, input, output json.RawMessage, errStr, decision, idempotencyKey, correlationID string) {
+//
+// actionType is the taxonomic action type resolved for this tool call (e.g.
+// "data.api.delete"), forwarded so the daemon resolves risk_level from the
+// taxonomy instead of falling back to the synthetic "<channel>.<tool>" type
+// (issue #721). It is set ONLY when the proxy resolves a real taxonomic match;
+// it is empty for unknown tools, in which case the emitter omits the frame
+// field and the daemon's fallback applies. The daemon always resolves risk
+// itself from the type — the proxy never sends a risk level.
+func emitToContext(em *emitter.DaemonEmitter, serverName, toolName string, input, output json.RawMessage, errStr, decision, idempotencyKey, correlationID, actionType string) {
 	if em == nil {
 		return
 	}
 	if err := em.Emit(context.Background(), emitter.Event{
 		Channel:        "mcp",
 		Tool:           emitter.Tool{Server: serverName, Name: toolName},
+		ActionType:     actionType,
 		Input:          input,
 		Output:         output,
 		Error:          errStr,

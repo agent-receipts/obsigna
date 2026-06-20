@@ -37,6 +37,19 @@ var allowedNonStdlibDeps = []allowedDep{
 	// Session IDs (google/uuid) and policy-rule YAML (gopkg.in/yaml.v3).
 	{exact: "github.com/google/uuid"},
 	{exact: "gopkg.in/yaml.v3"},
+	// Taxonomic action-type classification (issue #721). The proxy resolves a
+	// tool's taxonomic action_type from the bundled mappings (configs.
+	// BundledTaxonomies) via taxonomy.ClassifyToolCall and forwards it on the
+	// emitter frame so the daemon can resolve risk_level from the type instead of
+	// the synthetic "<channel>.<tool>" fallback. This is read-only classification,
+	// not a writer responsibility: the proxy sends a type STRING; the daemon still
+	// owns risk resolution, redaction, hashing, signing, and persistence
+	// (ADR-0010). taxonomy and its risk-primitive leaf (sdk/go/risk) are
+	// receipt-free — they pull in no signing/crypto/store, so allowlisting them
+	// keeps the thin-emitter boundary intact. taxonomy's own import-guard test
+	// enforces that it never regains a receipt dependency.
+	{exact: "github.com/agent-receipts/ar/sdk/go/taxonomy"},
+	{exact: "github.com/agent-receipts/ar/sdk/go/risk"},
 }
 
 type allowedDep struct {
