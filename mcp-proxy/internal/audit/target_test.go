@@ -55,6 +55,46 @@ func TestExtractTarget(t *testing.T) {
 			wantSystem:   "api",
 			wantResource: "api.internal/v2/things",
 		},
+		{
+			name:         "opaque endpoint query stripped so secrets do not leak",
+			server:       "api",
+			tool:         "call",
+			args:         map[string]any{"endpoint": "api.internal/v2/things?token=s3cret#frag"},
+			wantSystem:   "api",
+			wantResource: "api.internal/v2/things",
+		},
+		{
+			name:         "scheme-relative url query stripped",
+			server:       "fetch",
+			tool:         "get",
+			args:         map[string]any{"url": "//example.com/path?x=1"},
+			wantSystem:   "fetch",
+			wantResource: "//example.com/path",
+		},
+		{
+			name:         "uri key matched case-insensitively",
+			server:       "fetch",
+			tool:         "get",
+			args:         map[string]any{"URL": "https://example.com/a"},
+			wantSystem:   "fetch",
+			wantResource: "https://example.com/a",
+		},
+		{
+			name:         "endpoint key matched case-insensitively",
+			server:       "api",
+			tool:         "call",
+			args:         map[string]any{"Endpoint": "https://example.com/b"},
+			wantSystem:   "api",
+			wantResource: "https://example.com/b",
+		},
+		{
+			name:         "repo owner/repo keys matched case-insensitively",
+			server:       "github",
+			tool:         "create_issue",
+			args:         map[string]any{"Owner": "agent-receipts", "Repo": "obsigna"},
+			wantSystem:   "github",
+			wantResource: "agent-receipts/obsigna",
+		},
 
 		// Table tier.
 		{

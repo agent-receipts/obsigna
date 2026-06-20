@@ -57,7 +57,10 @@ var genericKeys = []string{"path", "key", "bucket", "object", "resource", "resou
 // would be a misleading contention key. An over-long system (server name) is
 // dropped for the same reason: a half- or over-populated target would cost the
 // whole receipt at the emitter, and a best-effort target must never do that.
-func ExtractTarget(serverName, toolName string, args map[string]any) (system, resource string) {
+// toolName is currently unused (resource is derived from serverName + args);
+// it is accepted as `_` so the call site reads as (server, tool, args) and a
+// future tool-specific heuristic can use it without a signature change.
+func ExtractTarget(serverName, _ string, args map[string]any) (system, resource string) {
 	if serverName == "" || len(serverName) > maxSystemLen || len(args) == 0 {
 		return "", ""
 	}
@@ -92,8 +95,8 @@ func extractResource(args map[string]any) string {
 // gitlab). Repo-level granularity is intentional: two agents touching the same
 // repository contend even when they target different issues or files within it.
 func repoResource(args map[string]any) string {
-	owner := stringValue(args["owner"])
-	repo := stringValue(args["repo"])
+	owner := lookupString(args, "owner")
+	repo := lookupString(args, "repo")
 	if owner != "" && repo != "" {
 		return owner + "/" + repo
 	}
@@ -103,25 +106,51 @@ func repoResource(args map[string]any) string {
 // canonicalURI reduces a URI to scheme://host/path, dropping query and fragment
 // so the same endpoint reached with different parameters resolves to one
 // resource. A value that does not parse as a URI with both a scheme and a host
-// (relative paths, scheme-relative "//host/path", opaque identifiers) is
-// returned trimmed but otherwise untouched — reassembling it without a scheme
-// would yield a malformed "://host/path".
+// (relative paths, scheme-relative "//host/path", opaque identifiers) cannot be
+// safely rebuilt as scheme://host, so it is returned as-is — but with the query
+// and fragment still stripped, because those may carry tokens/secrets that must
+// never reach the signed, persisted resource string.
 func canonicalURI(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		return raw
+		return stripQueryFragment(raw)
 	}
 	host := strings.ToLower(u.Host)
 	path := strings.TrimRight(u.Path, "/")
 	return strings.ToLower(u.Scheme) + "://" + host + path
 }
 
+// stripQueryFragment truncates raw at the first '?' or '#', removing any URL
+// query or fragment. Used for endpoint values that don't canonicalise to
+// scheme://host so request parameters — which may include secrets — don't leak
+// into action.target.resource.
+func stripQueryFragment(raw string) string {
+	if i := strings.IndexAny(raw, "?#"); i >= 0 {
+		raw = raw[:i]
+	}
+	return strings.TrimSpace(raw)
+}
+
 // firstStringValue returns the trimmed string value of the first key present
 // with a non-empty string value, scanning keys in order.
 func firstStringValue(args map[string]any, keys []string) string {
 	for _, k := range keys {
-		if v := stringValue(args[k]); v != "" {
+		if v := lookupString(args, k); v != "" {
 			return v
+		}
+	}
+	return ""
+}
+
+// lookupString returns the trimmed string value of the arg whose key matches
+// key case-insensitively, or "" when absent or not a non-empty string. MCP
+// servers vary in casing ("url", "URL", "Endpoint"), and the rest of this
+// package (e.g. classifier.ScoreRisk) already treats argument keys
+// case-insensitively, so target extraction matches that convention.
+func lookupString(args map[string]any, key string) string {
+	for argKey, argVal := range args {
+		if strings.EqualFold(argKey, key) {
+			return stringValue(argVal)
 		}
 	}
 	return ""
