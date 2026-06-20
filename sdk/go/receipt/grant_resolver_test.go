@@ -226,3 +226,17 @@ func TestVerifyGroundedPrincipalTier_EmptyChain(t *testing.T) {
 		t.Errorf("expected no violations for empty chain, got %d", len(violations))
 	}
 }
+
+// TestVerifyGroundedPrincipalTier_TypedNilResolver confirms that a typed-nil
+// resolver (a non-nil interface value whose concrete pointer is nil) is treated
+// the same as a nil interface — no violations, no panic.
+func TestVerifyGroundedPrincipalTier_TypedNilResolver(t *testing.T) {
+	kp, _ := GenerateKeyPair()
+	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "")
+
+	var typed *stubResolver // typed nil: concrete type known, pointer is nil
+	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, typed)
+	if len(violations) != 0 {
+		t.Errorf("expected no violations for typed-nil resolver, got %d", len(violations))
+	}
+}

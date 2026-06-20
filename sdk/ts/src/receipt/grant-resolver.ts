@@ -45,7 +45,7 @@ export interface GrantInfo {
  * ADR-0007 stance on DID methods.
  */
 export interface GrantResolver {
-	resolveGrant(grantRef: string, principalId: string): GrantInfo;
+	resolveGrant(grantRef: string, principalId: string): Promise<GrantInfo>;
 }
 
 /**
@@ -107,10 +107,10 @@ export interface GroundedPrincipalViolation {
  * All violations are collected and returned; the function does not stop at
  * the first failure so callers get a complete picture of the tier's state.
  */
-export function verifyGroundedPrincipalTier(
+export async function verifyGroundedPrincipalTier(
 	receipts: AgentReceipt[],
 	resolver: GrantResolver | null,
-): GroundedPrincipalViolation[] {
+): Promise<GroundedPrincipalViolation[]> {
 	if (resolver === null) {
 		return [];
 	}
@@ -146,7 +146,7 @@ export function verifyGroundedPrincipalTier(
 		// Step 2: resolve the grant.
 		let grant: GrantInfo;
 		try {
-			grant = resolver.resolveGrant(grantRef, principalId);
+			grant = await resolver.resolveGrant(grantRef, principalId);
 		} catch (err) {
 			const reason = err instanceof Error ? err.message : String(err);
 			violations.push({

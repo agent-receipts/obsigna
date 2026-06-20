@@ -1,6 +1,9 @@
 package receipt
 
-import "time"
+import (
+	"reflect"
+	"time"
+)
 
 // GrantInfo is the resolved representation of an externally-minted
 // authorization grant (e.g. an RFC 8693 OBO token or a Grantex grant token).
@@ -96,8 +99,23 @@ type GroundedPrincipalViolation struct {
 //
 // All violations are collected and returned; the function does not stop at
 // the first failure so callers get a complete picture of the tier's state.
+// isNilResolver reports whether r is nil, handling both untyped nils and
+// typed nils (e.g. (*MyResolver)(nil) wrapped in a GrantResolver interface).
+// Calling IsNil on a non-nilable kind panics, so the kind is checked first.
+func isNilResolver(r GrantResolver) bool {
+	if r == nil {
+		return true
+	}
+	v := reflect.ValueOf(r)
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Chan, reflect.Func, reflect.Map, reflect.Slice:
+		return v.IsNil()
+	}
+	return false
+}
+
 func VerifyGroundedPrincipalTier(receipts []AgentReceipt, resolver GrantResolver) []GroundedPrincipalViolation {
-	if resolver == nil {
+	if isNilResolver(resolver) {
 		return nil
 	}
 
