@@ -68,3 +68,18 @@ func TestOpenFileLogRequiresPath(t *testing.T) {
 		t.Fatal("expected error for empty path")
 	}
 }
+
+func TestFileLogWriteAfterCloseReturnsError(t *testing.T) {
+	l, err := OpenFileLog(filepath.Join(t.TempDir(), "a.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// Write after Close must return an error, not panic.
+	err = l.Write(EventTypeRotation, []byte(`{"x":1}`))
+	if err == nil {
+		t.Fatal("expected error writing to closed FileLog, got nil")
+	}
+}

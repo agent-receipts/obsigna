@@ -52,6 +52,9 @@ func (s *SyslogLog) Write(eventType string, payload []byte) error {
 	line = bytes.TrimRight(line, "\n")
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.w == nil {
+		return fmt.Errorf("anchor: write on closed syslog sink")
+	}
 	if _, err := s.w.Write(line); err != nil {
 		return fmt.Errorf("anchor: write syslog: %w", err)
 	}
