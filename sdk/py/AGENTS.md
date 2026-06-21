@@ -43,6 +43,16 @@ tests/                 # Mirrors src structure, uses conftest.py fixtures
 - camelCase aliases exported at package level for TypeScript SDK users
 - Output must be byte-identical to the TypeScript SDK (`tests/test_cross_language.py` verifies this)
 
+## Releasing
+
+- Version strings must use **normalized PEP 440** form everywhere they appear —
+  `pyproject.toml`, the `CHANGELOG.md` header, and the `sdk-py-v*` tag. Use
+  `0.14.0a1`, **not** `0.14.0-alpha.1`. PyPI normalizes on upload (`-alpha.1` →
+  `a1`), and the release-verify gate (Gate #2) does a literal string compare of
+  the tag suffix against `pip show` output, so a non-normalized tag publishes
+  successfully but fails verification. The TypeScript SDK uses `-alpha.1`
+  (npm preserves it); do not carry that spelling over to Python.
+
 ## Reference files
 
 - `src/obsigna/receipt/signing.py` — Ed25519 signing with proper type guards, RFC 8785 canonicalization, and cross-SDK compatibility
