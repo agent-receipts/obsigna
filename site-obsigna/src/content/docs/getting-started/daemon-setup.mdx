@@ -167,7 +167,7 @@ export AGENTRECEIPTS_SOCKET=/path/to/events.sock   # overrides the platform defa
 ```go
 import (
 	"log"
-	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"obsigna.dev/sdk/go/emitter"
 )
 
 e, err := emitter.NewDaemon(emitter.WithSocketPath("/path/to/events.sock"))
@@ -181,7 +181,7 @@ if err != nil {
 ```go
 import (
 	"log"
-	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"obsigna.dev/sdk/go/emitter"
 )
 
 e, err := emitter.NewDaemon()

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon/internal/keysource"
+	"obsigna.dev/daemon/internal/keysource"
 )
 
 func TestTightenDBFiles_TightensFresh0644(t *testing.T) {

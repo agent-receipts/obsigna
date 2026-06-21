@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon"
+	"obsigna.dev/sdk/go/store"
 )
 
 // isolate points the per-user default paths (config, key, db, socket) at a fresh

@@ -29,13 +29,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/daemon/internal/pipeline"
-	"github.com/agent-receipts/ar/daemon/internal/socket"
-	"github.com/agent-receipts/ar/daemon/internal/sockettest"
-	"github.com/agent-receipts/ar/daemon/internal/verifycli"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon"
+	"obsigna.dev/daemon/internal/pipeline"
+	"obsigna.dev/daemon/internal/socket"
+	"obsigna.dev/daemon/internal/sockettest"
+	"obsigna.dev/daemon/internal/verifycli"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // emitterHelperGuardVar is the explicit "this binary was re-exec'd as the

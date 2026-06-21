@@ -76,10 +76,10 @@ func startParallelProxy(t *testing.T, proxyBin, fakeserverBin string, extraEnv [
 func TestParallelToolCalls(t *testing.T) {
 	tmpDir := t.TempDir()
 	proxyBin := buildTestBinary(t,
-		"github.com/agent-receipts/ar/mcp-proxy/cmd/obsigna-mcp",
+		"obsigna.dev/mcp-proxy/cmd/obsigna-mcp",
 		tmpDir, "obsigna-mcp")
 	fakeBin := buildTestBinary(t,
-		"github.com/agent-receipts/ar/mcp-proxy/internal/proxy/testdata/fakeserver",
+		"obsigna.dev/mcp-proxy/internal/proxy/testdata/fakeserver",
 		tmpDir, "fakeserver")
 
 	t.Run("AllRespond", func(t *testing.T) {

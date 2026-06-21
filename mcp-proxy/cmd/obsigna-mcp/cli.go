@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agent-receipts/ar/mcp-proxy/internal/policy"
+	"obsigna.dev/mcp-proxy/internal/policy"
 )
 
 // DoctorReport is the structured output of `mcp-proxy doctor`. Exposed for

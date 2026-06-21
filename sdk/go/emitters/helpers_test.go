@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // emitterFunc adapts a function literal to the emitters.Emitter

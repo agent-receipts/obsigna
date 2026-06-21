@@ -1,7 +1,7 @@
 // Package store provides SQLite-backed persistence for Action Receipts.
 //
 // Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the
-// canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 package store
 
 import (
@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
 
 // ReceiptStore defines the interface for receipt persistence and querying.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ReceiptStore interface {
 	Insert(r receipt.AgentReceipt, receiptHash string) error
 	GetByID(id string) (*receipt.AgentReceipt, error)
@@ -58,14 +58,14 @@ type ReceiptStore interface {
 
 // Store is a SQLite-backed receipt store.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Store struct {
 	db *sql.DB
 }
 
 // Query filters for querying receipts.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Query struct {
 	ChainID    *string
 	ActionType *string
@@ -84,7 +84,7 @@ type Query struct {
 
 // Stats holds aggregate statistics for the store.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Stats struct {
 	Total    int          `json:"total"`
 	Chains   int          `json:"chains"`
@@ -95,7 +95,7 @@ type Stats struct {
 
 // GroupCount is a label + count pair used in Stats.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type GroupCount struct {
 	Label string `json:"label"`
 	Count int    `json:"count"`
@@ -104,7 +104,7 @@ type GroupCount struct {
 // Open opens or creates a receipt store at the given path.
 // Use ":memory:" for an in-memory database.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func Open(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -147,7 +147,7 @@ func Open(dbPath string) (*Store, error) {
 // absolute form so the resulting "file:" URI is unambiguous regardless of
 // the caller's working directory.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func OpenReadOnly(dbPath string) (*Store, error) {
 	if dbPath == "" {
 		return nil, fmt.Errorf("OpenReadOnly: dbPath is required")
@@ -223,7 +223,7 @@ func migrateToolName(db *sql.DB) error {
 // daemon's pipeline). The receipt struct is the source of truth, so no
 // raw-vs-struct parity checks are performed.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) Insert(r receipt.AgentReceipt, receiptHash string) error {
 	rJSON, err := json.Marshal(r)
 	if err != nil {
@@ -250,7 +250,7 @@ func (s *Store) Insert(r receipt.AgentReceipt, receiptHash string) error {
 //     disagreement means receipt_json would describe a different receipt
 //     than the row key — silent at insert time, lethal at audit time.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) InsertRaw(r receipt.AgentReceipt, rawJSON []byte, receiptHash string) error {
 	if err := validateRawReceipt(rawJSON, r); err != nil {
 		return fmt.Errorf("insert receipt id=%s: %w", r.ID, err)
@@ -359,7 +359,7 @@ func validateRawReceipt(rawJSON []byte, r receipt.AgentReceipt) error {
 
 // GetByID retrieves a receipt by its ID. Returns nil if not found.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) GetByID(id string) (*receipt.AgentReceipt, error) {
 	var rJSON string
 	err := s.db.QueryRow("SELECT receipt_json FROM receipts WHERE id = ?", id).Scan(&rJSON)
@@ -381,7 +381,7 @@ func (s *Store) GetByID(id string) (*receipt.AgentReceipt, error) {
 // a presence check (duplicate detection on insert, /healthz reachability
 // probes) should prefer this over GetByID, which pays the full JSON decode.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) Exists(id string) (bool, error) {
 	var one int
 	err := s.db.QueryRow("SELECT 1 FROM receipts WHERE id = ? LIMIT 1", id).Scan(&one)
@@ -396,7 +396,7 @@ func (s *Store) Exists(id string) (bool, error) {
 
 // GetChain retrieves all receipts in a chain, ordered by sequence.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) GetChain(chainID string) ([]receipt.AgentReceipt, error) {
 	rows, err := s.db.Query(
 		"SELECT receipt_json FROM receipts WHERE chain_id = ? ORDER BY sequence ASC",
@@ -414,7 +414,7 @@ func (s *Store) GetChain(chainID string) ([]receipt.AgentReceipt, error) {
 // callers distinguish "not found" from an error. The (chain_id, sequence)
 // pair is uniquely indexed, so at most one row matches.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) GetByChainSequence(chainID string, sequence int) (*receipt.AgentReceipt, error) {
 	var rJSON string
 	err := s.db.QueryRow(
@@ -438,7 +438,7 @@ func (s *Store) GetByChainSequence(chainID string, sequence int) (*receipt.Agent
 // It reads only the indexed chain_id column, so it stays cheap as the store
 // grows — callers enumerating chains need not load full receipts.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) DistinctChainIDs() ([]string, error) {
 	rows, err := s.db.Query("SELECT DISTINCT chain_id FROM receipts ORDER BY chain_id ASC")
 	if err != nil {
@@ -464,7 +464,7 @@ func (s *Store) DistinctChainIDs() ([]string, error) {
 // when the chain is empty. The daemon uses this on startup to resume the
 // in-memory (sequence, prev_hash) it owns as sole writer.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) GetChainTail(chainID string) (sequence int64, receiptHash string, found bool, err error) {
 	row := s.db.QueryRow(
 		"SELECT sequence, receipt_hash FROM receipts WHERE chain_id = ? ORDER BY sequence DESC LIMIT 1",
@@ -482,7 +482,7 @@ func (s *Store) GetChainTail(chainID string) (sequence int64, receiptHash string
 // GetChainTailReceipt returns the highest-sequence receipt for chainID.
 // Returns (nil, nil) when the chain has no receipts.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) GetChainTailReceipt(chainID string) (*receipt.AgentReceipt, error) {
 	var rJSON string
 	err := s.db.QueryRow(
@@ -504,7 +504,7 @@ func (s *Store) GetChainTailReceipt(chainID string) (*receipt.AgentReceipt, erro
 
 // QueryReceipts retrieves receipts matching the given filters.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) QueryReceipts(q Query) ([]receipt.AgentReceipt, error) {
 	query, args := buildQueryReceiptsSQL(q)
 	rows, err := s.db.Query(query, args...)
@@ -519,7 +519,7 @@ func (s *Store) QueryReceipts(q Query) ([]receipt.AgentReceipt, error) {
 // Returns 0 when the table is empty. Intended as the watermark for follow-mode
 // streaming — callers pass it to QueryAfterRowID to fetch rows inserted later.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) MaxRowID() (int64, error) {
 	var max int64
 	if err := s.db.QueryRow("SELECT COALESCE(MAX(rowid), 0) FROM receipts").Scan(&max); err != nil {
@@ -540,7 +540,7 @@ func (s *Store) MaxRowID() (int64, error) {
 // Callers that want to bound query latency (e.g. so Ctrl-C in follow mode
 // stops a busy/locked query promptly) should use QueryAfterRowIDContext.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) QueryAfterRowID(q Query, afterRowID int64) ([]receipt.AgentReceipt, int64, error) {
 	return s.QueryAfterRowIDContext(context.Background(), q, afterRowID)
 }
@@ -550,7 +550,7 @@ func (s *Store) QueryAfterRowID(q Query, afterRowID int64) ([]receipt.AgentRecei
 // follow-mode pollers) don't have to wait on busy_timeout before shutting
 // down.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) QueryAfterRowIDContext(ctx context.Context, q Query, afterRowID int64) ([]receipt.AgentReceipt, int64, error) {
 	query, args := buildQueryAfterRowIDSQL(q, afterRowID)
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -570,7 +570,7 @@ func (s *Store) QueryAfterRowIDContext(ctx context.Context, q Query, afterRowID 
 // Callers that want Ctrl-C to interrupt the startup query should use
 // QueryReceiptsWithWatermarkContext.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) QueryReceiptsWithWatermark(q Query) ([]receipt.AgentReceipt, int64, error) {
 	return s.QueryReceiptsWithWatermarkContext(context.Background(), q)
 }
@@ -580,7 +580,7 @@ func (s *Store) QueryReceiptsWithWatermark(q Query) ([]receipt.AgentReceipt, int
 // transaction and each query inside it, so cancellation interrupts in-flight
 // work instead of waiting for busy_timeout.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) QueryReceiptsWithWatermarkContext(ctx context.Context, q Query) ([]receipt.AgentReceipt, int64, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -736,7 +736,7 @@ func scanRowIDReceipts(rows *sql.Rows, afterRowID int64) ([]receipt.AgentReceipt
 
 // Stats returns aggregate statistics for the store.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) Stats() (Stats, error) {
 	var st Stats
 
@@ -766,7 +766,7 @@ func (s *Store) Stats() (Stats, error) {
 
 // VerifyStoredChain loads a chain from the store and verifies it.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) VerifyStoredChain(chainID string, publicKeyPEM string) (receipt.ChainVerification, error) {
 	receipts, err := s.GetChain(chainID)
 	if err != nil {
@@ -777,7 +777,7 @@ func (s *Store) VerifyStoredChain(chainID string, publicKeyPEM string) (receipt.
 
 // Close closes the database connection.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (s *Store) Close() error {
 	return s.db.Close()
 }

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
+	"obsigna.dev/daemon/internal/anchor"
 )
 
 // slowSink simulates a sink whose Write blocks for a configurable duration,

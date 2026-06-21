@@ -22,7 +22,7 @@
 | **API reference** | [Go](https://obsigna.dev/sdk-go/api-reference/) · [TypeScript](https://obsigna.dev/sdk-ts/api-reference/) · [Python](https://obsigna.dev/sdk-py/api-reference/) |
 | **Examples** | [obsigna-examples](https://github.com/agent-receipts/obsigna-examples) |
 | **Blog** | [Your AI Agent Just Sent an Email](https://jongerius.solutions/post/your-ai-agent-just-sent-an-email/) · [Every MCP Tool Call My AI Makes Now Gets a Signed Receipt](https://jongerius.solutions/post/auditing-github-mcp-agent-receipts/) |
-| **Go** | [sdk/go](https://pkg.go.dev/github.com/agent-receipts/ar/sdk/go) · [mcp-proxy](https://pkg.go.dev/github.com/agent-receipts/ar/mcp-proxy) · [dashboard](https://pkg.go.dev/github.com/agent-receipts/dashboard) |
+| **Go** | [sdk/go](https://pkg.go.dev/obsigna.dev/sdk/go) · [mcp-proxy](https://pkg.go.dev/github.com/agent-receipts/ar/mcp-proxy) · [dashboard](https://pkg.go.dev/github.com/agent-receipts/dashboard) |
 | **npm** | [@obsigna/sdk-ts](https://www.npmjs.com/package/@obsigna/sdk-ts) |
 | **PyPI** | [obsigna](https://pypi.org/project/obsigna/) |
 
@@ -111,11 +111,11 @@ obsigna verify
 ### Go
 
 ```bash
-go get github.com/agent-receipts/ar/sdk/go
+go get obsigna.dev/sdk/go
 ```
 
 ```go
-import "github.com/agent-receipts/ar/sdk/go/receipt"
+import "obsigna.dev/sdk/go/receipt"
 
 keys, _ := receipt.GenerateKeyPair()
 unsigned := receipt.Create(receipt.CreateInput{

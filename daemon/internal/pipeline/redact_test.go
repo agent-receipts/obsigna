@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon/internal/chain"
-	"github.com/agent-receipts/ar/daemon/internal/socket"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/daemon/internal/chain"
+	"obsigna.dev/daemon/internal/socket"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // TestRedactor_BuiltinPatternsRedactKnownSecretShapes verifies that the

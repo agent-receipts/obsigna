@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
+	"obsigna.dev/daemon/internal/anchor"
 )
 
 // writeAnchorFile creates a real anchor file signed by signer and returns the

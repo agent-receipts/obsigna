@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/chain"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/daemon/internal/chain"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // TestEmitTerminator_EmitsOnOpenChain verifies that EmitTerminator writes a

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/risk"
+	"obsigna.dev/sdk/go/risk"
 )
 
 func TestLevelValues(t *testing.T) {
@@ -34,14 +34,14 @@ func TestPTYActionTypes(t *testing.T) {
 // TestRiskIsLeaf asserts the risk package imports nothing from this module — it
 // must stay a true leaf so receipt-free callers can depend on it.
 func TestRiskIsLeaf(t *testing.T) {
-	const modulePrefix = "github.com/agent-receipts/ar/"
+	const modulePrefix = "obsigna.dev/"
 
-	out, err := exec.Command("go", "list", "-deps", "github.com/agent-receipts/ar/sdk/go/risk").Output()
+	out, err := exec.Command("go", "list", "-deps", "obsigna.dev/sdk/go/risk").Output()
 	if err != nil {
 		t.Fatalf("go list -deps risk: %v", err)
 	}
 	for _, dep := range strings.Fields(string(out)) {
-		if dep == "github.com/agent-receipts/ar/sdk/go/risk" {
+		if dep == "obsigna.dev/sdk/go/risk" {
 			continue
 		}
 		if strings.HasPrefix(dep, modulePrefix) {

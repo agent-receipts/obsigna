@@ -19,15 +19,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
-	"github.com/agent-receipts/ar/daemon/internal/chain"
-	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
-	"github.com/agent-receipts/ar/daemon/internal/keysource"
-	"github.com/agent-receipts/ar/daemon/internal/pipeline"
-	"github.com/agent-receipts/ar/daemon/internal/socket"
-	"github.com/agent-receipts/ar/sdk/go/emitter"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon/internal/anchor"
+	"obsigna.dev/daemon/internal/chain"
+	"obsigna.dev/daemon/internal/checkpoint"
+	"obsigna.dev/daemon/internal/keysource"
+	"obsigna.dev/daemon/internal/pipeline"
+	"obsigna.dev/daemon/internal/socket"
+	"obsigna.dev/sdk/go/emitter"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // Config is the daemon's startup configuration. Resolve from flags/env in

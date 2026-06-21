@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/mcp-proxy/internal/audit"
+	"obsigna.dev/mcp-proxy/internal/audit"
 )
 
 // waitAccepting blocks until the approval server on addr accepts a TCP

@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 type vectors struct {

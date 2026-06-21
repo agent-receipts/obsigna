@@ -29,7 +29,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"obsigna.dev/sdk/go/emitter"
 )
 
 // version is set at build time via -ldflags "-X main.version=vX.Y.Z".

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon/internal/pipeline"
+	"obsigna.dev/daemon/internal/pipeline"
 )
 
 // TestSpokenProtocolVersionMirrorsPipeline asserts the exported spoken range

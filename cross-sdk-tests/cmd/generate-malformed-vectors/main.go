@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 const fixedTimestamp = "2026-04-22T00:00:00Z"

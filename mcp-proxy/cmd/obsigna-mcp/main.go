@@ -21,14 +21,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agent-receipts/ar/mcp-proxy/configs"
-	"github.com/agent-receipts/ar/mcp-proxy/internal/audit"
-	"github.com/agent-receipts/ar/mcp-proxy/internal/host"
-	"github.com/agent-receipts/ar/mcp-proxy/internal/policy"
-	"github.com/agent-receipts/ar/mcp-proxy/internal/proxy"
-	"github.com/agent-receipts/ar/sdk/go/emitter"
-	"github.com/agent-receipts/ar/sdk/go/taxonomy"
 	"github.com/google/uuid"
+	"obsigna.dev/mcp-proxy/configs"
+	"obsigna.dev/mcp-proxy/internal/audit"
+	"obsigna.dev/mcp-proxy/internal/host"
+	"obsigna.dev/mcp-proxy/internal/policy"
+	"obsigna.dev/mcp-proxy/internal/proxy"
+	"obsigna.dev/sdk/go/emitter"
+	"obsigna.dev/sdk/go/taxonomy"
 )
 
 // httpShutdownGrace bounds how long the approval HTTP server gets to finish

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // BufferingEmitterConfig configures [BufferingEmitter].

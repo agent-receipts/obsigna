@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/sockettest"
+	"obsigna.dev/daemon/internal/sockettest"
 )
 
 func TestListen_RefusesNonSocketPreexistingFile(t *testing.T) {

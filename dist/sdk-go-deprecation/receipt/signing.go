@@ -20,12 +20,12 @@ const multibaseBase64URL = "u"
 // valid Ed25519 signature, so that consumers cannot be tricked into believing
 // a receipt was signed under a different scheme.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 const ProofTypeEd25519Signature2020 = "Ed25519Signature2020"
 
 // GenerateKeyPair generates an Ed25519 key pair and returns PEM-encoded keys.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func GenerateKeyPair() (KeyPair, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -53,7 +53,7 @@ func GenerateKeyPair() (KeyPair, error) {
 // Sign signs an unsigned receipt with an Ed25519 private key (PEM-encoded)
 // and returns a complete AgentReceipt with proof.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func Sign(unsigned UnsignedAgentReceipt, privateKeyPEM string, verificationMethod string) (AgentReceipt, error) {
 	privKey, err := parsePrivateKey(privateKeyPEM)
 	if err != nil {
@@ -90,7 +90,7 @@ func Sign(unsigned UnsignedAgentReceipt, privateKeyPEM string, verificationMetho
 
 // Verify checks the Ed25519 signature on a signed receipt.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func Verify(r AgentReceipt, publicKeyPEM string) (bool, error) {
 	if r.Proof.Type != ProofTypeEd25519Signature2020 {
 		return false, fmt.Errorf("unsupported proof type %q: only %s is accepted", r.Proof.Type, ProofTypeEd25519Signature2020)

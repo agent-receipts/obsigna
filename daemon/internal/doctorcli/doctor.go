@@ -31,11 +31,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/sdk/go/emitter"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
-	"github.com/agent-receipts/ar/sdk/go/taxonomy"
+	"obsigna.dev/daemon"
+	"obsigna.dev/sdk/go/emitter"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
+	"obsigna.dev/sdk/go/taxonomy"
 )
 
 // Exit codes are part of the CLI contract — CI healthchecks pivot on them.

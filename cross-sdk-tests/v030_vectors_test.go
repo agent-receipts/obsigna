@@ -33,7 +33,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 const v030VectorsPath = "v030_vectors.json"

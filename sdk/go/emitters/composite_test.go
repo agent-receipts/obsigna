@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/emitters"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitters"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // failingEmitter always returns the configured error.

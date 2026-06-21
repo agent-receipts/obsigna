@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/emitter"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitter"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // TestMCPProxyActionType verifies that a frame with channel="mcp_proxy" and

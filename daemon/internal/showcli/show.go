@@ -19,9 +19,9 @@ import (
 	"syscall"
 	"text/tabwriter"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // Exit codes are part of the CLI contract — scripts pivot on them.

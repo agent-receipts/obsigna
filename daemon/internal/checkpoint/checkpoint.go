@@ -30,7 +30,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // multibaseBase64URL mirrors the receipt proof encoding: signatures are

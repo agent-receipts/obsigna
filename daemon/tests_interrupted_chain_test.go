@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/daemon/internal/pipeline"
-	"github.com/agent-receipts/ar/daemon/internal/sockettest"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon"
+	"obsigna.dev/daemon/internal/pipeline"
+	"obsigna.dev/daemon/internal/sockettest"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // interruptDaemonCfg builds a Config for interrupted-chain tests.

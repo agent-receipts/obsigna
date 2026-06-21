@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
+	"obsigna.dev/daemon/internal/anchor"
 )
 
 // recordingSink captures every payload it is asked to write. okWrite toggles

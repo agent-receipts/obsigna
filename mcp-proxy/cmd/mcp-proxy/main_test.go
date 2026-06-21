@@ -103,8 +103,8 @@ func TestForwardingIntegration(t *testing.T) {
 	dir := t.TempDir()
 	shim := filepath.Join(dir, "mcp-proxy")
 	real := filepath.Join(dir, "obsigna-mcp")
-	goBuild(t, shim, "github.com/agent-receipts/ar/mcp-proxy/cmd/mcp-proxy")
-	goBuild(t, real, "github.com/agent-receipts/ar/mcp-proxy/cmd/obsigna-mcp")
+	goBuild(t, shim, "obsigna.dev/mcp-proxy/cmd/mcp-proxy")
+	goBuild(t, real, "obsigna.dev/mcp-proxy/cmd/obsigna-mcp")
 
 	out, errOut, code := runBin(t, shim, "--version")
 	if code != 0 {

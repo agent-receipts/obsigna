@@ -19,8 +19,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/daemon/internal/keysource"
+	"obsigna.dev/daemon"
+	"obsigna.dev/daemon/internal/keysource"
 )
 
 // Exit codes are part of the CLI contract — keep them stable and aligned with

@@ -1,4 +1,4 @@
-module github.com/agent-receipts/ar/sdk/go/aws
+module obsigna.dev/sdk/go/aws
 
 go 1.26.1
 

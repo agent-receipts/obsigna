@@ -30,10 +30,10 @@ import (
 // transitively.
 var allowedNonStdlibDeps = []allowedDep{
 	// The proxy's own packages (internal/{audit,host,policy,proxy} and cmd/...).
-	{prefix: "github.com/agent-receipts/ar/mcp-proxy/"},
+	{prefix: "obsigna.dev/mcp-proxy/"},
 	// The daemon emitter — the proxy's one writer-side dependency (ADR-0010).
-	{exact: "github.com/agent-receipts/ar/sdk/go/emitter"},
-	{prefix: "github.com/agent-receipts/ar/sdk/go/emitter/"},
+	{exact: "obsigna.dev/sdk/go/emitter"},
+	{prefix: "obsigna.dev/sdk/go/emitter/"},
 	// Session IDs (google/uuid) and policy-rule YAML (gopkg.in/yaml.v3).
 	{exact: "github.com/google/uuid"},
 	{exact: "gopkg.in/yaml.v3"},
@@ -48,8 +48,8 @@ var allowedNonStdlibDeps = []allowedDep{
 	// receipt-free — they pull in no signing/crypto/store, so allowlisting them
 	// keeps the thin-emitter boundary intact. taxonomy's own import-guard test
 	// enforces that it never regains a receipt dependency.
-	{exact: "github.com/agent-receipts/ar/sdk/go/taxonomy"},
-	{exact: "github.com/agent-receipts/ar/sdk/go/risk"},
+	{exact: "obsigna.dev/sdk/go/taxonomy"},
+	{exact: "obsigna.dev/sdk/go/risk"},
 }
 
 type allowedDep struct {

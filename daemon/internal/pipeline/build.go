@@ -17,13 +17,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/chain"
-	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
-	"github.com/agent-receipts/ar/daemon/internal/keysource"
-	"github.com/agent-receipts/ar/daemon/internal/socket"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
-	"github.com/agent-receipts/ar/sdk/go/taxonomy"
+	"obsigna.dev/daemon/internal/chain"
+	"obsigna.dev/daemon/internal/checkpoint"
+	"obsigna.dev/daemon/internal/keysource"
+	"obsigna.dev/daemon/internal/socket"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
+	"obsigna.dev/sdk/go/taxonomy"
 )
 
 // multibaseBase64URL matches sdk/go/receipt/signing.go: receipts use base64url

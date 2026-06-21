@@ -13,8 +13,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/daemon/internal/doctorcli"
+	"obsigna.dev/daemon"
+	"obsigna.dev/daemon/internal/doctorcli"
 )
 
 // doctorReport mirrors doctorcli.Report for decoding the --json output without

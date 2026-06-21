@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon/internal/checkpoint"
+	"obsigna.dev/sdk/go/store"
 )
 
 // TestCheckpointAnchorEndToEnd exercises the full daemon wiring: a Config with

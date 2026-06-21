@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	awssigner "github.com/agent-receipts/ar/sdk/go/aws"
+	awssigner "obsigna.dev/sdk/go/aws"
 )
 
 // envIntegrationKeyARN names the KMS key the integration test signs with. The

@@ -91,7 +91,7 @@ Signer:
   getPublicKey()     -> raw 32-byte Ed25519 public key (RFC 8032 §5.1.5)
 ```
 
-The AWS **`KMSSigner`** has shipped in the Go SDK's `aws` module (`github.com/agent-receipts/ar/sdk/go/aws`). It uses an `ECC_NIST_EDWARDS25519` KMS key with `SIGN_VERIFY` usage, signs via `kms:Sign` with `ED25519_SHA_512` / `MessageType=RAW` (standard pure Ed25519), and resolves credentials from the ambient AWS chain (instance role, IRSA, environment, shared profile).
+The AWS **`KMSSigner`** has shipped in the Go SDK's `aws` module (`obsigna.dev/sdk/go/aws`). It uses an `ECC_NIST_EDWARDS25519` KMS key with `SIGN_VERIFY` usage, signs via `kms:Sign` with `ED25519_SHA_512` / `MessageType=RAW` (standard pure Ed25519), and resolves credentials from the ambient AWS chain (instance role, IRSA, environment, shared profile).
 
 :::caution
 Two parts of the KMS production story are still landing (tracked in [#534](https://github.com/agent-receipts/obsigna/issues/534)):
@@ -184,8 +184,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/emitters"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitters"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // Module-scope: built once, reused across warm invocations.

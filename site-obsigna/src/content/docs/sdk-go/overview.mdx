@@ -17,9 +17,9 @@ The Go SDK provides tools for creating, signing, and verifying Agent Receipts in
 
 | Package | Import | Description |
 |---------|--------|-------------|
-| `receipt` | `github.com/agent-receipts/ar/sdk/go/receipt` | Core receipt creation, signing, verification, and chaining |
-| `taxonomy` | `github.com/agent-receipts/ar/sdk/go/taxonomy` | Action type registry and tool call classification |
-| `store` | `github.com/agent-receipts/ar/sdk/go/store` | SQLite-backed persistence and querying |
+| `receipt` | `obsigna.dev/sdk/go/receipt` | Core receipt creation, signing, verification, and chaining |
+| `taxonomy` | `obsigna.dev/sdk/go/taxonomy` | Action type registry and tool call classification |
+| `store` | `obsigna.dev/sdk/go/store` | SQLite-backed persistence and querying |
 
 ## Quick example
 
@@ -34,7 +34,7 @@ import (
 	"fmt"
 	"log"
 
-	receipt "github.com/agent-receipts/ar/sdk/go/receipt"
+	receipt "obsigna.dev/sdk/go/receipt"
 )
 
 func main() {

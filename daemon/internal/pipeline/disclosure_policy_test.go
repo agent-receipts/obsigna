@@ -3,7 +3,7 @@ package pipeline
 import (
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 func TestParseDisclosurePolicy(t *testing.T) {

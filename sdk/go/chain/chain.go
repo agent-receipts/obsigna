@@ -30,8 +30,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/agent-receipts/ar/sdk/go/emitters"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitters"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // EmitInput holds the per-receipt inputs accepted by [ReceiptChain.Emit]. It
