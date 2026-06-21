@@ -11,6 +11,12 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.22.0-alpha.1] - 2026-06-21
+
+### Added
+
+- **Grounded-principal conformance tier (ADR-0038, spec §7.9)** ([#915](https://github.com/agent-receipts/obsigna/pull/915)) — `receipt.GrantResolver` is a pluggable interface for resolving an externally-minted authorization grant to a `GrantInfo` (subject, scopes, issued-at, expiry, issuer). `receipt.VerifyGroundedPrincipalTier(receipts, resolver)` applies ADR-0038 D1–D3: every `high`/`critical` receipt must carry a resolvable `authorization.grant_ref` whose resolved subject matches `credentialSubject.principal.id`. Violations are returned as `[]GroundedPrincipalViolation`; a `nil` or typed-nil resolver is a valid base-tier stance (ADR-0038 D3). `GroundedOutcome` enumerates `UNGROUNDED_PRINCIPAL` and `PRINCIPAL_GRANT_MISMATCH`.
+
 ## [0.21.0] - 2026-06-21
 
 Graduates `0.21.0-alpha.1` after the alpha pass. Ships `risk` as a receipt-free leaf package extracted from `receipt`, exposing `IsHighRisk` and the risk-level constants so downstream tools can import risk semantics without the full receipt dependency graph.

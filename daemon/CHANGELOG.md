@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0-alpha.1] - 2026-06-21
+
+### Fixed
+
+- **Checkpoint anchor nil-guard on closed sinks** ([#914](https://github.com/agent-receipts/obsigna/pull/914)) — `FileLog.Write` and `SyslogLog.Write` now return an error when called after `Close` rather than panicking on a nil pointer or writing to a closed handle. An `atomic.Bool` in the checkpoint emitter tracks its closed state and increments the `dropped` metric for enqueue attempts after `Close` instead of blocking or crashing. Hardening for the checkpoint anchor subsystem introduced in `0.27.0-alpha.1`.
+
 ## [0.28.0] - 2026-06-21
 
 Graduates `0.28.0-alpha.1` after the alpha pass. Primary new surface since `0.27.0`: `action.target` population on MCP non-file tool calls, `PostToolUseFailure` receipting in the hook, taxonomic `action_type` forwarding across hook/mcp-proxy/Python SDK, bounded `inline_plaintext` error and `prompt_preview` fields, and hook classification of shell `rm`/`mv`/`cp` as high/critical deletes. Both changes below were included in the alpha and are formally documented here:

@@ -12,6 +12,12 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.14.0-alpha.1] - 2026-06-21
+
+### Added
+
+- **Grounded-principal conformance tier (ADR-0038, spec §7.9)** ([#915](https://github.com/agent-receipts/obsigna/pull/915)) — `GrantResolver` abstract base class and `verify_grounded_principal_tier(receipts, resolver)` with the same D1–D3 semantics as the Go and TypeScript SDKs. `None` resolver is the base-tier no-op (ADR-0038 D3). Returns `list[GroundedPrincipalViolation]` covering `UNGROUNDED_PRINCIPAL` and `PRINCIPAL_GRANT_MISMATCH`. Exported from the package root as `verify_grounded_principal_tier` and `verifyGroundedPrincipalTier` (camelCase alias).
+
 ## [0.13.0] - 2026-06-12
 
 Graduates `0.13.0a2` after the alpha pass. No source changes since the alpha; see the `0.13.0a2` and `0.13.0a1` entries below for the full surface (`obsigna` rename, `KeyRotation` dataclass and chain-verifier traversal).
