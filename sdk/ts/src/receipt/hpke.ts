@@ -130,7 +130,11 @@ function kemDeriveKeyPair(ikm: Uint8Array): HpkeKeyPair {
 	const privateKeyObj = privFromRaw(sk);
 	return {
 		privateKey: sk,
-		publicKey: rawPublicKey(createPublicKey(privateKeyObj)),
+		publicKey: rawPublicKey(
+			createPublicKey(
+				privateKeyObj as unknown as Parameters<typeof createPublicKey>[0],
+			),
+		),
 	};
 }
 
@@ -177,7 +181,11 @@ function kemEncap(
 function kemDecap(enc: Uint8Array, recipientPrivateKey: Uint8Array): Buffer {
 	const recipientPriv = privFromRaw(recipientPrivateKey);
 	const dh = x25519(recipientPriv, pubFromRaw(enc), "encapsulated key");
-	const recipientPub = rawPublicKey(createPublicKey(recipientPriv));
+	const recipientPub = rawPublicKey(
+		createPublicKey(
+			recipientPriv as unknown as Parameters<typeof createPublicKey>[0],
+		),
+	);
 	const kemContext = concatBytes(enc, recipientPub);
 	return extractAndExpand(dh, kemContext);
 }
