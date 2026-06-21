@@ -44,7 +44,9 @@ from obsigna.receipt.disclosure import (
     DisclosureRecipient,
     ForensicKeyPair,
     decrypt_disclosure,
+    decrypt_response,
     encrypt_disclosure,
+    encrypt_response,
     generate_forensic_key_pair,
 )
 from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
@@ -121,6 +123,8 @@ loadTaxonomyConfig = load_taxonomy_config
 generateForensicKeyPair = generate_forensic_key_pair
 encryptDisclosure = encrypt_disclosure
 decryptDisclosure = decrypt_disclosure
+encryptResponse = encrypt_response
+decryptResponse = decrypt_response
 
 # RECEIPT_VERSION is the receipt schema version (from types), not the package version
 from obsigna.receipt.types import VERSION as RECEIPT_VERSION  # noqa: E402
@@ -165,8 +169,12 @@ __all__ = [
     "ForensicKeyPair",
     "decrypt_disclosure",
     "decryptDisclosure",
+    "decrypt_response",
+    "decryptResponse",
     "encrypt_disclosure",
     "encryptDisclosure",
+    "encrypt_response",
+    "encryptResponse",
     "generate_forensic_key_pair",
     "generateForensicKeyPair",
     # DaemonEmitter (ADR-0010 daemon client; ADR-0020 step 1 rename)

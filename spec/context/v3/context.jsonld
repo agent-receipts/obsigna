@@ -1,0 +1,315 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "@protected": true,
+
+    "ar": "https://agentreceipts.ai/vocab#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "AgentReceipt": "ar:AgentReceipt",
+    "AIActionReceipt": "ar:AgentReceipt",
+    "AIAgent": "ar:AIAgent",
+    "HumanPrincipal": "ar:HumanPrincipal",
+    "OrganizationPrincipal": "ar:OrganizationPrincipal",
+
+    "version": {
+      "@id": "ar:version",
+      "@type": "xsd:string"
+    },
+
+    "issuanceDate": {
+      "@id": "ar:issuanceDate",
+      "@type": "xsd:dateTime"
+    },
+
+    "name": "https://schema.org/name",
+    "operator": {
+      "@id": "ar:operator"
+    },
+    "model": {
+      "@id": "ar:model",
+      "@type": "xsd:string"
+    },
+    "session_id": {
+      "@id": "ar:session_id",
+      "@type": "xsd:string"
+    },
+    "runtime": {
+      "@id": "ar:runtime",
+      "@type": "@json"
+    },
+
+    "principal": {
+      "@id": "ar:principal"
+    },
+
+    "action": {
+      "@id": "ar:action",
+      "@context": {
+        "@protected": true,
+        "id": {
+          "@id": "ar:action_id",
+          "@type": "xsd:string"
+        },
+        "type": {
+          "@id": "ar:action_type",
+          "@type": "xsd:string"
+        },
+        "risk_level": {
+          "@id": "ar:risk_level",
+          "@type": "xsd:string"
+        },
+        "target": {
+          "@id": "ar:target",
+          "@context": {
+            "@protected": true,
+            "system": {
+              "@id": "ar:target_system",
+              "@type": "xsd:string"
+            },
+            "resource": {
+              "@id": "ar:target_resource",
+              "@type": "xsd:string"
+            }
+          }
+        },
+        "parameters_hash": {
+          "@id": "ar:parameters_hash",
+          "@type": "xsd:string"
+        },
+        "parameters_disclosure": {
+          "@id": "ar:parameters_disclosure",
+          "@type": "@json"
+        },
+        "peer_credential": {
+          "@id": "ar:peer_credential",
+          "@context": {
+            "@protected": true,
+            "platform": {
+              "@id": "ar:peer_platform",
+              "@type": "xsd:string"
+            },
+            "pid": {
+              "@id": "ar:peer_pid",
+              "@type": "xsd:integer"
+            },
+            "uid": {
+              "@id": "ar:peer_uid",
+              "@type": "xsd:integer"
+            },
+            "gid": {
+              "@id": "ar:peer_gid",
+              "@type": "xsd:integer"
+            },
+            "exe_path": {
+              "@id": "ar:peer_exe_path",
+              "@type": "xsd:string"
+            }
+          }
+        },
+        "emitter_metadata": {
+          "@id": "ar:emitter_metadata",
+          "@context": {
+            "@protected": true,
+            "drop_count": {
+              "@id": "ar:emitter_drop_count",
+              "@type": "xsd:integer"
+            }
+          }
+        },
+        "timestamp": {
+          "@id": "ar:action_timestamp",
+          "@type": "xsd:dateTime"
+        },
+        "trusted_timestamp": {
+          "@id": "ar:trusted_timestamp",
+          "@type": "xsd:string"
+        },
+        "idempotency_key": {
+          "@id": "ar:idempotency_key",
+          "@type": "xsd:string"
+        }
+      }
+    },
+
+    "intent": {
+      "@id": "ar:intent",
+      "@context": {
+        "@protected": true,
+        "conversation_hash": {
+          "@id": "ar:conversation_hash",
+          "@type": "xsd:string"
+        },
+        "prompt_preview": {
+          "@id": "ar:prompt_preview",
+          "@type": "xsd:string"
+        },
+        "prompt_preview_truncated": {
+          "@id": "ar:prompt_preview_truncated",
+          "@type": "xsd:boolean"
+        },
+        "reasoning_hash": {
+          "@id": "ar:reasoning_hash",
+          "@type": "xsd:string"
+        }
+      }
+    },
+
+    "outcome": {
+      "@id": "ar:outcome",
+      "@context": {
+        "@protected": true,
+        "status": {
+          "@id": "ar:status",
+          "@type": "xsd:string"
+        },
+        "error": {
+          "@id": "ar:error",
+          "@type": "xsd:string"
+        },
+        "reversible": {
+          "@id": "ar:reversible",
+          "@type": "xsd:boolean"
+        },
+        "reversal_method": {
+          "@id": "ar:reversal_method",
+          "@type": "xsd:string"
+        },
+        "reversal_window_seconds": {
+          "@id": "ar:reversal_window_seconds",
+          "@type": "xsd:integer"
+        },
+        "reversal_of": {
+          "@id": "ar:reversal_of",
+          "@type": "@id"
+        },
+        "state_change": {
+          "@id": "ar:state_change",
+          "@context": {
+            "@protected": true,
+            "before_hash": {
+              "@id": "ar:before_hash",
+              "@type": "xsd:string"
+            },
+            "after_hash": {
+              "@id": "ar:after_hash",
+              "@type": "xsd:string"
+            }
+          }
+        },
+        "response_hash": {
+          "@id": "ar:response_hash",
+          "@type": "xsd:string"
+        },
+        "response_disclosure": {
+          "@id": "ar:response_disclosure",
+          "@type": "@json"
+        }
+      }
+    },
+
+    "authorization": {
+      "@id": "ar:authorization",
+      "@context": {
+        "@protected": true,
+        "scopes": {
+          "@id": "ar:scopes",
+          "@container": "@set",
+          "@type": "xsd:string"
+        },
+        "granted_at": {
+          "@id": "ar:granted_at",
+          "@type": "xsd:dateTime"
+        },
+        "expires_at": {
+          "@id": "ar:expires_at",
+          "@type": "xsd:dateTime"
+        },
+        "grant_ref": {
+          "@id": "ar:grant_ref",
+          "@type": "xsd:string"
+        }
+      }
+    },
+
+    "delegation": {
+      "@id": "ar:delegation",
+      "@context": {
+        "@protected": true,
+        "parent_chain_id": {
+          "@id": "ar:parent_chain_id",
+          "@type": "xsd:string"
+        },
+        "parent_receipt_id": {
+          "@id": "ar:parent_receipt_id",
+          "@type": "@id"
+        },
+        "delegator": {
+          "@id": "ar:delegator"
+        }
+      }
+    },
+
+    "chain": {
+      "@id": "ar:chain",
+      "@context": {
+        "@protected": true,
+        "sequence": {
+          "@id": "ar:sequence",
+          "@type": "xsd:integer"
+        },
+        "previous_receipt_hash": {
+          "@id": "ar:previous_receipt_hash",
+          "@type": "xsd:string"
+        },
+        "chain_id": {
+          "@id": "ar:chain_id",
+          "@type": "xsd:string"
+        },
+        "terminal": {
+          "@id": "ar:terminal",
+          "@type": "xsd:boolean"
+        },
+        "status": {
+          "@id": "ar:chain_status",
+          "@type": "xsd:string"
+        }
+      }
+    },
+
+    "keyRotation": {
+      "@id": "ar:keyRotation",
+      "@context": {
+        "@protected": true,
+        "event_type": {
+          "@id": "ar:rotation_event_type",
+          "@type": "xsd:string"
+        },
+        "new_public_key": {
+          "@id": "ar:new_public_key",
+          "@type": "xsd:string"
+        },
+        "old_key_fingerprint": {
+          "@id": "ar:old_key_fingerprint",
+          "@type": "xsd:string"
+        },
+        "new_key_fingerprint": {
+          "@id": "ar:new_key_fingerprint",
+          "@type": "xsd:string"
+        },
+        "old_algorithm": {
+          "@id": "ar:old_algorithm",
+          "@type": "xsd:string"
+        },
+        "new_algorithm": {
+          "@id": "ar:new_algorithm",
+          "@type": "xsd:string"
+        },
+        "signed_with": {
+          "@id": "ar:rotation_signed_with",
+          "@type": "xsd:string"
+        }
+      }
+    }
+  }
+}

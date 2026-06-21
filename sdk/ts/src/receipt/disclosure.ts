@@ -156,6 +156,83 @@ async function encryptWithOptions(
 }
 
 /**
+ * Encrypts a tool response as a v1 HPKE disclosure envelope for `outcome.response_disclosure`.
+ *
+ * Identical to {@link encryptDisclosure} in primitive and encoding — uses the
+ * same forensic key pair, same HPKE ciphersuite, and same JCS canonicalization.
+ * The separation exists so operators can enable response disclosure independently
+ * of parameter disclosure via separate `--response-disclosure` / `--parameter-disclosure`
+ * policy flags.
+ *
+ * @param response - The response object to encrypt (must be a plain object, not null/array).
+ * @param recipientPublicKey - 32-byte X25519 forensic public key.
+ * @param kid - Recipient key identifier (did:key DID URL or sha256:<hex> fingerprint).
+ */
+export async function encryptResponse(
+	response: Record<string, unknown>,
+	recipientPublicKey: Uint8Array,
+	kid: string,
+): Promise<DisclosureEnvelope> {
+	if (!isPlainObject(response)) {
+		throw new Error("response must be a plain object");
+	}
+	if (recipientPublicKey.byteLength !== 32) {
+		throw new Error(
+			`recipientPublicKey must be 32 bytes, got ${recipientPublicKey.byteLength}`,
+		);
+	}
+	if (!kid) {
+		throw new Error("kid must not be empty");
+	}
+	return encryptWithOptions(response, recipientPublicKey, kid, undefined);
+}
+
+/**
+ * Deterministic variant of {@link encryptResponse} for cross-SDK test vectors.
+ *
+ * @internal FOR TESTING ONLY. Reusing ikmE across real encryptions breaks confidentiality.
+ */
+export async function encryptResponseWithSeed(
+	response: Record<string, unknown>,
+	recipientPublicKey: Uint8Array,
+	kid: string,
+	ikmE: Uint8Array,
+): Promise<DisclosureEnvelope> {
+	if (!isPlainObject(response)) {
+		throw new Error("response must be a plain object");
+	}
+	if (recipientPublicKey.byteLength !== 32) {
+		throw new Error(
+			`recipientPublicKey must be 32 bytes, got ${recipientPublicKey.byteLength}`,
+		);
+	}
+	if (!kid) {
+		throw new Error("kid must not be empty");
+	}
+	if (ikmE.byteLength !== 32) {
+		throw new Error(`ikmE must be 32 bytes, got ${ikmE.byteLength}`);
+	}
+	return encryptWithOptions(response, recipientPublicKey, kid, ikmE);
+}
+
+/**
+ * Recovers the plaintext response from a v1 HPKE disclosure envelope
+ * stored in `outcome.response_disclosure`.
+ *
+ * Identical to {@link decryptDisclosure} — the same envelope format is used
+ * for both parameters and response disclosures.
+ *
+ * @param env - The disclosure envelope to decrypt.
+ * @param recipientPrivateKey - 32-byte X25519 forensic private key.
+ */
+export async function decryptResponse(
+	env: DisclosureEnvelope,
+	recipientPrivateKey: Uint8Array,
+): Promise<Record<string, unknown>> {
+	return decryptDisclosure(env, recipientPrivateKey);
+}
+
+/**
  * Recovers the plaintext parameters from a v1 HPKE disclosure envelope.
  * @param env - The disclosure envelope to decrypt.
  * @param recipientPrivateKey - 32-byte X25519 forensic private key.

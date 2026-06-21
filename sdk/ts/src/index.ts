@@ -37,7 +37,9 @@ export {
 	type DisclosureEnvelope,
 	type DisclosureRecipient,
 	decryptDisclosure,
+	decryptResponse,
 	encryptDisclosure,
+	encryptResponse,
 	type ForensicKeyPair,
 	generateForensicKeyPair,
 } from "./receipt/disclosure.js";

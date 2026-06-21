@@ -10,7 +10,7 @@ import type { DisclosureEnvelope } from "./disclosure.js";
 
 export const CONTEXT = [
 	"https://www.w3.org/ns/credentials/v2",
-	"https://agentreceipts.ai/context/v2",
+	"https://agentreceipts.ai/context/v3",
 ] as const;
 
 export const CREDENTIAL_TYPE = [
@@ -18,7 +18,7 @@ export const CREDENTIAL_TYPE = [
 	"AgentReceipt",
 ] as const;
 
-export const VERSION = "0.5.0";
+export const VERSION = "0.6.0";
 
 // --- Risk levels ---
 
@@ -184,6 +184,17 @@ export interface Outcome {
 	/** SHA-256 hash of the RFC 8785 canonical JSON of the server's response,
 	 *  computed after secret redaction (redact → hash → sign). */
 	response_hash?: string;
+	/**
+	 * HPKE asymmetric encryption envelope sealing the tool response
+	 * (ADR-0012, spec v0.6.0+). Mirrors `action.parameters_disclosure` for
+	 * the response side: the signed receipt commits to the ciphertext; only
+	 * the holder of the forensic X25519 private key can recover the plaintext.
+	 *
+	 * `response_hash` remains the cryptographic commitment and is always
+	 * authoritative; this field is additive. Build with
+	 * {@link encryptResponse} from `./disclosure.js`.
+	 */
+	response_disclosure?: DisclosureEnvelope;
 }
 
 // --- Authorization ---

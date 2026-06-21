@@ -16,8 +16,11 @@ import pytest
 from obsigna.receipt.disclosure import (
     DisclosureEnvelope,
     _encrypt_disclosure_with_seed,
+    _encrypt_response_with_seed,
     decrypt_disclosure,
+    decrypt_response,
     encrypt_disclosure,
+    encrypt_response,
     generate_forensic_key_pair,
 )
 from obsigna.receipt.hash import canonicalize
@@ -402,3 +405,101 @@ class TestDeterministicSpecVectors:
 
         got = decrypt_disclosure(env, bob_priv)
         assert got["method"] == "POST"
+
+
+class TestEncryptResponse:
+    """encrypt_response / decrypt_response — mirrors TestEncryptDisclosure.
+
+    The response-side functions are thin wrappers over the same HPKE primitive,
+    so we test the public contract (shape, round-trip, validation) rather than
+    re-testing every HPKE edge case.
+    """
+
+    def test_produces_valid_v1_envelope_shape(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        env = encrypt_response(
+            {"content": "file contents here", "exit_code": 0},
+            alice_pub,
+            "did:key:z6LSeu9HkTHSfLLeUs2nnzUSNedgDUevfNQUQUaHL9XJ7Z5W#enc-1",
+        )
+        assert env["v"] == "1"
+        assert env["alg"] == "hpke-x25519-hkdf-sha256-aes-256-gcm"
+        assert len(env["recipients"]) == 1
+        assert len(env["recipients"][0]["enc"]) == 43
+        for ch in "+/=":
+            assert ch not in env["recipients"][0]["enc"]
+            assert ch not in env["ct"]
+        assert len(env["ct"]) >= 24
+        assert "nonce" not in json.dumps(env)
+
+    def test_round_trip_with_alice_rfc7748_keys(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        alice_priv = _hex(ALICE_PRIV_HEX)
+        response = {"content": "hello world", "exit_code": 0}
+        env = encrypt_response(response, alice_pub, "test-kid")
+        got = decrypt_response(env, alice_priv)
+        assert got["content"] == "hello world"
+        assert got["exit_code"] == 0
+
+    def test_jcs_canonicalizes_response(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        alice_priv = _hex(ALICE_PRIV_HEX)
+        response = {"z_last": "last", "a_first": "first", "m_mid": "middle"}
+        env = encrypt_response(response, alice_pub, "test-kid")
+        got = decrypt_response(env, alice_priv)
+        assert canonicalize(got) == canonicalize(response)
+
+    def test_rejects_short_recipient_public_key(self) -> None:
+        with pytest.raises(ValueError, match="32 bytes"):
+            encrypt_response({}, b"\x00" * 16, "kid")
+
+    def test_rejects_empty_kid(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        with pytest.raises(ValueError, match="kid"):
+            encrypt_response({}, alice_pub, "")
+
+    def test_rejects_non_dict_response(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        with pytest.raises(TypeError, match="plain dict"):
+            encrypt_response(cast("Any", ["a", "b"]), alice_pub, "kid")
+
+    def test_rejects_wrong_private_key(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        bob_priv = _hex(BOB_PRIV_HEX)
+        env = encrypt_response({"x": 1}, alice_pub, "kid")
+        with pytest.raises(ValueError, match="HPKE open failed"):
+            decrypt_response(env, bob_priv)
+
+    def test_json_round_trip(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        alice_priv = _hex(ALICE_PRIV_HEX)
+        env = encrypt_response({"output": "ok"}, alice_pub, "test-kid")
+        raw = json.dumps(env)
+        parsed = cast("DisclosureEnvelope", json.loads(raw))
+        got = decrypt_response(parsed, alice_priv)
+        assert got["output"] == "ok"
+
+    def test_same_primitive_as_encrypt_disclosure(self) -> None:
+        """Given identical inputs, encrypt_response and encrypt_disclosure
+        MUST produce byte-identical envelopes — they share the same HPKE core.
+        """
+        alice_pub = _hex(ALICE_PUB_HEX)
+        alice_priv = _hex(ALICE_PRIV_HEX)
+        ikm_e = _hex(VECTOR1_IKME_HEX)
+        payload = {"command": 'echo "build complete"'}
+        kid = "did:key:z6LSeu9HkTHSfLLeUs2nnzUSNedgDUevfNQUQUaHL9XJ7Z5W#enc-1"
+
+        env_param = _encrypt_disclosure_with_seed(payload, alice_pub, kid, ikm_e)
+        env_resp = _encrypt_response_with_seed(payload, alice_pub, kid, ikm_e)
+
+        assert env_resp["ct"] == env_param["ct"]
+        assert env_resp["recipients"][0]["enc"] == env_param["recipients"][0]["enc"]
+
+        got = decrypt_response(env_resp, alice_priv)
+        assert got["command"] == 'echo "build complete"'
+
+    def test_encrypt_response_with_seed_rejects_wrong_ikm_e_length(self) -> None:
+        alice_pub = _hex(ALICE_PUB_HEX)
+        for n in (0, 31, 33):
+            with pytest.raises(ValueError, match="32 bytes"):
+                _encrypt_response_with_seed({}, alice_pub, "kid", b"\x00" * n)

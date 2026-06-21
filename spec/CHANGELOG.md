@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-21
+
+### Added
+- `credentialSubject.outcome.response_disclosure` — HPKE asymmetric encryption envelope sealing the tool response, mirroring the existing `action.parameters_disclosure` for tool input. The signed receipt commits to the ciphertext; only the forensic private-key holder can recover the plaintext. Same envelope structure: HPKE v1, same forensic keypair, same `kid`/fingerprint resolution, same `encrypt_disclosure`/`decrypt_disclosure` flow. `outcome.response_hash` remains the tamper-evidence commitment and is always authoritative; `response_disclosure` is additive. Operators enable response disclosure via a separate `--response-disclosure` policy flag (independent of `--parameter-disclosure`), so sealing outputs without sealing inputs or vice versa is supported. SDK implementations: TS SDK and Python SDK — Go SDK and daemon deferred to a follow-up PR after the vanity module-path migration.
+- JSON-LD **context v3** (`https://agentreceipts.ai/context/v3`) — adds the `response_disclosure` term (`@type: @json`) to the `outcome` context. Identical to v2 otherwise. Receipts at `0.6.0` reference context v3 in their `@context` array; v1 and v2 remain permanent for earlier receipts (ADR-0021 D3).
+
+### Changed
+- `version` field now accepts `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, `"0.5.0"`, or `"0.6.0"`. Verifiers MUST accept all seven. All new receipts SHOULD use `"0.6.0"`.
+
+### Upgrade notes
+
+**Issuers:** No action required to remain protocol-valid. To seal the tool response for forensic recovery, encrypt it with the forensic X25519 public key and populate `outcome.response_disclosure` using the same HPKE envelope as `action.parameters_disclosure`. Requires `--response-disclosure` to be enabled at the operator level. Upgrade to `"version": "0.6.0"` (and context v3) when emitting new receipts with this field.
+
+**Verifiers:** No breaking changes. Receipts at `0.1.0`–`0.5.0` validate unchanged against their pinned contexts. The `response_disclosure` field is optional; absence is not a failure. When present, verifiers with the forensic private key can recover the plaintext response using `decrypt_disclosure` (all SDKs).
+
 ## [0.5.0] - 2026-06-09
 
 ### Added
