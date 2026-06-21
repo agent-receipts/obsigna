@@ -11,6 +11,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-06-21
+
+Graduates `0.21.0-alpha.1` after the alpha pass. Ships `risk` as a receipt-free leaf package extracted from `receipt`, exposing `IsHighRisk` and the risk-level constants so downstream tools can import risk semantics without the full receipt dependency graph.
+
 ## [0.20.0] - 2026-06-20
 
 Graduates `0.20.0-alpha.2` after the alpha pass. No source changes since the alpha; see the `0.20.0-alpha.2` and `0.20.0-alpha.1` entries below for the full surface. Since the last stable `0.19.0`, this line ships `receipt.VerifyRaw` for raw-bytes Ed25519 signature verification and `Store.LatestRootChainID` for active-chain detection.

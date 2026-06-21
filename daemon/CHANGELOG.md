@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-21
+
+Graduates `0.28.0-alpha.1` after the alpha pass. Primary new surface since `0.27.0`: `action.target` population on MCP non-file tool calls, `PostToolUseFailure` receipting in the hook, taxonomic `action_type` forwarding across hook/mcp-proxy/Python SDK, bounded `inline_plaintext` error and `prompt_preview` fields, and hook classification of shell `rm`/`mv`/`cp` as high/critical deletes. Both changes below were included in the alpha and are formally documented here:
+
 ### Added
 
 - **`obsigna-mcp` populates `action.target` for non-file actions** ([#852](https://github.com/agent-receipts/obsigna/issues/852)) — the MCP proxy now derives a stable resource identifier from each tool call's arguments and stamps it onto `action.target.{system,resource}`, the same field the filesystem hook fills for native Read/Write/Edit. `system` is the MCP server name; `resource` is extracted opportunistically by `audit.ExtractTarget` from well-known argument shapes, in precedence order: URI/endpoint (`url`/`uri`/`endpoint`, canonicalised to `scheme://host/path` with query and fragment dropped), database table (`table`/`collection`, qualified by `database`/`schema`/`dataset`/`keyspace`), version-control repo (`owner` + `repo` → `owner/repo`), then generic resource keys (`path`/`key`/`bucket`/`object`/`resource`/`resource_id`). Tool calls whose arguments match no shape carry no target, exactly as non-filesystem tools do in the hook; both fields are always set together or both empty. This lets two agents hitting the same API endpoint, table, or repo draw a cross-agent contention edge the way two touching the same file already do (closes the shared-external-state gap disclosed in [#849](https://github.com/agent-receipts/obsigna/pull/849)/[#850](https://github.com/agent-receipts/obsigna/pull/850)). No schema or daemon change — `validateFrame` and `buildAndSign` already pass frame target fields through to the signed receipt.
