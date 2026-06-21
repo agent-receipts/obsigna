@@ -12,7 +12,7 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
-## [0.14.0-alpha.1] - 2026-06-21
+## [0.14.0a1] - 2026-06-21
 
 ### Added
 
