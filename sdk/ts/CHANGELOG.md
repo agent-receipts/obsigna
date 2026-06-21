@@ -12,6 +12,14 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.15.0-alpha.1] - 2026-06-21
+
+### Added
+
+- **Grounded-principal conformance tier (ADR-0038, spec §7.9)** ([#915](https://github.com/agent-receipts/obsigna/pull/915)) — `GrantResolver` interface and `verifyGroundedPrincipalTier(receipts, resolver)` with the same D1–D3 semantics as the Go and Python SDKs. `null`/`undefined` resolver is the base-tier no-op (ADR-0038 D3). Returns `GrantInfo`, `GroundedPrincipalViolation[]`, and `GroundedOutcome` (`UNGROUNDED_PRINCIPAL` / `PRINCIPAL_GRANT_MISMATCH`). All types exported from the package root.
+
+- **`outcome.response_disclosure` HPKE envelope (spec v0.6.0)** ([#913](https://github.com/agent-receipts/obsigna/pull/913)) — `encryptResponse`/`decryptResponse` seal and unseal `credentialSubject.outcome.response_disclosure` using the same X25519 + AES-128-GCM HPKE scheme as parameter disclosure. Response disclosure is controlled independently of parameter disclosure, so issuers may seal outputs without sealing inputs (or vice versa).
+
 ## [0.14.1] - 2026-06-16
 
 ### Added
