@@ -22,6 +22,13 @@ echo "building browser verifier -> $out_dir/obsigna-verify.wasm"
 ( cd "$repo_root/cross-sdk-tests" && GOOS=js GOARCH=wasm go build -trimpath \
     -o "$out_dir/obsigna-verify.wasm" ./cmd/verify-wasm )
 
+# Fail loudly on an empty/truncated artifact rather than deploying a /verify
+# page that 404s or fails to instantiate with no CI signal.
+if [ ! -s "$out_dir/obsigna-verify.wasm" ]; then
+  echo "error: build produced an empty obsigna-verify.wasm" >&2
+  exit 1
+fi
+
 goroot="$(go env GOROOT)"
 wasm_exec="$goroot/lib/wasm/wasm_exec.js"
 if [ ! -f "$wasm_exec" ]; then

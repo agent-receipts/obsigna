@@ -123,6 +123,12 @@ func loadGateCases(t *testing.T) []gateCase {
 
 	for _, f := range []string{"v020_vectors.json", "v030_vectors.json", "v040_vectors.json", "v050_vectors.json"} {
 		pub, singles, chains := discoverReceipts(t, f)
+		// Guard against coverage silently vanishing: if a vector file is
+		// restructured so discoverReceipts finds nothing, fail rather than
+		// quietly testing fewer vectors.
+		if len(singles)+len(chains) == 0 {
+			t.Fatalf("no receipts discovered in %s — vector loader is out of date", f)
+		}
 		for name, raw := range singles {
 			cases = append(cases, gateCase{
 				name: "valid/" + f + "/" + name, mode: verifier.ModeSingle,
@@ -164,6 +170,7 @@ func loadGateCases(t *testing.T) []gateCase {
 		gateCase{name: "edge/garbage-key", mode: verifier.ModeSingle, receipts: goSigned, publicKey: "not a key", wantVerdict: verifier.VerdictError, wantOK: false},
 		gateCase{name: "edge/wrong-key", mode: verifier.ModeSingle, receipts: goSigned, publicKey: nonMatchingPublicKey, wantVerdict: verifier.VerdictFail, wantOK: true},
 		gateCase{name: "edge/empty-chain", mode: verifier.ModeChain, receipts: "   ", publicKey: goPub, wantVerdict: verifier.VerdictError, wantOK: false},
+		gateCase{name: "edge/empty-array", mode: verifier.ModeChain, receipts: "[]", publicKey: goPub, wantVerdict: verifier.VerdictError, wantOK: false},
 	)
 
 	return cases

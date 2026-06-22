@@ -38,9 +38,8 @@ import (
 // linked sequence (JSON array or JSONL). The reserved "chain-anchored" mode is
 // the tracked follow-up for external-anchor proofs and is not yet evaluated.
 const (
-	ModeSingle        = "single"
-	ModeChain         = "chain"
-	ModeChainAnchored = "chain-anchored"
+	ModeSingle = "single"
+	ModeChain  = "chain"
 )
 
 // Verdicts. A verdict is never invented by JS — it is computed here from the
@@ -258,6 +257,12 @@ func parseReceipts(text string) ([]receipt.AgentReceipt, error) {
 		var arr []receipt.AgentReceipt
 		if err := json.Unmarshal([]byte(trimmed), &arr); err != nil {
 			return nil, err
+		}
+		// An empty array is not a chain — reject it like the empty-string and
+		// empty-JSONL paths, so "[]" can never read as a vacuous QUALIFIED pass
+		// over zero receipts.
+		if len(arr) == 0 {
+			return nil, errors.New("no receipts found")
 		}
 		return arr, nil
 	}

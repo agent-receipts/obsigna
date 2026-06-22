@@ -136,7 +136,10 @@
     }
     parts.push(chainNotes(result));
 
-    if (result.crypto && result.crypto.detail && verdict !== "qualified" && verdict !== "full") {
+    // Only FAIL shows the detail box. On ERROR the same message is already in
+    // the banner (errorResult sets Error and crypto.detail to the same string),
+    // so repeating it here would just duplicate the line.
+    if (result.crypto && result.crypto.detail && verdict === "fail") {
       parts.push('<div class="detail">' + esc(result.crypto.detail) + "</div>");
     }
 
