@@ -52,7 +52,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // Wal is a backend that durably records receipts awaiting acknowledgement.

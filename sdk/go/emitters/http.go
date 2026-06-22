@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // Strategy selects how Emit treats the call: synchronously waiting for

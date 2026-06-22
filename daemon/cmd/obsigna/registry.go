@@ -3,13 +3,13 @@ package main
 import (
 	"io"
 
-	"github.com/agent-receipts/ar/daemon/internal/disclosecli"
-	"github.com/agent-receipts/ar/daemon/internal/doctorcli"
-	"github.com/agent-receipts/ar/daemon/internal/keyscli"
-	"github.com/agent-receipts/ar/daemon/internal/listcli"
-	"github.com/agent-receipts/ar/daemon/internal/showcli"
-	"github.com/agent-receipts/ar/daemon/internal/verifycli"
-	"github.com/agent-receipts/ar/daemon/internal/verifyeventcli"
+	"obsigna.dev/daemon/internal/disclosecli"
+	"obsigna.dev/daemon/internal/doctorcli"
+	"obsigna.dev/daemon/internal/keyscli"
+	"obsigna.dev/daemon/internal/listcli"
+	"obsigna.dev/daemon/internal/showcli"
+	"obsigna.dev/daemon/internal/verifycli"
+	"obsigna.dev/daemon/internal/verifyeventcli"
 )
 
 // runFunc is the shape every subcommand implementation shares (verifycli.Run,

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agent-receipts/ar/sdk/go/risk"
+	"obsigna.dev/sdk/go/risk"
 )
 
 // ActionTypeEntry describes a known action type.

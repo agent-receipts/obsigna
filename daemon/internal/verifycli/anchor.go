@@ -3,7 +3,7 @@ package verifycli
 import (
 	"fmt"
 
-	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
+	"obsigna.dev/daemon/internal/checkpoint"
 )
 
 // anchorResult is the structured outcome of an --against-anchor check. Reason

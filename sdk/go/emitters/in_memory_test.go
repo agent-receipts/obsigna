@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/emitters"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitters"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 func fakeReceipt(id string) receipt.AgentReceipt {

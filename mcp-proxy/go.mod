@@ -1,10 +1,8 @@
-module github.com/agent-receipts/ar/mcp-proxy
+module obsigna.dev/mcp-proxy
 
 go 1.26.1
 
 require (
-	github.com/agent-receipts/ar/daemon v0.23.0
-	github.com/agent-receipts/ar/sdk/go v0.21.0-alpha.1
 	github.com/google/uuid v1.6.0
 	gopkg.in/yaml.v3 v3.0.1
 )

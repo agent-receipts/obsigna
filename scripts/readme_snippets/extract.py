@@ -47,12 +47,12 @@ _INFO_TO_LANG = {
 }
 
 # A block counts as "documents the SDK" only if its body matches one of these.
-# The Go pattern deliberately matches the *wrong* module path too
-# (``agent-receipts/sdk-go`` vs the real ``agent-receipts/ar/sdk/go``) so that a
-# snippet importing a non-existent module is still selected and then fails to
+# The Go pattern deliberately matches the *wrong* module paths too
+# (``agent-receipts/sdk-go``, ``github.com/agent-receipts/ar/sdk/go``) so that a
+# snippet importing a non-existent or stale module is still selected and then fails to
 # build — that drift is exactly what we want to surface.
 _SDK_IMPORT_PATTERN = {
-    "go": re.compile(r"github\.com/agent-receipts/(?:ar/sdk/go|sdk-go)"),
+    "go": re.compile(r"(?:obsigna\.dev/sdk/go|github\.com/agent-receipts/(?:ar/sdk/go|sdk-go))"),
     "ts": re.compile(r"""['"]@obsigna/sdk-ts(?:/[\w-]+)?['"]"""),
     "py": re.compile(r"\b(?:from|import)\s+obsigna\b"),
 }
@@ -333,21 +333,22 @@ def _render_go(code: str, mode: str = "typecheck") -> str:
     return "\n".join(out) + "\n"
 
 
-_GO_AR_IMPORT_RE = re.compile(r'"(github\.com/agent-receipts/[^"]+)"')
-_GO_CANONICAL_PREFIX = "github.com/agent-receipts/ar/sdk/go"
+_GO_SDK_IMPORT_RE = re.compile(r'"((?:obsigna\.dev/sdk/go|github\.com/agent-receipts/(?:ar/sdk/go|sdk-go))[^"]*)"')
+_GO_CANONICAL_PREFIX = "obsigna.dev/sdk/go"
 
 
 def go_noncanonical_imports(code: str) -> list[str]:
-    """Return any ``agent-receipts`` Go import paths that aren't the canonical SDK.
+    """Return any sdk/go import paths that aren't the canonical module path.
 
-    A stale module (``github.com/agent-receipts/sdk-go``) is still resolvable on
-    the proxy, so a wrong import path can silently *build*. This static guard
-    fails the check anyway — a documented module path must be the one users get
-    from ``go get github.com/agent-receipts/ar/sdk/go``.
+    Both stale paths (``github.com/agent-receipts/sdk-go``,
+    ``github.com/agent-receipts/ar/sdk/go``) are still resolvable on the proxy,
+    so a wrong import path can silently *build*. This static guard fails the
+    check anyway — a documented module path must be the one users get from
+    ``go get obsigna.dev/sdk/go``.
     """
 
     bad: list[str] = []
-    for path in _GO_AR_IMPORT_RE.findall(code):
+    for path in _GO_SDK_IMPORT_RE.findall(code):
         if path != _GO_CANONICAL_PREFIX and not path.startswith(_GO_CANONICAL_PREFIX + "/"):
             bad.append(path)
     return bad

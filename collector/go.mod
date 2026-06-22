@@ -1,4 +1,4 @@
-module github.com/agent-receipts/ar/collector
+module obsigna.dev/collector
 
 go 1.26.1
 
@@ -8,7 +8,6 @@ go 1.26.1
 toolchain go1.26.1
 
 require (
-	github.com/agent-receipts/ar/sdk/go v0.13.0
 	modernc.org/sqlite v1.50.1
 )
 

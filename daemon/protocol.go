@@ -1,6 +1,6 @@
 package daemon
 
-import "github.com/agent-receipts/ar/daemon/internal/pipeline"
+import "obsigna.dev/daemon/internal/pipeline"
 
 // VersionRange is an inclusive range of integer protocol versions. An empty
 // intersection between two ranges means the two peers cannot talk.

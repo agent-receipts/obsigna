@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // TestSDKEmitterSingleFrame verifies the daemon processes a single frame

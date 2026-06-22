@@ -6,7 +6,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/agent-receipts/ar/daemon/internal/binresolve"
+	"obsigna.dev/daemon/internal/binresolve"
 )
 
 // execImage replaces the current process image with the named binary, the way

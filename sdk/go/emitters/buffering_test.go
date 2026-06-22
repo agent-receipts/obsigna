@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/emitters"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitters"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // signalingEmitter notifies on every Emit so timer-driven tests don't have

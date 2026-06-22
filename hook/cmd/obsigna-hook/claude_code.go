@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"obsigna.dev/sdk/go/emitter"
 )
 
 // maxErrorTextLen bounds the failure message copied into the receipt. Claude

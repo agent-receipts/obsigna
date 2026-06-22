@@ -102,8 +102,8 @@ func TestForwardingIntegration(t *testing.T) {
 	dir := t.TempDir()
 	shim := filepath.Join(dir, "agent-receipts-hook")
 	real := filepath.Join(dir, "obsigna-hook")
-	goBuild(t, shim, "github.com/agent-receipts/ar/hook/cmd/agent-receipts-hook")
-	goBuild(t, real, "github.com/agent-receipts/ar/hook/cmd/obsigna-hook")
+	goBuild(t, shim, "obsigna.dev/hook/cmd/agent-receipts-hook")
+	goBuild(t, real, "obsigna.dev/hook/cmd/obsigna-hook")
 
 	out, errOut, code := runBin(t, shim, "--version")
 	if code != 0 {

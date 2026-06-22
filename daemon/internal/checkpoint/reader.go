@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
+	"obsigna.dev/daemon/internal/anchor"
 )
 
 // ReadVerifiedCheckpoints reads an anchor log at path and returns the

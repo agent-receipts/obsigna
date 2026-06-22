@@ -29,10 +29,10 @@ import (
 // that would surface here as an offender rather than slip in transitively.
 var allowedNonStdlibDeps = []allowedDep{
 	// The hook's own packages (cmd/...).
-	{prefix: "github.com/agent-receipts/ar/hook/"},
+	{prefix: "obsigna.dev/hook/"},
 	// The daemon emitter — the hook's one forwarding dependency (ADR-0010).
-	{exact: "github.com/agent-receipts/ar/sdk/go/emitter"},
-	{prefix: "github.com/agent-receipts/ar/sdk/go/emitter/"},
+	{exact: "obsigna.dev/sdk/go/emitter"},
+	{prefix: "obsigna.dev/sdk/go/emitter/"},
 	// Session IDs (google/uuid), pulled in transitively by the emitter.
 	{exact: "github.com/google/uuid"},
 }

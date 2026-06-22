@@ -17,7 +17,7 @@ var verifyReceipt = Verify
 
 // ReceiptVerification holds the verification result for a single receipt in a chain.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ReceiptVerification struct {
 	Index          int    `json:"index"`
 	ReceiptID      string `json:"receipt_id"`
@@ -28,7 +28,7 @@ type ReceiptVerification struct {
 
 // ChainVerification holds the verification result for an entire chain.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ChainVerification struct {
 	Valid    bool                  `json:"valid"`
 	Length   int                   `json:"length"`
@@ -129,7 +129,7 @@ func isIncompleteToolRoundtrip(receipts []AgentReceipt) bool {
 // ChainVerifyOptions holds optional parameters for VerifyChain.
 // Zero value means "use defaults" — behaviour is identical to v0.1 with no options.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ChainVerifyOptions struct {
 	// ExpectedLength, when non-nil, causes verification to fail if the observed
 	// chain length does not equal this value. Provides out-of-band truncation
@@ -180,7 +180,7 @@ type ChainVerifyOptions struct {
 // mismatch. When no body is supplied for a receipt that carries response_hash, an
 // informational note is emitted but verification continues.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func VerifyChain(receipts []AgentReceipt, publicKeyPEM string, opts ...ChainVerifyOptions) ChainVerification {
 	var opt ChainVerifyOptions
 	if len(opts) > 0 {

@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import extract  # noqa: E402
 
-GO_MODULE = "github.com/agent-receipts/ar/sdk/go"
+GO_MODULE = "obsigna.dev/sdk/go"
 TS_PACKAGE = "@obsigna/sdk-ts"
 PY_PACKAGE = "obsigna"
 MYPY_VERSION = "mypy==2.1.0"
@@ -147,7 +147,7 @@ def _resolve_version(lang: str, repo_root: str, override: str | None) -> str:
 # --------------------------------------------------------------------------- #
 
 
-_GO_ENV = {"GOFLAGS": "-mod=mod", "GOWORK": "off"}
+_GO_ENV_PUBLISHED = {"GOFLAGS": "-mod=mod", "GOWORK": "off"}
 
 
 def _go_noncanonical_guard(units: list[extract.Unit]) -> bool:
@@ -163,20 +163,52 @@ def _go_noncanonical_guard(units: list[extract.Unit]) -> bool:
     return found
 
 
-def _write_go_mod(source: str, version: str | None, repo_root: str, workdir: str) -> int:
-    """Write a throwaway go.mod for the snippet module; return the retry budget."""
+def _go_workspace_uses(repo_root: str) -> list[str]:
+    """Return absolute paths of the `use` directives in repo-root go.work."""
+    import re as _re
+
+    go_work = os.path.join(repo_root, "go.work")
+    paths: list[str] = []
+    try:
+        with open(go_work, encoding="utf-8") as fh:
+            for line in fh:
+                m = _re.match(r"\s*(\./\S+)", line)
+                if m:
+                    paths.append(os.path.normpath(os.path.join(repo_root, m.group(1))))
+    except OSError:
+        pass  # go.work absent or unreadable → return empty list, caller skips workspace setup
+    return paths
+
+
+def _write_go_mod_and_env(source: str, version: str | None, repo_root: str, workdir: str) -> tuple[int, dict[str, str]]:
+    """Write a throwaway go.mod; return (retry_budget, go_env)."""
     go_mod = ["module example.com/readme-snippets\n", "go 1.26.1\n"]
     if source == "local":
-        sdk_path = os.path.join(repo_root, "sdk", "go")
-        # Throwaway module — a local replace here is fine and never published
-        # (publish-go.yml only rejects replaces in the SDK's own go.mod).
-        go_mod.append(f"require {GO_MODULE} v0.0.0\n")
-        go_mod.append(f"replace {GO_MODULE} => {sdk_path}\n")
+        # In local mode use a go.work that includes all workspace modules so
+        # `go mod tidy` resolves workspace deps (e.g. obsigna.dev/daemon, imported
+        # by sdk/go test files) from local paths rather than hitting the proxy.
+        # Use realpath so go.work 'use' entries match how Go canonicalises the
+        # current directory (important on macOS where /var is a symlink to
+        # /private/var — a path mismatch causes "directory prefix . does not
+        # contain modules listed in go.work").
+        real_workdir = os.path.realpath(workdir)
+        go_work_lines = [f"go 1.26.1\n\nuse (\n\t{real_workdir}\n"]
+        for abs_path in _go_workspace_uses(repo_root):
+            go_work_lines.append(f"\t{abs_path}\n")
+        go_work_lines.append(")\n")
+        go_work_path = os.path.join(workdir, "go.work")
+        with open(go_work_path, "w", encoding="utf-8") as fh:
+            fh.writelines(go_work_lines)
+        # workspace mode: -mod=mod is invalid; workspace provides all local deps.
+        go_env = {"GOWORK": go_work_path}
+        retries = 0
     else:
         go_mod.append(f"require {GO_MODULE} v{version}\n")
+        go_env = _GO_ENV_PUBLISHED
+        retries = 4
     with open(os.path.join(workdir, "go.mod"), "w", encoding="utf-8") as fh:
         fh.writelines(go_mod)
-    return 4 if source == "published" else 0
+    return retries, go_env
 
 
 def check_go(units: list[extract.Unit], source: str, version: str | None, repo_root: str, workdir: str) -> int:
@@ -187,16 +219,21 @@ def check_go(units: list[extract.Unit], source: str, version: str | None, repo_r
     if _go_noncanonical_guard(units):
         return 1
 
-    network_retries = _write_go_mod(source, version, repo_root, workdir)
+    network_retries, go_env = _write_go_mod_and_env(source, version, repo_root, workdir)
 
     for n, unit in enumerate(units, start=1):
         pkg_dir = os.path.join(workdir, f"snippet_{n:03d}")
         os.makedirs(pkg_dir, exist_ok=True)
         _write_unit(pkg_dir, "main.go", unit)
 
-    if _run(["go", "mod", "tidy"], cwd=workdir, env=_GO_ENV, retries=network_retries) != 0:
-        return 1
-    return _run(["go", "build", "./..."], cwd=workdir, env=_GO_ENV)
+    # In local (workspace) mode, go mod tidy tries to verify workspace modules
+    # against the proxy (for go.sum) and fails with a module-path mismatch when
+    # the published version still carries the old module path. Skip tidy for local
+    # builds: the workspace resolves all deps directly without proxy interaction.
+    if source != "local":
+        if _run(["go", "mod", "tidy"], cwd=workdir, env=go_env, retries=network_retries) != 0:
+            return 1
+    return _run(["go", "build", "./..."], cwd=workdir, env=go_env)
 
 
 def run_go(units: list[extract.Unit], source: str, version: str | None, repo_root: str, workdir: str) -> int:
@@ -207,19 +244,20 @@ def run_go(units: list[extract.Unit], source: str, version: str | None, repo_roo
     if _go_noncanonical_guard(runnable):
         return 1
 
-    network_retries = _write_go_mod(source, version, repo_root, workdir)
+    network_retries, go_env = _write_go_mod_and_env(source, version, repo_root, workdir)
 
     # build_units(mode="run") rendered each unit as an executable `package main`.
     run_dirs = [
         _prepare_run_dir(workdir, n, "main.go", unit) for n, unit in enumerate(runnable, start=1)
     ]
 
-    if _run(["go", "mod", "tidy"], cwd=workdir, env=_GO_ENV, retries=network_retries) != 0:
-        return 1
+    if source != "local":
+        if _run(["go", "mod", "tidy"], cwd=workdir, env=go_env, retries=network_retries) != 0:
+            return 1
 
     failures: list[extract.Unit] = []
     for unit, run_dir in zip(runnable, run_dirs, strict=True):
-        if _run(["go", "run", "."], cwd=run_dir, env=_GO_ENV) != 0:
+        if _run(["go", "run", "."], cwd=run_dir, env=go_env) != 0:
             failures.append(unit)
     return _summarize_run(failures, runnable, "Go")
 

@@ -286,7 +286,7 @@ func WithIdentity(id Identity) Option {
 // Per ADR-0020 step 1, this type is the legacy daemon-socket adapter and
 // its Emit(ctx, Event) signature takes an unsigned tool-call event frame —
 // not an AgentReceipt. It therefore does NOT implement the new Emitter
-// interface defined in github.com/agent-receipts/ar/sdk/go/emitters. Step 2
+// interface defined in obsigna.dev/sdk/go/emitters. Step 2
 // of the migration (daemon learns to ingest signed receipts) is tracked
 // separately.
 type DaemonEmitter struct {

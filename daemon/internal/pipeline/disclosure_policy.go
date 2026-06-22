@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // DisclosurePolicy decides whether a given action's parameters are encrypted

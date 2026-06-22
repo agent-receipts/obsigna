@@ -59,8 +59,8 @@ func TestForwardingIntegration(t *testing.T) {
 	dir := t.TempDir()
 	shim := filepath.Join(dir, "agent-receipts")
 	obsigna := filepath.Join(dir, "obsigna")
-	goBuild(t, shim, "github.com/agent-receipts/ar/daemon/cmd/agent-receipts")
-	goBuild(t, obsigna, "github.com/agent-receipts/ar/daemon/cmd/obsigna")
+	goBuild(t, shim, "obsigna.dev/daemon/cmd/agent-receipts")
+	goBuild(t, obsigna, "obsigna.dev/daemon/cmd/obsigna")
 
 	absentDB := filepath.Join(dir, "absent.db")
 

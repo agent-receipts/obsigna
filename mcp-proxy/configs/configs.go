@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agent-receipts/ar/sdk/go/taxonomy"
+	"obsigna.dev/sdk/go/taxonomy"
 )
 
 //go:embed *_taxonomy.json

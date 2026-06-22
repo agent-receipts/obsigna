@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // ErrDuplicate is returned by Store.Insert when a receipt with the same id is

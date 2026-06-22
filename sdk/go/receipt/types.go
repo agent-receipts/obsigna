@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/agent-receipts/ar/sdk/go/risk"
+	"obsigna.dev/sdk/go/risk"
 )
 
 // Protocol constants (unexported to prevent mutation).

@@ -3,7 +3,7 @@
 // Tests run end-to-end against an in-process agent-receipts daemon.
 //
 // Build-tag-gated to:
-//   - integration: the test imports github.com/agent-receipts/ar/daemon, but
+//   - integration: the test imports obsigna.dev/daemon, but
 //     sdk/go's published go.mod cannot require the daemon module — daemon
 //     already requires sdk/go, and a back-edge would create an import cycle.
 //     Under GOWORK=off (publish/verify path) the import would fail to resolve,
@@ -35,10 +35,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/sdk/go/emitter"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon"
+	"obsigna.dev/sdk/go/emitter"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // shortSocketDir returns a temp directory whose path is short enough that a

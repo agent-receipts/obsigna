@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // testReceipt constructs a minimal AgentReceipt for store tests. It is not a

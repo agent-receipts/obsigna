@@ -29,10 +29,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon"
-	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon"
+	"obsigna.dev/daemon/internal/checkpoint"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // Exit codes are part of the CLI contract — scripts and CI checks pivot on

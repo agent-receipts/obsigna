@@ -5,9 +5,9 @@ package integration_test
 import (
 	"testing"
 
-	"github.com/agent-receipts/ar/mcp-proxy/internal/audit"
-	"github.com/agent-receipts/ar/mcp-proxy/internal/policy"
-	"github.com/agent-receipts/ar/sdk/go/taxonomy"
+	"obsigna.dev/mcp-proxy/internal/audit"
+	"obsigna.dev/mcp-proxy/internal/policy"
+	"obsigna.dev/sdk/go/taxonomy"
 )
 
 // TestToolClassificationFallback verifies that prefix-based classification

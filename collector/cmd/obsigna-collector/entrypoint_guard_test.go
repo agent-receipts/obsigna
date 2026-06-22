@@ -100,7 +100,7 @@ func TestObsignaCollectorIsPrimaryEntrypoint(t *testing.T) {
 // the surface; the shim does not.
 func TestObsignaCollectorWiresCollectorLibrary(t *testing.T) {
 	src := readFile(t, "main.go")
-	if !strings.Contains(src, `agent-receipts/ar/collector"`) {
+	if !strings.Contains(src, `obsigna.dev/collector"`) {
 		t.Error("cmd/obsigna-collector does not import the collector library; obsigna-collector must be the primary collector entrypoint")
 	}
 }

@@ -7,7 +7,7 @@ description: Go SDK API reference.
 
 {/* snippet-check: skip */}
 ```go
-import receipt "github.com/agent-receipts/ar/sdk/go/receipt"
+import receipt "obsigna.dev/sdk/go/receipt"
 ```
 
 Core package for creating, signing, verifying, and chaining Agent Receipts.
@@ -249,7 +249,7 @@ const (
 
 {/* snippet-check: skip */}
 ```go
-import receipt "github.com/agent-receipts/ar/sdk/go/receipt"
+import receipt "obsigna.dev/sdk/go/receipt"
 ```
 
 HPKE-based envelope for encrypting tool-call parameters into a receipt's
@@ -369,7 +369,7 @@ import (
     "log"
     "os"
 
-    receipt "github.com/agent-receipts/ar/sdk/go/receipt"
+    receipt "obsigna.dev/sdk/go/receipt"
 )
 
 // raw 32-byte private key written by --init-forensic-key (kept offline)
@@ -442,7 +442,7 @@ RFC 9180 §4.1 (`enc`, not `encap`).
 
 {/* snippet-check: skip */}
 ```go
-import "github.com/agent-receipts/ar/sdk/go/taxonomy"
+import "obsigna.dev/sdk/go/taxonomy"
 ```
 
 Action type registry and tool call classification.
@@ -525,7 +525,7 @@ type ClassificationResult struct {
 
 {/* snippet-check: skip */}
 ```go
-import "github.com/agent-receipts/ar/sdk/go/store"
+import "obsigna.dev/sdk/go/store"
 ```
 
 SQLite-backed receipt persistence, querying, and chain verification. Uses pure Go SQLite (no CGO) with WAL mode.

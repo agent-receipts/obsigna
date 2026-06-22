@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/pipeline"
-	"github.com/agent-receipts/ar/daemon/internal/socket"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon/internal/pipeline"
+	"obsigna.dev/daemon/internal/socket"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // assertReceiptCountStays0 polls the store repeatedly for the duration and fails if receipts appear.

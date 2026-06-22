@@ -18,7 +18,7 @@
 ## Install
 
 ```sh
-go get github.com/agent-receipts/ar/sdk/go
+go get obsigna.dev/sdk/go
 ```
 
 ## Packages
@@ -50,7 +50,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"obsigna.dev/sdk/go/emitter"
 )
 
 func main() {
@@ -101,9 +101,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
-	"github.com/agent-receipts/ar/sdk/go/taxonomy"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
+	"obsigna.dev/sdk/go/taxonomy"
 )
 
 func main() {
@@ -175,8 +175,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/agent-receipts/ar/sdk/go/emitters"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitters"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 func deliver(signed receipt.AgentReceipt) {
@@ -225,9 +225,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/agent-receipts/ar/sdk/go/chain"
-	"github.com/agent-receipts/ar/sdk/go/emitters"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/chain"
+	"obsigna.dev/sdk/go/emitters"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 func main() {

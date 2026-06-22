@@ -27,7 +27,7 @@ package emitters
 import (
 	"context"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // Emitter delivers a signed [receipt.AgentReceipt]. Implementations handle

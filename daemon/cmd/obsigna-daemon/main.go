@@ -23,7 +23,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon"
+	"obsigna.dev/daemon"
 )
 
 // version is set at build time via -ldflags "-X main.version=vX.Y.Z".

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/mcp-proxy/internal/audit"
-	"github.com/agent-receipts/ar/mcp-proxy/internal/policy"
+	"obsigna.dev/mcp-proxy/internal/audit"
+	"obsigna.dev/mcp-proxy/internal/policy"
 )
 
 func TestBuildApprovalDeniedMessageTimeout(t *testing.T) {

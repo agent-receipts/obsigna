@@ -19,7 +19,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/agent-receipts/ar/daemon/internal/binresolve"
+	"obsigna.dev/daemon/internal/binresolve"
 )
 
 // deprecationShimMarker identifies this entrypoint as the agent-receipts → obsigna

@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
+	"obsigna.dev/daemon/internal/anchor"
 )
 
 // Emitter signs chain-HEAD checkpoints and fans them out to every configured

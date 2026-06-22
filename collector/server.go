@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // Config holds collector server configuration.

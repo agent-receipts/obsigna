@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon"
+	"obsigna.dev/daemon"
 )
 
 // initResolved builds the resolved view --init runs from, with all key paths

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/daemon/internal/anchor"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 func rotateTestConfig(t *testing.T) Config {

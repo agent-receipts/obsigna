@@ -1,7 +1,7 @@
 // Package taxonomy provides tool call classification and the built-in action type registry.
 //
 // Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the
-// canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 package taxonomy
 
 import (
@@ -14,7 +14,7 @@ import (
 
 // ActionTypeEntry describes a known action type.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ActionTypeEntry struct {
 	Type        string            `json:"type"`
 	Description string            `json:"description"`
@@ -23,7 +23,7 @@ type ActionTypeEntry struct {
 
 // TaxonomyMapping maps a tool name to an action type.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type TaxonomyMapping struct {
 	ToolName   string `json:"tool_name"`
 	ActionType string `json:"action_type"`
@@ -31,14 +31,14 @@ type TaxonomyMapping struct {
 
 // TaxonomyConfig is the JSON configuration for taxonomy mappings.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type TaxonomyConfig struct {
 	Mappings []TaxonomyMapping `json:"mappings"`
 }
 
 // ClassificationResult holds the result of classifying a tool call.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ClassificationResult struct {
 	ActionType string            `json:"action_type"`
 	RiskLevel  receipt.RiskLevel `json:"risk_level"`
@@ -46,7 +46,7 @@ type ClassificationResult struct {
 
 // Built-in action types.
 var (
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	FilesystemActions = []ActionTypeEntry{
 		{Type: "filesystem.file.create", Description: "Create a file", RiskLevel: receipt.RiskLow},
 		{Type: "filesystem.file.read", Description: "Read a file", RiskLevel: receipt.RiskLow},
@@ -57,7 +57,7 @@ var (
 		{Type: "filesystem.directory.delete", Description: "Delete a directory", RiskLevel: receipt.RiskHigh},
 	}
 
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	SystemActions = []ActionTypeEntry{
 		{Type: "system.application.launch", Description: "Launch an application", RiskLevel: receipt.RiskLow},
 		{Type: "system.application.control", Description: "Control an application via UI automation", RiskLevel: receipt.RiskMedium},
@@ -68,14 +68,14 @@ var (
 		{Type: "system.browser.authenticate", Description: "Log into a service", RiskLevel: receipt.RiskHigh},
 	}
 
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	DataActions = []ActionTypeEntry{
 		{Type: "data.api.read", Description: "Read data from an external API", RiskLevel: receipt.RiskLow},
 		{Type: "data.api.write", Description: "Write data to an external API", RiskLevel: receipt.RiskMedium},
 		{Type: "data.api.delete", Description: "Delete data via an external API", RiskLevel: receipt.RiskHigh},
 	}
 
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	UnknownAction = ActionTypeEntry{
 		Type:        "unknown",
 		Description: "Tool call that does not map to any known action type",
@@ -101,7 +101,7 @@ func init() {
 
 // AllActions returns all built-in action type entries.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func AllActions() []ActionTypeEntry {
 	out := make([]ActionTypeEntry, 0, len(FilesystemActions)+len(SystemActions)+len(DataActions)+1)
 	out = append(out, FilesystemActions...)
@@ -113,7 +113,7 @@ func AllActions() []ActionTypeEntry {
 
 // GetActionType returns the entry for the given type, or nil if unknown.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func GetActionType(actionType string) *ActionTypeEntry {
 	e, ok := actionMap[actionType]
 	if !ok {
@@ -125,7 +125,7 @@ func GetActionType(actionType string) *ActionTypeEntry {
 // ResolveActionType returns the entry for the given type, falling back to
 // UnknownAction if the type is not in the registry.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func ResolveActionType(actionType string) ActionTypeEntry {
 	if e, ok := actionMap[actionType]; ok {
 		return e
@@ -136,7 +136,7 @@ func ResolveActionType(actionType string) ActionTypeEntry {
 // ClassifyToolCall classifies a tool name into an action type and risk level
 // using the provided mappings. If no mapping matches, the result is "unknown".
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func ClassifyToolCall(toolName string, mappings []TaxonomyMapping) ClassificationResult {
 	actionType := "unknown"
 	for _, m := range mappings {
@@ -154,7 +154,7 @@ func ClassifyToolCall(toolName string, mappings []TaxonomyMapping) Classificatio
 
 // LoadTaxonomyConfig loads taxonomy mappings from a JSON file.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func LoadTaxonomyConfig(path string) ([]TaxonomyMapping, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

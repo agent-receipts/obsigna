@@ -2,7 +2,7 @@
 // verifying Action Receipts — W3C Verifiable Credentials for AI agent actions.
 //
 // Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the
-// canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 package receipt
 
 import "encoding/json"
@@ -15,30 +15,30 @@ var (
 
 // Context returns a copy of the W3C VC context array.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func Context() []string { return append([]string{}, protocolContext...) }
 
 // CredentialType returns a copy of the credential type array.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func CredentialType() []string { return append([]string{}, protocolCredentialType...) }
 
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 const Version = "0.4.0"
 
 // RiskLevel classifies the security risk of an action.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type RiskLevel string
 
 const (
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	RiskLow RiskLevel = "low"
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	RiskMedium RiskLevel = "medium"
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	RiskHigh RiskLevel = "high"
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	RiskCritical RiskLevel = "critical"
 )
 
@@ -47,43 +47,43 @@ const (
 // ChainStatusInterrupted only — ChainStatusUnknown is verifier-derived
 // and MUST NOT be emitted by issuers.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ChainStatus string
 
 const (
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	ChainStatusComplete ChainStatus = "complete"
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	ChainStatusInterrupted ChainStatus = "interrupted"
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	ChainStatusUnknown ChainStatus = "unknown"
 )
 
 // IsValidWireValue reports whether v is one of the two values an issuer may
 // write to chain.status. Verifier-only "unknown" returns false.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (v ChainStatus) IsValidWireValue() bool {
 	return v == ChainStatusComplete || v == ChainStatusInterrupted
 }
 
 // OutcomeStatus represents the result of an action.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type OutcomeStatus string
 
 const (
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	StatusSuccess OutcomeStatus = "success"
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	StatusFailure OutcomeStatus = "failure"
-	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+	// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 	StatusPending OutcomeStatus = "pending"
 )
 
 // Operator identifies the AI model executing actions.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Operator struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -91,7 +91,7 @@ type Operator struct {
 
 // Issuer represents the agent that issued the receipt.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Issuer struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type,omitempty"`
@@ -103,7 +103,7 @@ type Issuer struct {
 
 // Principal identifies the human or organisation that authorised the action.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Principal struct {
 	ID   string `json:"id"`
 	Type string `json:"type,omitempty"`
@@ -111,7 +111,7 @@ type Principal struct {
 
 // ActionTarget specifies the system and resource being acted upon.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ActionTarget struct {
 	System   string `json:"system"`
 	Resource string `json:"resource,omitempty"`
@@ -129,7 +129,7 @@ type ActionTarget struct {
 // the platform has no UID/GID concept (e.g. Windows); ExePath uses omitempty
 // for the same reason.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type PeerCredential struct {
 	Platform string  `json:"platform"`
 	PID      int32   `json:"pid"`
@@ -142,14 +142,14 @@ type PeerCredential struct {
 // Currently records the drop counter on synthetic events_dropped receipts.
 // Daemon-attested, not agent-claimed.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type EmitterMetadata struct {
 	DropCount int64 `json:"drop_count,omitempty"`
 }
 
 // Action describes what the agent did.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Action struct {
 	ID                   string              `json:"id"`
 	Type                 string              `json:"type"`
@@ -173,7 +173,7 @@ type Action struct {
 
 // Intent captures conversation context behind the action.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Intent struct {
 	ConversationHash       string `json:"conversation_hash,omitempty"`
 	PromptPreview          string `json:"prompt_preview,omitempty"`
@@ -183,7 +183,7 @@ type Intent struct {
 
 // StateChange captures before/after state hashes.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type StateChange struct {
 	BeforeHash string `json:"before_hash"`
 	AfterHash  string `json:"after_hash"`
@@ -191,7 +191,7 @@ type StateChange struct {
 
 // Outcome describes the result of an action.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Outcome struct {
 	Status                OutcomeStatus `json:"status"`
 	Error                 string        `json:"error,omitempty"`
@@ -205,7 +205,7 @@ type Outcome struct {
 
 // Authorization captures the scope and expiry of an action.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Authorization struct {
 	Scopes    []string `json:"scopes"`
 	GrantedAt string   `json:"granted_at"`
@@ -215,7 +215,7 @@ type Authorization struct {
 
 // Chain links receipts in a tamper-evident sequence.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Chain struct {
 	Sequence            int     `json:"sequence"`
 	PreviousReceiptHash *string `json:"previous_receipt_hash"`
@@ -244,7 +244,7 @@ type Chain struct {
 //     other than ChainStatusComplete or ChainStatusInterrupted — including
 //     ChainStatusUnknown, which is verifier-derived only).
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func (c Chain) MarshalJSON() ([]byte, error) {
 	type chainAlias Chain
 	a := chainAlias(c)
@@ -262,14 +262,14 @@ func (c Chain) MarshalJSON() ([]byte, error) {
 
 // Delegator identifies the agent whose chain spawned a delegation.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Delegator struct {
 	ID string `json:"id"`
 }
 
 // Delegation records the chain linkage when this chain was spawned by a parent agent.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Delegation struct {
 	ParentChainID   string    `json:"parent_chain_id"`
 	ParentReceiptID string    `json:"parent_receipt_id"`
@@ -278,7 +278,7 @@ type Delegation struct {
 
 // CredentialSubject contains the core receipt payload.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type CredentialSubject struct {
 	Principal     Principal      `json:"principal"`
 	Action        Action         `json:"action"`
@@ -292,7 +292,7 @@ type CredentialSubject struct {
 
 // Proof contains the Ed25519 signature.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type Proof struct {
 	Type               string `json:"type"`
 	Created            string `json:"created,omitempty"`
@@ -303,7 +303,7 @@ type Proof struct {
 
 // AgentReceipt is a signed W3C Verifiable Credential for an agent action.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type AgentReceipt struct {
 	Context []string `json:"@context"`
 	ID      string   `json:"id"`
@@ -319,7 +319,7 @@ type AgentReceipt struct {
 
 // UnsignedAgentReceipt is an AgentReceipt without a proof, ready to be signed.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type UnsignedAgentReceipt struct {
 	Context           []string          `json:"@context"`
 	ID                string            `json:"id"`
@@ -332,7 +332,7 @@ type UnsignedAgentReceipt struct {
 
 // KeyPair holds PEM-encoded Ed25519 keys.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type KeyPair struct {
 	PublicKey  string
 	PrivateKey string
@@ -340,7 +340,7 @@ type KeyPair struct {
 
 // TruncatePromptPreview truncates s to maxLen runes and sets the truncated flag.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func TruncatePromptPreview(s string, maxLen int) (preview string, truncated bool) {
 	if maxLen <= 0 {
 		return "", len(s) > 0

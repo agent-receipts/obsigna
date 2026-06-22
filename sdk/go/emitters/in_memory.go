@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // InMemoryEmitter captures emitted receipts in an exposed slice. Performs

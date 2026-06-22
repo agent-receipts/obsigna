@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/sdk/go/store"
 )
 
 // State tracks the next-sequence and previous-hash for a single chain id. It

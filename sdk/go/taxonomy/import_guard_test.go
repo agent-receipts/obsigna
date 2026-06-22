@@ -16,9 +16,9 @@ import (
 // `go list -deps` reports only the non-test (production) dependency graph, so a
 // test-only import of receipt (in this package or any other) does not count.
 func TestTaxonomyDoesNotImportReceipt(t *testing.T) {
-	const receiptPkg = "github.com/agent-receipts/ar/sdk/go/receipt"
+	const receiptPkg = "obsigna.dev/sdk/go/receipt"
 
-	out, err := exec.Command("go", "list", "-deps", "github.com/agent-receipts/ar/sdk/go/taxonomy").Output()
+	out, err := exec.Command("go", "list", "-deps", "obsigna.dev/sdk/go/taxonomy").Output()
 	if err != nil {
 		t.Fatalf("go list -deps taxonomy: %v", err)
 	}

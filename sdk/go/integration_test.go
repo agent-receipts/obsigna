@@ -5,9 +5,9 @@ package integration_test
 import (
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
-	"github.com/agent-receipts/ar/sdk/go/taxonomy"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
+	"obsigna.dev/sdk/go/taxonomy"
 )
 
 func TestReceiptFullLifecycle(t *testing.T) {

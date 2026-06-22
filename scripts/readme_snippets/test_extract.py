@@ -155,7 +155,7 @@ func main() { _ = receipt.GenerateKeyPair }
 
 def test_full_go_program_repackaged_as_library() -> None:
     # `package main` is rewritten so a block without `func main` still builds.
-    code = 'package main\n\nimport "github.com/agent-receipts/ar/sdk/go/receipt"\n\nfunc deliver() { _ = receipt.GenerateKeyPair }'
+    code = 'package main\n\nimport "obsigna.dev/sdk/go/receipt"\n\nfunc deliver() { _ = receipt.GenerateKeyPair }'
     text = f"```go\n{code}\n```\n"
     (unit,) = extract.build_units("R.md", text, "go")
     assert unit.code.startswith("package snippet")
@@ -166,7 +166,7 @@ def test_full_go_program_repackaged_as_library() -> None:
 def test_bare_go_snippet_is_wrapped_and_suppresses_unused() -> None:
     text = """
 ```go
-import "github.com/agent-receipts/ar/sdk/go/receipt"
+import "obsigna.dev/sdk/go/receipt"
 
 keys, _ := receipt.GenerateKeyPair()
 unsigned := receipt.Create(receipt.CreateInput{})
@@ -177,7 +177,7 @@ signed, _ := receipt.Sign(unsigned, keys.PrivateKey, "k")
     code = unit.code
     assert code.startswith("package snippet")
     assert "func run() {" in code
-    assert 'import (\n\t"github.com/agent-receipts/ar/sdk/go/receipt"\n)' in code
+    assert 'import (\n\t"obsigna.dev/sdk/go/receipt"\n)' in code
     # Every locally declared value is referenced so Go won't reject it.
     assert "_ = keys" in code
     assert "_ = unsigned" in code
@@ -189,7 +189,7 @@ def test_bare_go_snippet_with_import_block() -> None:
 ```go
 import (
 	"fmt"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 fmt.Println(receipt.GenerateKeyPair())
@@ -197,45 +197,50 @@ fmt.Println(receipt.GenerateKeyPair())
 """
     (unit,) = extract.build_units("R.md", text, "go")
     assert '"fmt"' in unit.code
-    assert '"github.com/agent-receipts/ar/sdk/go/receipt"' in unit.code
+    assert '"obsigna.dev/sdk/go/receipt"' in unit.code
 
 
 def test_go_noncanonical_imports_flags_stale_module() -> None:
+    # Both the pre-ADR-0037 canonical path and the old stale module are non-canonical.
     code = (
         'import "github.com/agent-receipts/sdk-go/receipt"\n'
         'import "github.com/agent-receipts/ar/sdk/go/store"\n'
+        'import "obsigna.dev/sdk/go/emitter"\n'
     )
-    assert extract.go_noncanonical_imports(code) == ["github.com/agent-receipts/sdk-go/receipt"]
+    result = extract.go_noncanonical_imports(code)
+    assert "github.com/agent-receipts/sdk-go/receipt" in result
+    assert "github.com/agent-receipts/ar/sdk/go/store" in result
+    assert "obsigna.dev/sdk/go/emitter" not in result
 
 
 def test_go_noncanonical_imports_accepts_canonical() -> None:
     code = (
-        'import "github.com/agent-receipts/ar/sdk/go"\n'
-        'import "github.com/agent-receipts/ar/sdk/go/emitter"\n'
+        'import "obsigna.dev/sdk/go"\n'
+        'import "obsigna.dev/sdk/go/emitter"\n'
     )
     assert extract.go_noncanonical_imports(code) == []
 
 
 def test_single_aliased_import_preserved() -> None:
-    text = '```go\nimport rcpt "github.com/agent-receipts/ar/sdk/go/receipt"\n\nrcpt.GenerateKeyPair()\n```\n'
+    text = '```go\nimport rcpt "obsigna.dev/sdk/go/receipt"\n\nrcpt.GenerateKeyPair()\n```\n'
     (unit,) = extract.build_units("R.md", text, "go")
-    assert 'rcpt "github.com/agent-receipts/ar/sdk/go/receipt"' in unit.code
+    assert 'rcpt "obsigna.dev/sdk/go/receipt"' in unit.code
 
 
 def test_import_block_preserves_alias_and_blank() -> None:
     text = """
 ```go
 import (
-	_ "github.com/agent-receipts/ar/sdk/go/receipt"
-	st "github.com/agent-receipts/ar/sdk/go/store"
+	_ "obsigna.dev/sdk/go/receipt"
+	st "obsigna.dev/sdk/go/store"
 )
 
 st.Open("x")
 ```
 """
     (unit,) = extract.build_units("R.md", text, "go")
-    assert '_ "github.com/agent-receipts/ar/sdk/go/receipt"' in unit.code
-    assert 'st "github.com/agent-receipts/ar/sdk/go/store"' in unit.code
+    assert '_ "obsigna.dev/sdk/go/receipt"' in unit.code
+    assert 'st "obsigna.dev/sdk/go/store"' in unit.code
 
 
 def test_mdx_jsx_comment_directive() -> None:
@@ -357,7 +362,7 @@ http.emit(receipt)
 def test_go_run_mode_wraps_bare_snippet_as_main() -> None:
     text = """
 ```go
-import "github.com/agent-receipts/ar/sdk/go/receipt"
+import "obsigna.dev/sdk/go/receipt"
 
 keys, _ := receipt.GenerateKeyPair()
 ```
@@ -371,7 +376,7 @@ keys, _ := receipt.GenerateKeyPair()
 def test_go_run_mode_keeps_full_program_as_main() -> None:
     code = (
         "package main\n\n"
-        'import "github.com/agent-receipts/ar/sdk/go/receipt"\n\n'
+        'import "obsigna.dev/sdk/go/receipt"\n\n'
         "func main() { _, _ = receipt.GenerateKeyPair() }"
     )
     text = f"```go\n{code}\n```\n"
@@ -385,7 +390,7 @@ def test_go_typecheck_mode_still_library_package() -> None:
     # Default mode is unchanged: a bare snippet becomes a library package.
     text = """
 ```go
-import "github.com/agent-receipts/ar/sdk/go/receipt"
+import "obsigna.dev/sdk/go/receipt"
 
 keys, _ := receipt.GenerateKeyPair()
 ```
@@ -399,13 +404,13 @@ def test_go_continues_is_rejected_loudly() -> None:
     text = """
 ```go
 package main
-import "github.com/agent-receipts/ar/sdk/go/receipt"
+import "obsigna.dev/sdk/go/receipt"
 func main() { _ = receipt.GenerateKeyPair }
 ```
 
 <!-- snippet-check: continues -->
 ```go
-import "github.com/agent-receipts/ar/sdk/go/store"
+import "obsigna.dev/sdk/go/store"
 _ = store.Open
 ```
 """

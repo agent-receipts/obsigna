@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/emitter"
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/emitter"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 // TestConcurrentDaemonStartSameSocket verifies that when two daemon instances

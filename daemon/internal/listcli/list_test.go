@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
-	"github.com/agent-receipts/ar/sdk/go/store"
+	"obsigna.dev/sdk/go/receipt"
+	"obsigna.dev/sdk/go/store"
 )
 
 // fixtureDB writes a DB at dir/receipts.db with `count` receipts on chainID.

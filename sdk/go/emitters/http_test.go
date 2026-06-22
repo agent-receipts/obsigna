@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-receipts/ar/sdk/go/emitters"
+	"obsigna.dev/sdk/go/emitters"
 )
 
 // collector wraps an httptest.Server with helpers for capturing inbound

@@ -32,7 +32,7 @@ func marshalNoHTMLEscape(v any) ([]byte, error) {
 
 // SHA256Hash computes the SHA-256 hash of data and returns "sha256:<hex>".
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func SHA256Hash(data string) string {
 	h := sha256.Sum256([]byte(data))
 	return fmt.Sprintf("sha256:%x", h)
@@ -41,7 +41,7 @@ func SHA256Hash(data string) string {
 // HashReceipt computes the SHA-256 hash of a signed receipt (excluding proof).
 // Returns the hash in "sha256:<hex>" format.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func HashReceipt(r AgentReceipt) (string, error) {
 	unsigned := UnsignedAgentReceipt{
 		Context:           r.Context,
@@ -76,7 +76,7 @@ func HashReceipt(r AgentReceipt) (string, error) {
 //
 // Returns an error if rawJSON is not a JSON object.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func HashRawReceipt(rawJSON []byte) (string, error) {
 	var generic map[string]any
 	if err := json.Unmarshal(rawJSON, &generic); err != nil {
@@ -97,7 +97,7 @@ func HashRawReceipt(rawJSON []byte) (string, error) {
 
 // Canonicalize serialises v to RFC 8785 canonical JSON.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func Canonicalize(v any) (string, error) {
 	// Marshal to JSON first so we work with a generic representation.
 	// We need to avoid html-escaping here too. Use a custom approach:

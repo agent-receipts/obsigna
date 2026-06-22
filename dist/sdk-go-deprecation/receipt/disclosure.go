@@ -19,7 +19,7 @@ const v1Alg = "hpke-x25519-hkdf-sha256-aes-256-gcm"
 // DisclosureRecipient is one entry in the recipients array of a DisclosureEnvelope.
 // Field names match RFC 9180 §4.1 vocabulary ("enc", not "encap").
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type DisclosureRecipient struct {
 	KID string `json:"kid"`
 	Enc string `json:"enc"` // HPKE encapsulated key; unpadded base64url, exactly 43 chars for X25519
@@ -33,7 +33,7 @@ type DisclosureRecipient struct {
 // (alg, ct, recipients, v) regardless, so the struct tag order does not affect
 // the canonical bytes.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type DisclosureEnvelope struct {
 	V          string                `json:"v"`
 	Alg        string                `json:"alg"`
@@ -46,7 +46,7 @@ type DisclosureEnvelope struct {
 // raw bytes, not PEM-encoded, because X25519 has no standard PKCS8 PEM convention
 // in widespread use and raw bytes compose more naturally with HPKE library APIs.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type ForensicKeyPair struct {
 	PublicKey  []byte // 32 bytes; share with emitters so they can encrypt disclosures
 	PrivateKey []byte // 32 bytes; keep offline; required to decrypt disclosures
@@ -61,7 +61,7 @@ func disclosureSuite() hpke.Suite {
 // The public key is shared with emitters; the private key must be kept offline
 // (separate from the Ed25519 signing key per ADR-0001 / ADR-0012).
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func GenerateForensicKeyPair() (ForensicKeyPair, error) {
 	suite := disclosureSuite()
 	kemID, _, _ := suite.Params()
@@ -89,7 +89,7 @@ func GenerateForensicKeyPair() (ForensicKeyPair, error) {
 // kid identifies the recipient key (did:key DID URL or sha256:<hex> fingerprint).
 // recipientPublicKey is the 32-byte X25519 forensic public key.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func EncryptDisclosure(params map[string]any, recipientPublicKey []byte, kid string) (*DisclosureEnvelope, error) {
 	return encryptWithReader(params, recipientPublicKey, kid, rand.Reader)
 }
@@ -168,7 +168,7 @@ func encryptWithReader(params map[string]any, recipientPublicKey []byte, kid str
 // envelope. recipientPrivateKey is the 32-byte X25519 forensic private key.
 // The returned map reflects the JCS-canonical plaintext written by EncryptDisclosure.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func DecryptDisclosure(env *DisclosureEnvelope, recipientPrivateKey []byte) (map[string]any, error) {
 	if env == nil {
 		return nil, fmt.Errorf("disclosure envelope must not be nil")

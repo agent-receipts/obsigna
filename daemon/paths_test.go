@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/sdk/go/emitter"
+	"obsigna.dev/sdk/go/emitter"
 )
 
 // TestDefaultDBPath_UsesXDGDataHomeWhenAbsolute pins the spec-conformant

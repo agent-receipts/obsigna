@@ -10,7 +10,7 @@ import (
 
 // CreateInput holds the inputs for creating an unsigned receipt.
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 type CreateInput struct {
 	Issuer        Issuer
 	Principal     Principal
@@ -42,7 +42,7 @@ type CreateInput struct {
 // It auto-generates the receipt ID, action ID, issuance date, and action
 // timestamp (if not already set in Action).
 //
-// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module github.com/agent-receipts/ar/sdk/go instead (see ADR-0023).
+// Deprecated: github.com/agent-receipts/sdk-go is no longer maintained. Use the canonical module obsigna.dev/sdk/go instead (see ADR-0023).
 func Create(input CreateInput) UnsignedAgentReceipt {
 	now := time.Now().UTC().Format(time.RFC3339)
 

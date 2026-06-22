@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-receipts/ar/daemon/internal/anchor"
-	"github.com/agent-receipts/ar/daemon/internal/checkpoint"
+	"obsigna.dev/daemon/internal/anchor"
+	"obsigna.dev/daemon/internal/checkpoint"
 )
 
 type anchorTestSigner struct {
