@@ -114,6 +114,9 @@ export default defineConfig({
       },
       customCss: ["./src/styles/custom.css"],
       sidebar: [
+        // Standalone client-side verifier in public/verify/ (not a Starlight
+        // content page), linked here so it is discoverable from every doc page.
+        { label: "Verify a chain", link: "/verify/", badge: { text: "Tool" } },
         {
           label: "Getting Started",
           items: [

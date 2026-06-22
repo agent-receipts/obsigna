@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Strict CSP: no external origins of any kind. The only network request this
+      page makes is a same-origin fetch of its own WebAssembly module at load.
+      'wasm-unsafe-eval' is required to instantiate WebAssembly; no eval() is used.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Verify an Agent Receipts chain — obsigna.dev</title>
+    <meta
+      name="description"
+      content="Verify an Agent Receipts chain entirely in your browser. Nothing is uploaded. The cryptographic checks run in WebAssembly compiled from the same Go core as the obsigna receipt verify CLI."
+    />
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="page-head">
+        <a class="back" href="/">← obsigna.dev</a>
+        <h1>Verify an Agent Receipts chain</h1>
+        <p class="lede">
+          Paste or load a receipt or chain and verify it here. The cryptographic
+          checks run in WebAssembly compiled from the
+          <strong>same Go verify core</strong> as the
+          <code>obsigna receipt verify</code> CLI — there is no separate browser
+          reimplementation, so what you run here matches what an auditor runs on
+          the command line.
+        </p>
+      </header>
+
+      <aside class="privacy" aria-label="Privacy">
+        <span class="lock" aria-hidden="true">🔒</span>
+        <div>
+          <strong>Everything runs in your browser.</strong> Receipts and keys you
+          paste are never uploaded, never stored (not even in this browser), and
+          never leave this page. After the verifier finishes loading, this page
+          makes <strong>no network requests</strong> — you can confirm in your
+          devtools Network tab.
+        </div>
+      </aside>
+
+      <section class="card">
+        <div class="tabs" role="tablist" aria-label="Input mode">
+          <button id="tab-single" class="tab" role="tab" aria-selected="true" aria-controls="input-panel">
+            Single receipt
+          </button>
+          <button id="tab-chain" class="tab" role="tab" aria-selected="false" aria-controls="input-panel">
+            Receipt chain (JSON or JSONL)
+          </button>
+        </div>
+
+        <div id="input-panel" role="tabpanel">
+          <label class="field-label" for="pubkey">
+            Issuer public key
+            <span class="hint">
+              PEM-encoded Ed25519 (SPKI). Verification proves consistency
+              <em>under this key</em>; you must obtain and trust the key out of band.
+            </span>
+          </label>
+          <textarea
+            id="pubkey"
+            class="mono"
+            rows="4"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+          ></textarea>
+
+          <label class="field-label" for="receipts">
+            <span id="receipts-label">Receipt JSON</span>
+          </label>
+          <textarea
+            id="receipts"
+            class="mono"
+            rows="14"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="Paste a single receipt JSON object…"
+          ></textarea>
+
+          <details class="anchor-box">
+            <summary>External anchor proof (optional)</summary>
+            <p class="hint">
+              An anchor proof corroborates the chain head out of band and is what
+              separates a <em>full</em> pass from a <em>qualified</em> one.
+              External-anchor verification is a tracked follow-up and is
+              <strong>not evaluated in this build</strong>: a supplied proof is
+              acknowledged but does not change the result.
+            </p>
+            <textarea
+              id="anchor"
+              class="mono"
+              rows="4"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="Anchor / checkpoint proof (not yet evaluated)"
+            ></textarea>
+          </details>
+
+          <div class="actions">
+            <button id="verify" class="primary" disabled>Loading verifier…</button>
+            <button id="load-example" class="ghost" type="button">Load example</button>
+            <button id="clear" class="ghost" type="button">Clear</button>
+            <span id="status" class="status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </section>
+
+      <section id="result" class="result" hidden aria-live="polite"></section>
+
+      <footer class="page-foot">
+        <p>
+          This tool checks <strong>cryptographic properties only</strong>:
+          signature validity, hash-chain integrity, and JCS (RFC 8785)
+          canonicalization. It makes <strong>no claim of legal admissibility</strong>
+          and <strong>does not attribute</strong> any action to a real-world
+          person, organisation, or agent identity. A valid signature proves a
+          chain is internally consistent under the public key you supplied —
+          nothing more.
+        </p>
+        <p>
+          For what the verdicts mean, see the canonical spec pages:
+          <a href="https://agentreceipts.ai/specification/trust-model/">Trust model</a>
+          and
+          <a href="https://agentreceipts.ai/specification/receipt-chain-verification/">Receipt chain verification</a>.
+        </p>
+      </footer>
+    </main>
+
+    <script src="wasm_exec.js"></script>
+    <script src="examples.js"></script>
+    <script src="verify.js"></script>
+  </body>
+</html>
