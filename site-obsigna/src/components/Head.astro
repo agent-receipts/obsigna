@@ -1,0 +1,58 @@
+---
+// Custom Starlight Head override: adds Open Graph / Twitter social-card image
+// metadata to every page. Starlight emits og:title/description/url and
+// twitter:card but no og:image, so a bare title box is shared on LinkedIn/X.
+//
+// Each page rides this site's default card (public/og.png) unless its
+// frontmatter sets `ogImage` (see content.config.ts), which may be an absolute
+// URL or a site-root-relative path — both resolve to an absolute URL on this
+// origin, since LinkedIn drops relative og:image references.
+//
+// Tags are upserted into starlightRoute.head (replacing any same-key tag) and
+// rendered through Starlight's default Head, so the set stays deduplicated.
+import Default from "@astrojs/starlight/components/Head.astro";
+
+const route = Astro.locals.starlightRoute;
+const { entry, siteTitle, head } = route;
+
+const DEFAULT_CARD = "/og.png";
+const src =
+  typeof entry.data.ogImage === "string" && entry.data.ogImage.trim()
+    ? entry.data.ogImage.trim()
+    : DEFAULT_CARD;
+// Resolves a relative/root-relative path against this origin; passes an
+// already-absolute URL through unchanged. A malformed value is an authoring
+// error — fail the build with a message that names the page, rather than
+// surfacing an opaque "Invalid URL" or silently dropping the bespoke card.
+let imageUrl;
+try {
+  imageUrl = new URL(src, Astro.site).href;
+} catch {
+  throw new Error(
+    `Invalid ogImage "${src}" on page "${entry.id}" — must be an absolute URL or a site-root-relative path.`,
+  );
+}
+const alt = entry.data.title ? `${entry.data.title} — ${siteTitle}` : siteTitle;
+
+/** Insert a meta tag, replacing any existing tag with the same property/name. */
+function upsertMeta(attrs: Record<string, string>) {
+  const key = "property" in attrs ? "property" : "name";
+  const value = attrs[key];
+  for (let i = head.length - 1; i >= 0; i--) {
+    const tag = head[i];
+    if (tag.tag === "meta" && tag.attrs?.[key] === value) head.splice(i, 1);
+  }
+  head.push({ tag: "meta", attrs });
+}
+
+upsertMeta({ property: "og:image", content: imageUrl });
+upsertMeta({ property: "og:image:width", content: "1200" });
+upsertMeta({ property: "og:image:height", content: "630" });
+upsertMeta({ property: "og:image:type", content: "image/png" });
+upsertMeta({ property: "og:image:alt", content: alt });
+upsertMeta({ name: "twitter:card", content: "summary_large_image" });
+upsertMeta({ name: "twitter:image", content: imageUrl });
+upsertMeta({ name: "twitter:image:alt", content: alt });
+---
+
+<Default><slot /></Default>

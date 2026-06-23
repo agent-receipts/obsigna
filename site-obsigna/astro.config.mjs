@@ -69,25 +69,9 @@ export default defineConfig({
             },
           }),
         },
-        // Default social-share image (per-page frontmatter can override).
-        {
-          tag: "meta",
-          attrs: {
-            property: "og:image",
-            content: "https://obsigna.dev/og.png",
-          },
-        },
-        {
-          tag: "meta",
-          attrs: {
-            property: "twitter:image",
-            content: "https://obsigna.dev/og.png",
-          },
-        },
-        {
-          tag: "meta",
-          attrs: { name: "twitter:card", content: "summary_large_image" },
-        },
+        // Social-share image tags (og:image, twitter:image/card) are emitted
+        // per-page by the custom Head override (src/components/Head.astro) so a
+        // page's `ogImage` frontmatter can swap in a bespoke card.
         // Privacy-friendly, cookieless analytics (Plausible per-site script).
         {
           tag: "script",
@@ -110,6 +94,7 @@ export default defineConfig({
         },
       ],
       components: {
+        Head: "./src/components/Head.astro",
         SocialIcons: "./src/components/SocialIcons.astro",
       },
       customCss: ["./src/styles/custom.css"],

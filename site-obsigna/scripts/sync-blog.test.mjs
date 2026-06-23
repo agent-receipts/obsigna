@@ -10,7 +10,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { canonicalUrl, withCanonical, syncImages } from "./sync-blog.mjs";
+import {
+  canonicalUrl,
+  withCanonical,
+  syncImages,
+  stripOgImage,
+} from "./sync-blog.mjs";
 
 test("canonicalUrl maps a post slug to its agentreceipts.ai URL", () => {
   assert.equal(
@@ -43,6 +48,24 @@ test("withCanonical leaves a self-canonicalizing post untouched", () => {
 test("withCanonical leaves content without frontmatter untouched", () => {
   const input = "no frontmatter here\n";
   assert.equal(withCanonical(input, "x.mdx"), input);
+});
+
+test("stripOgImage drops a bespoke ogImage override from frontmatter", () => {
+  const input = `---\ntitle: A Post\nogImage: /og-blog-a-post.png\ndescription: Hi\n---\n\nBody.\n`;
+  const out = stripOgImage(input);
+  assert.doesNotMatch(out, /ogImage:/);
+  assert.match(out, /^---\ntitle: A Post\ndescription: Hi\n---/);
+  assert.ok(out.endsWith("Body.\n"), "body is preserved");
+});
+
+test("stripOgImage leaves a post without an ogImage untouched", () => {
+  const input = `---\ntitle: A Post\ndescription: Hi\n---\n\nBody.\n`;
+  assert.equal(stripOgImage(input), input);
+});
+
+test("stripOgImage leaves content without frontmatter untouched", () => {
+  const input = "no frontmatter here\n";
+  assert.equal(stripOgImage(input), input);
 });
 
 test("syncImages mirrors flat image files into the output dir", () => {
