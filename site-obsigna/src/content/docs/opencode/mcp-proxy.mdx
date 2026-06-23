@@ -8,7 +8,7 @@ OpenCode loads MCP servers from `opencode.json`. Wrapping a server with [`mcp-pr
 ## Prerequisites
 
 - [mcp-proxy installed](/mcp-proxy/installation/)
-- [`agent-receipts-daemon` installed, initialised, and running](/getting-started/daemon-setup/) — it holds the signing key and writes every receipt
+- [`obsigna-daemon` installed, initialised, and running](/getting-started/daemon-setup/) — it holds the signing key and writes every receipt
 - The MCP server you want to audit. The example below wraps GitHub's official server:
 
   ```bash
@@ -39,7 +39,7 @@ OpenCode launches local MCP servers as subprocesses. Point the `command` at `mcp
 }
 ```
 
-The proxy reaches `agent-receipts-daemon` over its default platform socket automatically — no extra flag needed.
+The proxy reaches `obsigna-daemon` over its default platform socket automatically — no extra flag needed.
 
 :::danger[Never put secrets in opencode.json]
 `opencode.json` is plaintext on disk. Do **not** put real tokens or API keys in an `environment` block. Wrap the proxy command in a secret-manager launcher (`op run`, `aws-vault exec`) or an OS-keychain script — the same pattern documented for [Codex](/mcp-proxy/codex/#recommended-secret-manager-op-run) and [Claude Desktop](/mcp-proxy/claude-desktop/#fallback-os-keychain-launcher-script) works here. One launcher script works across clients.
@@ -54,8 +54,8 @@ The default policy includes a `pause_high_risk` rule. To enable the approval lis
 Run an MCP tool in OpenCode (e.g. a GitHub query), then:
 
 ```bash
-agent-receipts list     # receipts with channel: mcp from the proxy
-agent-receipts verify   # walk the chain and check signatures
+obsigna receipt list     # receipts with channel: mcp from the proxy
+obsigna receipt verify   # walk the chain and check signatures
 ```
 
 Receipts from the proxy carry `channel: mcp`; native-tool receipts from the [plugin](/opencode/installation/) carry `channel: opencode`. Both land in the same daemon chain, giving you a complete picture across both channels.
