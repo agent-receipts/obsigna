@@ -66,8 +66,8 @@ import urllib.request
 # Constants
 # ---------------------------------------------------------------------------
 
-GO_SDK_MODULE = "github.com/agent-receipts/ar/sdk/go"
-GO_DAEMON_MODULE = "github.com/agent-receipts/ar/daemon"
+GO_SDK_MODULE = "obsigna.dev/sdk/go"
+GO_DAEMON_MODULE = "obsigna.dev/daemon"
 TS_PACKAGE = "@obsigna/sdk-ts"
 PY_PACKAGE = "obsigna"
 
@@ -449,7 +449,7 @@ import (
 \t"fmt"
 \t"os"
 
-\t"github.com/agent-receipts/ar/sdk/go/emitter"
+\t"obsigna.dev/sdk/go/emitter"
 )
 
 func fail(err error) {

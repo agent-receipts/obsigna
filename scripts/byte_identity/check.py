@@ -60,7 +60,7 @@ import time
 # Constants
 # ---------------------------------------------------------------------------
 
-GO_MODULE = "github.com/agent-receipts/ar/sdk/go"
+GO_MODULE = "obsigna.dev/sdk/go"
 TS_PACKAGE = "@obsigna/sdk-ts"
 PY_PACKAGE = "obsigna"
 
@@ -312,7 +312,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agent-receipts/ar/sdk/go/receipt"
+	"obsigna.dev/sdk/go/receipt"
 )
 
 type vectorFile struct {
