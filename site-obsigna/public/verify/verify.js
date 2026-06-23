@@ -18,6 +18,7 @@
     receipts: document.getElementById("receipts"),
     anchor: document.getElementById("anchor"),
     anchorKey: document.getElementById("anchor-pubkey"),
+    anchorBox: document.getElementById("anchor-box"),
     verify: document.getElementById("verify"),
     loadExample: document.getElementById("load-example"),
     clear: document.getElementById("clear"),
@@ -58,6 +59,11 @@
       els.receipts.value = ex.chain || "";
       els.anchor.value = ex.anchorCheckpoint || "";
       els.anchorKey.value = ex.anchorPublicKey || "";
+    }
+    // Reveal the anchor fields when the loaded example populates them, so the
+    // FULL verdict is explained by visible inputs rather than hidden ones.
+    if (els.anchorBox) {
+      els.anchorBox.open = !!els.anchor.value;
     }
     els.result.hidden = true;
   });
