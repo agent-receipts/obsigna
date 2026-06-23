@@ -85,22 +85,36 @@
             placeholder="Paste a single receipt JSON object…"
           ></textarea>
 
-          <details class="anchor-box">
+          <details class="anchor-box" id="anchor-box">
             <summary>External anchor proof (optional)</summary>
             <p class="hint">
               An anchor proof corroborates the chain head out of band and is what
-              separates a <em>full</em> pass from a <em>qualified</em> one.
-              External-anchor verification is a tracked follow-up and is
-              <strong>not evaluated in this build</strong>: a supplied proof is
-              acknowledged but does not change the result.
+              separates a <em>full</em> pass from a <em>qualified</em> one. Paste
+              a signed checkpoint and the anchor public key it was signed with:
+              when the checkpoint verifies <em>and</em> commits to this chain's
+              head, the verdict rises to <strong>full</strong>. The anchor key is
+              obtained and trusted separately from the issuer key.
             </p>
+            <label class="field-label" for="anchor-pubkey">
+              Anchor public key
+              <span class="hint">PEM-encoded Ed25519 (SPKI) — the key the checkpoint was signed with.</span>
+            </label>
             <textarea
-              id="anchor"
+              id="anchor-pubkey"
               class="mono"
               rows="4"
               spellcheck="false"
               autocomplete="off"
-              placeholder="Anchor / checkpoint proof (not yet evaluated)"
+              placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+            ></textarea>
+            <label class="field-label" for="anchor">Signed checkpoint</label>
+            <textarea
+              id="anchor"
+              class="mono"
+              rows="6"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="Paste a signed checkpoint (JSON)…"
             ></textarea>
           </details>
 

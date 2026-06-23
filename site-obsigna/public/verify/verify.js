@@ -17,6 +17,8 @@
     pubkey: document.getElementById("pubkey"),
     receipts: document.getElementById("receipts"),
     anchor: document.getElementById("anchor"),
+    anchorKey: document.getElementById("anchor-pubkey"),
+    anchorBox: document.getElementById("anchor-box"),
     verify: document.getElementById("verify"),
     loadExample: document.getElementById("load-example"),
     clear: document.getElementById("clear"),
@@ -44,11 +46,23 @@
 
   els.loadExample.addEventListener("click", function () {
     var ex = window.OBSIGNA_EXAMPLES || {};
-    els.pubkey.value = ex.publicKey || "";
     if (mode === "single") {
+      // The disclosed single receipt and its checkpoint are signed by their own
+      // keys; the checkpoint anchors this receipt's head (a length-1 chain).
+      els.pubkey.value = ex.singlePublicKey || "";
       els.receipts.value = ex.singleReceipt || "";
+      els.anchor.value = ex.singleAnchorCheckpoint || "";
+      els.anchorKey.value = ex.singleAnchorPublicKey || "";
     } else {
+      els.pubkey.value = ex.publicKey || "";
       els.receipts.value = ex.chain || "";
+      els.anchor.value = ex.anchorCheckpoint || "";
+      els.anchorKey.value = ex.anchorPublicKey || "";
+    }
+    // Reveal the anchor fields when the loaded example populates them, so the
+    // FULL verdict is explained by visible inputs rather than hidden ones.
+    if (els.anchorBox) {
+      els.anchorBox.open = !!els.anchor.value;
     }
     els.result.hidden = true;
   });
@@ -57,6 +71,7 @@
     els.pubkey.value = "";
     els.receipts.value = "";
     els.anchor.value = "";
+    els.anchorKey.value = "";
     els.result.hidden = true;
     els.status.textContent = "";
   });
@@ -71,6 +86,7 @@
       receipts: els.receipts.value,
       public_key: els.pubkey.value,
       anchor: els.anchor.value,
+      anchor_public_key: els.anchorKey.value,
     };
     var raw;
     try {
@@ -181,7 +197,13 @@
       state = "Not evaluated"; cls = "na";
     } else if (a.trusted) {
       state = "Anchored"; cls = "ok";
+    } else if (a.checked) {
+      // A checkpoint was evaluated but did not corroborate this head (bad
+      // signature, wrong key, or a head/sequence/chain mismatch).
+      state = "Not anchored"; cls = "warn";
     } else if (a.supplied) {
+      // A proof was pasted but could not be evaluated (no anchor key, or it did
+      // not parse as a signed checkpoint).
       state = "Not evaluated"; cls = "na";
     } else {
       state = "Not anchored"; cls = "warn";
