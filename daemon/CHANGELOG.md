@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-06-23
+
+Graduates `0.29.0-alpha.1` after the alpha pass. No code changes since the alpha; this entry formally promotes the checkpoint anchor nil-guard hardening to stable.
+
 ## [0.29.0-alpha.1] - 2026-06-21
 
 ### Fixed

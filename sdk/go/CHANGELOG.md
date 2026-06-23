@@ -11,6 +11,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-06-23
+
+Graduates `0.22.0-alpha.1` after the alpha pass. Ships the grounded-principal conformance tier (ADR-0038, spec §7.9): `GrantResolver` interface, `VerifyGroundedPrincipalTier`, `GroundedPrincipalViolation`, and `GroundedOutcome`.
+
 ## [0.22.0-alpha.1] - 2026-06-21
 
 ### Added

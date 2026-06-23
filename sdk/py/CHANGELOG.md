@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-23
+
+Graduates `0.14.0a1` after the alpha pass. Ships the grounded-principal conformance tier (ADR-0038, spec §7.9): `GrantResolver` abstract base class and `verify_grounded_principal_tier`.
+
 ## [0.14.0a1] - 2026-06-21
 
 ### Added

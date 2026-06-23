@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "obsigna"
-version = "0.14.0a1"
+version = "0.14.0"
 description = "Python SDK for the Agent Receipts protocol"
 readme = "README.md"
 license = "Apache-2.0"
