@@ -35,14 +35,6 @@
     {
       "name": "github.com/remyoudompheng/bigfft",
       "justification": "Transitive dependency of modernc.org/sqlite (declared) via modernc.org/mathutil; big-integer FFT multiplication."
-    },
-    {
-      "name": "gopkg.in/yaml.v3",
-      "justification": "Transitive dependency of github.com/agent-receipts/ar/daemon (declared in-repo module); used by the daemon's config handling."
-    },
-    {
-      "name": "github.com/BurntSushi/toml",
-      "justification": "Transitive dependency of github.com/agent-receipts/ar/daemon (declared in-repo module) via the daemon's TOML config parser; pulled into sdk/go's go.sum through the integration tests that run the in-tree daemon."
     }
   ],
   "py": [
