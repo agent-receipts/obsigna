@@ -97,6 +97,13 @@ type Config struct {
 	// pipeline.ParseDisclosurePolicy at startup.
 	ParameterDisclosure string
 
+	// ResponseDisclosure selects which actions seal their tool response into the
+	// outcome.response_disclosure envelope (ADR-0012, spec v0.6.0+). Same value
+	// space and parsing as ParameterDisclosure, but independent: an operator may
+	// disclose responses without parameters or vice versa. Shares the single
+	// ForensicPublicKeyPath — when set, response disclosure also requires it.
+	ResponseDisclosure string
+
 	// RedactPatternsPath is an optional path to a YAML file of additional
 	// redaction patterns applied to receipt body fields after hashing. When
 	// empty, only the built-in patterns are used. File format:
@@ -558,6 +565,10 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("parameter disclosure policy: %w", err)
 	}
+	responsePolicy, err := pipeline.ParseDisclosurePolicy(cfg.ResponseDisclosure)
+	if err != nil {
+		return fmt.Errorf("response disclosure policy: %w", err)
+	}
 
 	var forensicPublicKey []byte
 	if cfg.ForensicPublicKeyPath != "" {
@@ -570,20 +581,31 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 	}
 
+	// Parameter and response disclosure share the single forensic key but fire
+	// independently; either policy being on requires a key to encrypt to.
 	switch {
 	case policy.Enabled() && len(forensicPublicKey) == 0:
 		return fmt.Errorf("parameter disclosure %q requires a forensic public key (--forensic-public-key); without one there is nothing to encrypt to", cfg.ParameterDisclosure)
 	case policy.Enabled():
 		fp, _ := receipt.ForensicKeyFingerprint(forensicPublicKey)
 		cfg.Logger.Printf("Parameter disclosure ACTIVE: policy=%s, forensic key %s — matching parameters will be HPKE-encrypted to that key (recoverable only with the private key)", policy.String(), fp)
-	case len(forensicPublicKey) > 0:
+	case len(forensicPublicKey) > 0 && !responsePolicy.Enabled():
 		cfg.Logger.Printf("NOTICE: a forensic public key is set but parameter disclosure policy is off; no parameters will be disclosed. Set --parameter-disclosure (true|high|<action-types>) to enable.")
+	}
+
+	switch {
+	case responsePolicy.Enabled() && len(forensicPublicKey) == 0:
+		return fmt.Errorf("response disclosure %q requires a forensic public key (--forensic-public-key); without one there is nothing to encrypt to", cfg.ResponseDisclosure)
+	case responsePolicy.Enabled():
+		fp, _ := receipt.ForensicKeyFingerprint(forensicPublicKey)
+		cfg.Logger.Printf("Response disclosure ACTIVE: policy=%s, forensic key %s — matching tool responses will be HPKE-encrypted to that key (recoverable only with the private key)", responsePolicy.String(), fp)
 	}
 
 	pp := pipeline.New(state, ks, st, cfg.IssuerID)
 	pp.TraceLog = cfg.TraceLog
 	pp.ErrorLog = cfg.Logger.Printf
 	pp.DisclosurePolicy = policy
+	pp.ResponseDisclosurePolicy = responsePolicy
 	pp.ForensicPublicKey = forensicPublicKey
 
 	// Bound the inline plaintext fields (issue #478). New already installed sane

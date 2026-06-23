@@ -1219,6 +1219,102 @@ func TestProcess_DisclosurePolicyGatesEncryption(t *testing.T) {
 	}
 }
 
+// TestProcess_ResponseDisclosureGatesAndIsIndependent verifies response
+// disclosure (ADR-0012, spec v0.6.0+): with a forensic key and a response
+// policy of "high", only the high-risk action seals its tool response into
+// outcome.response_disclosure, and it decrypts back to the original output.
+// It also asserts independence — with ONLY the response policy on, parameters
+// are never disclosed — and that response_hash is always present.
+func TestProcess_ResponseDisclosureGatesAndIsIndependent(t *testing.T) {
+	fk, err := receipt.GenerateForensicKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	p := New(chain.New("chain-1"), ks, st, "did:agent-receipts-daemon:test")
+	p.ForensicPublicKey = fk.PublicKey
+	// Only the response policy is enabled; the parameter policy stays at its
+	// zero value (discloses nothing).
+	pol, err := ParseDisclosurePolicy("high")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.ResponseDisclosurePolicy = pol
+
+	send := func(channel, toolName string, input, output json.RawMessage) {
+		body, err := json.Marshal(EmitterFrame{
+			Version: "1", TsEmit: "2026-05-03T00:00:00Z", SessionID: "s",
+			Channel: channel, Tool: EmitterTool{Name: toolName},
+			Input: input, Output: output, Decision: "allowed",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.Process(socket.Frame{Payload: body}); err != nil {
+			t.Fatalf("Process(%s.%s): %v", channel, toolName, err)
+		}
+	}
+	send("filesystem", "file.delete", json.RawMessage(`{"command":"rm -rf /tmp/x"}`), json.RawMessage(`{"deleted":true,"path":"/tmp/x"}`)) // high risk
+	send("sdk", "noop", json.RawMessage(`{"path":"/tmp/x"}`), json.RawMessage(`{"ok":true}`))                                              // unknown -> medium
+
+	receipts, err := st.GetChain("chain-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receipts) != 2 {
+		t.Fatalf("got %d receipts, want 2", len(receipts))
+	}
+
+	var highRec, lowRec *receipt.AgentReceipt
+	for i := range receipts {
+		switch receipts[i].CredentialSubject.Action.Type {
+		case "filesystem.file.delete":
+			highRec = &receipts[i]
+		case "sdk.noop":
+			lowRec = &receipts[i]
+		}
+	}
+	if highRec == nil || lowRec == nil {
+		t.Fatalf("missing expected receipts: high=%v low=%v", highRec != nil, lowRec != nil)
+	}
+
+	// High-risk action seals its response under policy "high".
+	env := highRec.CredentialSubject.Outcome.ResponseDisclosure
+	if env == nil {
+		t.Fatal("high-risk action must have a response_disclosure envelope under policy=high")
+	}
+	wantKID, _ := receipt.ForensicKeyFingerprint(fk.PublicKey)
+	if env.Recipients[0].KID != wantKID {
+		t.Errorf("kid = %q, want %q (ADR-0015 fingerprint)", env.Recipients[0].KID, wantKID)
+	}
+	dec, err := receipt.DecryptResponse(env, fk.PrivateKey)
+	if err != nil {
+		t.Fatalf("DecryptResponse: %v", err)
+	}
+	if dec["deleted"] != true || dec["path"] != "/tmp/x" {
+		t.Errorf("decrypted response = %v, want {deleted:true, path:/tmp/x}", dec)
+	}
+	// response_hash remains the authoritative commitment.
+	if highRec.CredentialSubject.Outcome.ResponseHash == "" {
+		t.Error("response_hash must be present alongside the disclosure envelope")
+	}
+	// Independence: parameter disclosure is off, so no parameters envelope.
+	if highRec.CredentialSubject.Action.ParametersDisclosure != nil {
+		t.Errorf("parameters must not be disclosed when only the response policy is on; got %#v",
+			highRec.CredentialSubject.Action.ParametersDisclosure)
+	}
+
+	// Low-risk action does NOT seal its response under policy "high".
+	if lowRec.CredentialSubject.Outcome.ResponseDisclosure != nil {
+		t.Errorf("low-risk action must not disclose its response under policy=high; got %#v",
+			lowRec.CredentialSubject.Outcome.ResponseDisclosure)
+	}
+	if lowRec.CredentialSubject.Outcome.ResponseHash == "" {
+		t.Error("low-risk action still needs response_hash")
+	}
+}
+
 // TestProcess_DisclosureFallsBackToHashOnNonObjectInput verifies the fail-open
 // behaviour: when disclosure is on but the input is not a JSON object (so it
 // cannot be encrypted as an HPKE parameters object), the receipt is still

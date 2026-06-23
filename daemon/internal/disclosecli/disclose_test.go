@@ -63,7 +63,10 @@ func fixtureDB(t *testing.T, dir string, count int) (dbPath string, forensicPriv
 			Timestamp: fmt.Sprintf("2024-01-01T%02d:00:00Z", i),
 		}
 
-		// Odd sequences get an encrypted disclosure; even ones do not.
+		outcome := receipt.Outcome{Status: receipt.StatusSuccess}
+
+		// Odd sequences get encrypted disclosures (both parameters and response);
+		// even ones do not.
 		if i%2 == 1 {
 			params := map[string]any{
 				"file_path": fmt.Sprintf("/tmp/file%d.txt", i),
@@ -73,13 +76,22 @@ func fixtureDB(t *testing.T, dir string, count int) (dbPath string, forensicPriv
 				t.Fatal(err)
 			}
 			action.ParametersDisclosure = env
+
+			response := map[string]any{
+				"contents": fmt.Sprintf("body of file%d", i),
+			}
+			respEnv, err := receipt.EncryptResponse(response, forensicKP.PublicKey, kid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			outcome.ResponseDisclosure = respEnv
 		}
 
 		unsigned := receipt.Create(receipt.CreateInput{
 			Issuer:    receipt.Issuer{ID: "did:test"},
 			Principal: receipt.Principal{ID: "did:user:test"},
 			Action:    action,
-			Outcome:   receipt.Outcome{Status: receipt.StatusSuccess},
+			Outcome:   outcome,
 			Chain:     receipt.Chain{Sequence: i, PreviousReceiptHash: prevHash, ChainID: "test-chain"},
 		})
 		signed, err := receipt.Sign(unsigned, sigPrivPEM, "did:test#k1")
@@ -160,6 +172,45 @@ func TestDisclose_JSON(t *testing.T) {
 	}
 	if params["file_path"] != "/tmp/file1.txt" {
 		t.Errorf("wrong file_path: %v", params["file_path"])
+	}
+}
+
+func TestDisclose_Response(t *testing.T) {
+	dir := t.TempDir()
+	dbPath, priv := fixtureDB(t, dir, 3)
+	keyPath := writeKeyFile(t, dir, priv)
+
+	var out, errOut bytes.Buffer
+	code := Run([]string{"1", "--response", "--json", "--chain-id", "test-chain"},
+		&out, &errOut, env(dbPath, "", keyPath))
+
+	if code != ExitOK {
+		t.Fatalf("want ExitOK, got %d; stderr: %s", code, errOut.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, out.String())
+	}
+	if resp["contents"] != "body of file1" {
+		t.Errorf("wrong response contents: %v", resp["contents"])
+	}
+}
+
+func TestDisclose_ResponseNoneOnEvenSeq(t *testing.T) {
+	dir := t.TempDir()
+	dbPath, priv := fixtureDB(t, dir, 3)
+	keyPath := writeKeyFile(t, dir, priv)
+
+	var out, errOut bytes.Buffer
+	// Sequence 2 has no disclosure (even-numbered).
+	code := Run([]string{"2", "--response", "--chain-id", "test-chain"},
+		&out, &errOut, env(dbPath, "", keyPath))
+
+	if code != ExitOK {
+		t.Fatalf("want ExitOK, got %d; stderr: %s", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "no response_disclosure") {
+		t.Errorf("expected 'no response_disclosure' message, got stderr: %s", errOut.String())
 	}
 }
 

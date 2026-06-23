@@ -564,3 +564,109 @@ func hexSHA256(data []byte) string {
 	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
 }
+
+// TestEncryptResponseDecryptResponseRoundTrip verifies the response disclosure
+// API (ADR-0012, spec v0.6.0+) round-trips through the public Response functions.
+func TestEncryptResponseDecryptResponseRoundTrip(t *testing.T) {
+	alicePub := mustDecodeHex(t, alicePubHex)
+	alicePriv := mustDecodeHex(t, alicePrivHex)
+
+	response := map[string]any{
+		"stdout":    "build complete\n",
+		"exit_code": float64(0),
+	}
+	env, err := EncryptResponse(response, alicePub, "did:key:z6LSeu9HkTHSfLLeUs2nnzUSNedgDUevfNQUQUaHL9XJ7Z5W#enc-1")
+	if err != nil {
+		t.Fatalf("EncryptResponse: %v", err)
+	}
+
+	// Envelope shape invariants — identical envelope to the parameter surface.
+	if env.V != "1" {
+		t.Errorf("v = %q, want \"1\"", env.V)
+	}
+	if env.Alg != v1Alg {
+		t.Errorf("alg = %q, want %q", env.Alg, v1Alg)
+	}
+	if len(env.Recipients) != 1 || len(env.Recipients[0].Enc) != 43 {
+		t.Errorf("recipients shape wrong: %+v", env.Recipients)
+	}
+
+	got, err := DecryptResponse(env, alicePriv)
+	if err != nil {
+		t.Fatalf("DecryptResponse: %v", err)
+	}
+	if got["stdout"] != "build complete\n" || got["exit_code"] != float64(0) {
+		t.Errorf("decrypted response = %v", got)
+	}
+}
+
+// TestResponseEnvelopeMatchesParameterEnvelope is the load-bearing parity check:
+// for the same plaintext, key, kid, and seed, the response surface
+// (encryptResponseWithSeed) MUST produce a byte-identical envelope to the
+// parameter surface (encryptDisclosureWithSeed). This pins the cross-SDK
+// byte-identity property for outcome.response_disclosure against the same
+// vector-1 values the parameter path is pinned to (vectors.json).
+func TestResponseEnvelopeMatchesParameterEnvelope(t *testing.T) {
+	alicePub := mustDecodeHex(t, alicePubHex)
+	alicePriv := mustDecodeHex(t, alicePrivHex)
+	ikmE := mustDecodeHex(t, vector1IkmEHex)
+	kid := "did:key:z6LSeu9HkTHSfLLeUs2nnzUSNedgDUevfNQUQUaHL9XJ7Z5W#enc-1"
+
+	payload := map[string]any{"command": `echo "build complete"`}
+
+	paramEnv, err := encryptDisclosureWithSeed(payload, alicePub, kid, ikmE)
+	if err != nil {
+		t.Fatalf("encryptDisclosureWithSeed: %v", err)
+	}
+	respEnv, err := encryptResponseWithSeed(payload, alicePub, kid, ikmE)
+	if err != nil {
+		t.Fatalf("encryptResponseWithSeed: %v", err)
+	}
+
+	paramJCS, err := Canonicalize(paramEnv)
+	if err != nil {
+		t.Fatalf("Canonicalize paramEnv: %v", err)
+	}
+	respJCS, err := Canonicalize(respEnv)
+	if err != nil {
+		t.Fatalf("Canonicalize respEnv: %v", err)
+	}
+	if paramJCS != respJCS {
+		t.Errorf("response envelope diverges from parameter envelope:\nparam: %s\nresp:  %s", paramJCS, respJCS)
+	}
+
+	// And it must match the pinned vector-1 ciphertext, so the response surface
+	// is locked to the same cross-SDK bytes.
+	const wantCT1 = "YGn3i4NpiZxHjeZVggTP8lTxb0ZVdLl-2HjW31qsvo28PjQ_Lt_UQgAMidEXjzwhJPHM7OM"
+	if respEnv.CT != wantCT1 {
+		t.Errorf("response ct = %s\nwant %s", respEnv.CT, wantCT1)
+	}
+
+	got, err := DecryptResponse(respEnv, alicePriv)
+	if err != nil {
+		t.Fatalf("DecryptResponse: %v", err)
+	}
+	if got["command"] != `echo "build complete"` {
+		t.Errorf("decrypted = %v", got)
+	}
+}
+
+// TestEncryptResponseValidation verifies EncryptResponse rejects bad inputs the
+// same way EncryptDisclosure does, and the seeded variant enforces ikmE length.
+func TestEncryptResponseValidation(t *testing.T) {
+	alicePub := mustDecodeHex(t, alicePubHex)
+	kid := "sha256:abc"
+
+	if _, err := EncryptResponse(nil, alicePub, kid); err == nil {
+		t.Error("EncryptResponse(nil response) should error")
+	}
+	if _, err := EncryptResponse(map[string]any{}, alicePub[:31], kid); err == nil {
+		t.Error("EncryptResponse(short key) should error")
+	}
+	if _, err := EncryptResponse(map[string]any{}, alicePub, ""); err == nil {
+		t.Error("EncryptResponse(empty kid) should error")
+	}
+	if _, err := encryptResponseWithSeed(map[string]any{}, alicePub, kid, []byte{1, 2, 3}); err == nil {
+		t.Error("encryptResponseWithSeed(short ikmE) should error")
+	}
+}

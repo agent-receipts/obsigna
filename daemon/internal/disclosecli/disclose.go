@@ -59,7 +59,8 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, "Usage: obsigna receipt disclose <seq> [flags]")
 		fmt.Fprintln(stderr, "\nDecrypt the parameters_disclosure envelope of a single stored receipt")
-		fmt.Fprintln(stderr, "using the operator's X25519 forensic private key.")
+		fmt.Fprintln(stderr, "using the operator's X25519 forensic private key. Pass --response to")
+		fmt.Fprintln(stderr, "decrypt outcome.response_disclosure (the tool response) instead.")
 		fmt.Fprintln(stderr, "\nThe key may be supplied as a raw 32-byte file, hex (64 chars),")
 		fmt.Fprintln(stderr, "standard or URL-safe base64, or a PKCS#8 PEM-wrapped X25519 key.")
 		fmt.Fprintln(stderr, "\nFlags:")
@@ -72,7 +73,8 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		"Chain id to read from (env: AGENTRECEIPTS_CHAIN_ID); required only when the store holds more than one chain")
 	keyPath := fs.String("key", envOr("AGENTRECEIPTS_FORENSIC_KEY", daemon.DefaultForensicKeyPath()),
 		"Forensic private-key path (raw 32-byte X25519, hex, base64, or PKCS#8 PEM) (env: AGENTRECEIPTS_FORENSIC_KEY)")
-	asJSON := fs.Bool("json", false, "Output decrypted parameters as JSON")
+	asJSON := fs.Bool("json", false, "Output decrypted plaintext as JSON")
+	discloseResponse := fs.Bool("response", false, "Decrypt outcome.response_disclosure (the tool response) instead of action.parameters_disclosure (ADR-0012)")
 
 	var rest []string
 	remaining := args
@@ -151,9 +153,14 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 		return ExitNotFound
 	}
 
+	field := "parameters_disclosure"
 	env := r.CredentialSubject.Action.ParametersDisclosure
+	if *discloseResponse {
+		field = "response_disclosure"
+		env = r.CredentialSubject.Outcome.ResponseDisclosure
+	}
 	if env == nil {
-		fmt.Fprintf(stderr, "obsigna receipt disclose: receipt at sequence %d has no parameters_disclosure\n", seq)
+		fmt.Fprintf(stderr, "obsigna receipt disclose: receipt at sequence %d has no %s\n", seq, field)
 		return ExitOK
 	}
 

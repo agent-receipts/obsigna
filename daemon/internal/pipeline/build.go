@@ -204,6 +204,13 @@ type Pipeline struct {
 	// ADR-0012). The zero value discloses nothing.
 	DisclosurePolicy DisclosurePolicy
 
+	// ResponseDisclosurePolicy governs which actions seal their tool response
+	// into outcome.response_disclosure (ADR-0012, spec v0.6.0+). It is
+	// independent of DisclosurePolicy — an operator may disclose responses
+	// without parameters or vice versa — but shares the single ForensicPublicKey.
+	// The zero value discloses nothing.
+	ResponseDisclosurePolicy DisclosurePolicy
+
 	// Redactor is applied to text fields before they are persisted in the
 	// receipt body. Today that means outcome.error only; input and output are
 	// never stored as raw text — only their SHA-256 hashes go into
@@ -689,20 +696,22 @@ func canonicalSHA256(raw json.RawMessage) (string, error) {
 	return receipt.SHA256Hash(canonical), nil
 }
 
-// encryptDisclosure encrypts the emitter input into an HPKE disclosure envelope
-// addressed to the configured forensic public key (ADR-0012). The recipient kid
-// is the key's canonical fingerprint (ADR-0015), so a forensic tool holding the
-// matching private key can locate this receipt without a key registry.
+// encryptDisclosure seals a JSON-object payload (action input or tool output)
+// into an HPKE disclosure envelope addressed to the configured forensic public
+// key (ADR-0012). It is shared by parameter and response disclosure — the
+// envelope is identical for both. The recipient kid is the key's canonical
+// fingerprint (ADR-0015), so a forensic tool holding the matching private key
+// can locate this receipt without a key registry.
 //
-// It returns nil on any failure (non-object input, HPKE error) after logging,
+// It returns nil on any failure (non-object payload, HPKE error) after logging,
 // so the caller falls back to a hash-only receipt rather than dropping the
 // event. The hash is computed independently by the caller and is unaffected.
-func (p *Pipeline) encryptDisclosure(input json.RawMessage) *receipt.DisclosureEnvelope {
+func (p *Pipeline) encryptDisclosure(payload json.RawMessage) *receipt.DisclosureEnvelope {
 	var params map[string]any
-	if err := json.Unmarshal(input, &params); err != nil {
+	if err := json.Unmarshal(payload, &params); err != nil {
 		// Disclosure requires a JSON object (HPKE plaintext is the canonical
 		// object); arrays/primitives cannot be disclosed. Hash-only fallback.
-		p.logError("disclosure skipped (input is not a JSON object): %v", err)
+		p.logError("disclosure skipped (payload is not a JSON object): %v", err)
 		return nil
 	}
 	kid, err := receipt.ForensicKeyFingerprint(p.ForensicPublicKey)
@@ -853,6 +862,18 @@ func (p *Pipeline) buildAndSign(
 			return receipt.AgentReceipt{}, "", fmt.Errorf("hash output: %w", err)
 		}
 		outcome.ResponseHash = hash
+
+		// Forensic response disclosure (ADR-0012, spec v0.6.0+): mirrors the
+		// parameter path above. ResponseHash always commits to the original
+		// canonical bytes, so tamper-evidence is independent of disclosure; the
+		// envelope is additive and recoverable only by the forensic private-key
+		// holder. Best-effort: a failure falls back to hash-only for this receipt.
+		if len(p.ForensicPublicKey) == 32 &&
+			p.ResponseDisclosurePolicy.ShouldDisclose(actionType, risk) {
+			if env := p.encryptDisclosure(f.Output); env != nil {
+				outcome.ResponseDisclosure = env
+			}
+		}
 	}
 
 	return p.signAndHash(receipt.CreateInput{

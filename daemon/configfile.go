@@ -38,6 +38,7 @@ type FileConfig struct {
 	IssuerID            *string           `toml:"issuer_id"`
 	VerificationMethod  *string           `toml:"verification_method"`
 	ParameterDisclosure *DisclosureConfig `toml:"parameter_disclosure"`
+	ResponseDisclosure  *DisclosureConfig `toml:"response_disclosure"`
 	RedactPatterns      *string           `toml:"redact_patterns"`
 	UnsafeSocketPath    *bool             `toml:"unsafe_socket_path"`
 	// ShutdownDeadline accepts a Go duration string, e.g. "200ms" or "1s".

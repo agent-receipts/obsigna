@@ -11,6 +11,14 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Added
+
+- **Forensic response disclosure** ([#819](https://github.com/agent-receipts/obsigna/issues/819)) — `EncryptResponse` / `DecryptResponse` and the `Outcome.ResponseDisclosure` field, mirroring `EncryptDisclosure` / `Action.ParametersDisclosure` for the tool output side (ADR-0012). Same HPKE v1 envelope, forensic keypair, and JCS canonicalization; `Outcome.ResponseHash` remains the authoritative commitment. Catches the Go SDK up to the TS/Python SDKs, which shipped response disclosure in 0.6.0 (PR #913).
+
+### Changed
+
+- **Protocol version bumped to `0.6.0` and JSON-LD context to v3** to match the TS and Python SDKs. New receipts stamp `version: "0.6.0"` and reference `https://agentreceipts.ai/context/v3`, restoring the cross-SDK live-emit version invariant (the Go SDK was intentionally held at `0.5.0`/context v2 pending the vanity module-path migration).
+
 ## [0.23.0] - 2026-06-23
 
 ### Changed

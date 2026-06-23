@@ -192,6 +192,38 @@ func encryptWithReader(params map[string]any, recipientPublicKey []byte, kid str
 	}, nil
 }
 
+// EncryptResponse encrypts a tool response as a v1 HPKE disclosure envelope for
+// outcome.response_disclosure (ADR-0012, spec v0.6.0+).
+//
+// Identical to EncryptDisclosure in primitive and encoding — same forensic key
+// pair, same HPKE ciphersuite, same JCS canonicalization. The separation exists
+// so operators can enable response disclosure independently of parameter
+// disclosure via separate --response-disclosure / --parameter-disclosure flags.
+//
+// response is JCS-canonicalized before encryption. recipientPublicKey is the
+// 32-byte X25519 forensic public key; kid identifies the recipient key.
+func EncryptResponse(response map[string]any, recipientPublicKey []byte, kid string) (*DisclosureEnvelope, error) {
+	return encryptWithReader(response, recipientPublicKey, kid, rand.Reader)
+}
+
+// encryptResponseWithSeed is the deterministic variant of EncryptResponse for
+// cross-SDK test vectors. Use only in tests — reusing ikmE across real
+// encryptions breaks confidentiality. ikmE MUST be 32 bytes.
+func encryptResponseWithSeed(response map[string]any, recipientPublicKey []byte, kid string, ikmE []byte) (*DisclosureEnvelope, error) {
+	if len(ikmE) != 32 {
+		return nil, fmt.Errorf("ikmE must be 32 bytes, got %d", len(ikmE))
+	}
+	return encryptWithReader(response, recipientPublicKey, kid, bytes.NewReader(ikmE))
+}
+
+// DecryptResponse recovers the plaintext response from a v1 HPKE disclosure
+// envelope stored in outcome.response_disclosure. It is identical to
+// DecryptDisclosure — the same envelope format serves both parameters and
+// response disclosures — and exists for API symmetry with EncryptResponse.
+func DecryptResponse(env *DisclosureEnvelope, recipientPrivateKey []byte) (map[string]any, error) {
+	return DecryptDisclosure(env, recipientPrivateKey)
+}
+
 // DecryptDisclosure recovers the plaintext parameters from a v1 HPKE disclosure
 // envelope. recipientPrivateKey is the 32-byte X25519 forensic private key.
 // The returned map reflects the JCS-canonical plaintext written by EncryptDisclosure.
