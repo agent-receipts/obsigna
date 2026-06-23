@@ -21,8 +21,17 @@ const src =
     ? entry.data.ogImage.trim()
     : DEFAULT_CARD;
 // Resolves a relative/root-relative path against this origin; passes an
-// already-absolute URL through unchanged.
-const imageUrl = new URL(src, Astro.site).href;
+// already-absolute URL through unchanged. A malformed value is an authoring
+// error — fail the build with a message that names the page, rather than
+// surfacing an opaque "Invalid URL" or silently dropping the bespoke card.
+let imageUrl;
+try {
+  imageUrl = new URL(src, Astro.site).href;
+} catch {
+  throw new Error(
+    `Invalid ogImage "${src}" on page "${entry.id}" — must be an absolute URL or a site-root-relative path.`,
+  );
+}
 const alt = entry.data.title ? `${entry.data.title} — ${siteTitle}` : siteTitle;
 
 /** Insert a meta tag, replacing any existing tag with the same property/name. */
