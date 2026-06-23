@@ -56,6 +56,22 @@ export function withCanonical(content, file) {
   return content.replace(fm[0], () => `---\n${fm[1]}\n${inject}\n---`);
 }
 
+// agentreceipts.ai blog posts may set a bespoke `ogImage` social card. Those
+// cards carry green agentreceipts branding and their PNGs live only on
+// agentreceipts.ai (site/public/, not the mirrored site/public/blog/), so the
+// obsigna.dev mirror must drop the override and fall back to obsigna's own
+// default card — the two are separate brands and never share a card.
+export function stripOgImage(content) {
+  const fm = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) return content;
+  const cleaned = fm[1]
+    .split("\n")
+    .filter((line) => !/^ogImage:\s/.test(line))
+    .join("\n");
+  if (cleaned === fm[1]) return content;
+  return content.replace(fm[0], () => `---\n${cleaned}\n---`);
+}
+
 // Mirror flat image files from the source blog's public/blog into this site's
 // public/blog, replacing whatever was there. Returns the number of files copied.
 // The mirror is cleared first (force: no error when absent), so deleting an
@@ -82,7 +98,7 @@ function main() {
   const files = readdirSync(srcDir).filter((f) => f.endsWith(".mdx") || f.endsWith(".md"));
   for (const file of files) {
     const content = readFileSync(join(srcDir, file), "utf8");
-    writeFileSync(join(outDir, file), withCanonical(content, file));
+    writeFileSync(join(outDir, file), withCanonical(stripOgImage(content), file));
   }
 
   const imgCount = syncImages(imgSrcDir, imgOutDir);
