@@ -203,6 +203,9 @@ func encryptWithReader(params map[string]any, recipientPublicKey []byte, kid str
 // response is JCS-canonicalized before encryption. recipientPublicKey is the
 // 32-byte X25519 forensic public key; kid identifies the recipient key.
 func EncryptResponse(response map[string]any, recipientPublicKey []byte, kid string) (*DisclosureEnvelope, error) {
+	if response == nil {
+		return nil, fmt.Errorf("response must not be nil; pass an empty map for no response")
+	}
 	return encryptWithReader(response, recipientPublicKey, kid, rand.Reader)
 }
 
@@ -210,6 +213,9 @@ func EncryptResponse(response map[string]any, recipientPublicKey []byte, kid str
 // cross-SDK test vectors. Use only in tests — reusing ikmE across real
 // encryptions breaks confidentiality. ikmE MUST be 32 bytes.
 func encryptResponseWithSeed(response map[string]any, recipientPublicKey []byte, kid string, ikmE []byte) (*DisclosureEnvelope, error) {
+	if response == nil {
+		return nil, fmt.Errorf("response must not be nil; pass an empty map for no response")
+	}
 	if len(ikmE) != 32 {
 		return nil, fmt.Errorf("ikmE must be 32 bytes, got %d", len(ikmE))
 	}

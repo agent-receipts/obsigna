@@ -657,8 +657,12 @@ func TestEncryptResponseValidation(t *testing.T) {
 	alicePub := mustDecodeHex(t, alicePubHex)
 	kid := "sha256:abc"
 
+	// Error wording is response-specific, not the delegate's "params" text,
+	// matching the TS/Python encryptResponse surface.
 	if _, err := EncryptResponse(nil, alicePub, kid); err == nil {
 		t.Error("EncryptResponse(nil response) should error")
+	} else if !strings.Contains(err.Error(), "response must not be nil") {
+		t.Errorf("nil-response error = %q, want response-specific wording", err)
 	}
 	if _, err := EncryptResponse(map[string]any{}, alicePub[:31], kid); err == nil {
 		t.Error("EncryptResponse(short key) should error")
