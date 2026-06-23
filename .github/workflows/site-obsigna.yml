@@ -6,10 +6,13 @@ on:
     # The blog source of truth lives in site/; sync-blog.mjs mirrors it into
     # this site at build time. Without site/blog paths here, a blog-only edit
     # never retriggers an obsigna.dev rebuild, leaving the mirror stale.
-    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, sdk/ts/**, sdk/py/**, mcp-proxy/**, hook/**]
+    # The /verify WASM verifier is built from the Go core (sdk/go) plus the
+    # web-verifier module and build script, so a change to any of those must
+    # redeploy obsigna.dev to keep the binary fresh.
+    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, sdk/ts/**, sdk/py/**, mcp-proxy/**, hook/**, web-verifier/**, scripts/build-verify-wasm.sh]
   pull_request:
     branches: [main]
-    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**]
+    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, web-verifier/**, scripts/build-verify-wasm.sh]
   # Manual rebuild — e.g. to resync the blog mirror after a missed trigger.
   workflow_dispatch:
 
@@ -32,6 +35,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # The /verify page ships a WebAssembly verifier compiled from the Go verify
+      # core. It is built fresh from source here (never committed) so the
+      # deployed binary always matches the verifier the CLI<->WASM gate checks.
+      - name: Setup Go (for the /verify WASM verifier)
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          # Pin to the patch recorded in web-verifier/go.mod (ADR-0035) so the
+          # deployed verifier WASM does not silently change on a 1.26.x release.
+          go-version-file: web-verifier/go.mod
+
+      - name: Build /verify WASM verifier
+        run: bash "$GITHUB_WORKSPACE/scripts/build-verify-wasm.sh"
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6

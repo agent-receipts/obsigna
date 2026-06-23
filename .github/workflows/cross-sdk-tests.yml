@@ -7,12 +7,16 @@ on:
       - "cross-sdk-tests/**"
       - "sdk/go/**"
       - "spec/**"
+      # The CLI<->WASM conformance gate compiles the web-verifier module, so a
+      # change there must re-run the gate.
+      - "web-verifier/**"
   pull_request:
     branches: [main]
     paths:
       - "cross-sdk-tests/**"
       - "sdk/go/**"
       - "spec/**"
+      - "web-verifier/**"
 
 permissions:
   contents: read

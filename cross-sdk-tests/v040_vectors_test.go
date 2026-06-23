@@ -93,7 +93,7 @@ func TestV040VectorsValidateAgainstSchema(t *testing.T) {
 func TestV040IdempotencyReceiptHashAndSignature(t *testing.T) {
 	f := loadV040(t)
 
-	pub, err := parseEd25519PublicPEMTest(f.Keys.PublicKey)
+	pub, err := receipt.ParsePublicKey(f.Keys.PublicKey)
 	if err != nil {
 		t.Fatalf("parse public key: %v", err)
 	}

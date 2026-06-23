@@ -139,8 +139,8 @@ func multibaseKey(raw []byte) string {
 // outgoing key, handing over to the incoming key.
 func rotationChainReceipt0(t *testing.T, outKP, inKP KeyPair, withRotation bool) AgentReceipt {
 	t.Helper()
-	outRaw, _ := parsePublicKey(outKP.PublicKey)
-	inRaw, _ := parsePublicKey(inKP.PublicKey)
+	outRaw, _ := ParsePublicKey(outKP.PublicKey)
+	inRaw, _ := ParsePublicKey(inKP.PublicKey)
 	unsigned := Create(CreateInput{
 		Issuer:    Issuer{ID: "did:agent:test"},
 		Principal: Principal{ID: "did:user:test"},

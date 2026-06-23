@@ -22,3 +22,8 @@ __pycache__/
 /daemon/obsigna
 /daemon/agent-receipts
 /daemon/bin/
+
+# /verify browser verifier — built fresh from source at deploy time by
+# scripts/build-verify-wasm.sh (never committed; see site-obsigna/public/verify/README.md)
+/site-obsigna/public/verify/obsigna-verify.wasm
+/site-obsigna/public/verify/wasm_exec.js
