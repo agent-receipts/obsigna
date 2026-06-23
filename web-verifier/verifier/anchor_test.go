@@ -231,6 +231,66 @@ func TestAnchorMalformedProofIsQualified(t *testing.T) {
 	}
 }
 
+func TestAnchorUnevaluableSignatureNotChecked(t *testing.T) {
+	chain, issuerPub := buildSignedChain(t, 2)
+	anchorSig, anchorPub := newAnchorKey(t)
+	// A checkpoint that parses as JSON but whose signature cannot be evaluated
+	// (wrong multibase prefix) — checkpoint.Verify returns an error, so the proof
+	// was not actually checked.
+	var m map[string]any
+	if err := json.Unmarshal([]byte(signedCheckpointJSON(t, anchorSig, headCheckpoint(t, chain))), &m); err != nil {
+		t.Fatal(err)
+	}
+	m["signature"] = "z" + m["signature"].(string)[1:]
+	bad, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res := run(t, Request{
+		Mode: ModeChain, Receipts: chainJSON(t, chain), PublicKey: issuerPub,
+		Anchor: string(bad), AnchorPublicKey: anchorPub,
+	})
+
+	if res.Anchor.Checked {
+		t.Error("an unevaluable signature must leave Checked false (not evaluated, not 'not anchored')")
+	}
+	if !res.Anchor.Supplied || res.Anchor.Trusted {
+		t.Errorf("anchor ring = %+v, want supplied, not checked, not trusted", res.Anchor)
+	}
+	if res.Verdict != VerdictQualified {
+		t.Errorf("verdict = %q, want qualified", res.Verdict)
+	}
+}
+
+func TestErrorResultStillReflectsSuppliedAnchor(t *testing.T) {
+	chain, issuerPub := buildSignedChain(t, 2)
+	anchorSig, anchorPub := newAnchorKey(t)
+	cp := signedCheckpointJSON(t, anchorSig, headCheckpoint(t, chain))
+
+	// Unparseable chain → ERROR verdict, but a pasted proof must still report
+	// Supplied (AnchorRing contract), not be silently dropped.
+	parseErr := run(t, Request{
+		Mode: ModeChain, Receipts: "[ not json", PublicKey: issuerPub,
+		Anchor: cp, AnchorPublicKey: anchorPub,
+	})
+	if parseErr.Verdict != VerdictError {
+		t.Fatalf("verdict = %q, want error", parseErr.Verdict)
+	}
+	if !parseErr.Anchor.Supplied {
+		t.Error("chain-parse error dropped Anchor.Supplied for a pasted proof")
+	}
+
+	// Missing issuer key → ERROR verdict, same contract.
+	keyErr := run(t, Request{Mode: ModeChain, Receipts: chainJSON(t, chain), Anchor: cp, AnchorPublicKey: anchorPub})
+	if keyErr.Verdict != VerdictError {
+		t.Fatalf("verdict = %q, want error", keyErr.Verdict)
+	}
+	if !keyErr.Anchor.Supplied {
+		t.Error("key error dropped Anchor.Supplied for a pasted proof")
+	}
+}
+
 func TestNoAnchorStillQualified(t *testing.T) {
 	chain, issuerPub := buildSignedChain(t, 3)
 	res := run(t, Request{Mode: ModeChain, Receipts: chainJSON(t, chain), PublicKey: issuerPub})

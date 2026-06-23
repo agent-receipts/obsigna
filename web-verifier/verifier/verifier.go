@@ -119,7 +119,7 @@ type Result struct {
 func Run(reqJSON []byte) []byte {
 	var req Request
 	if err := json.Unmarshal(reqJSON, &req); err != nil {
-		return mustMarshal(errorResult("", "", "invalid request JSON: "+err.Error()))
+		return mustMarshal(errorResult("", "", "", "invalid request JSON: "+err.Error()))
 	}
 	return mustMarshal(evaluate(req))
 }
@@ -140,11 +140,11 @@ func evaluate(req Request) Result {
 	// receipt that genuinely fails to verify (→ FAIL). receipt.ParsePublicKey is
 	// the SDK's single shared parser for the only key format the protocol accepts.
 	if strings.TrimSpace(req.PublicKey) == "" {
-		return errorResult(mode, inputKind,
+		return errorResult(mode, inputKind, req.Anchor,
 			"a public key is required: receipt signatures are verified against the issuer's Ed25519 public key, which you must obtain out of band")
 	}
 	if _, err := receipt.ParsePublicKey(req.PublicKey); err != nil {
-		return errorResult(mode, inputKind, "invalid public key: "+err.Error())
+		return errorResult(mode, inputKind, req.Anchor, "invalid public key: "+err.Error())
 	}
 
 	// The observed chain head — its canonical hash, sequence, and chain id — is
@@ -166,7 +166,7 @@ func evaluate(req Request) Result {
 	default:
 		var errResult *Result
 		var receipts []receipt.AgentReceipt
-		crypto, receipts, errResult = verifyChain(req.Receipts, req.PublicKey, mode)
+		crypto, receipts, errResult = verifyChain(req.Receipts, req.PublicKey, mode, req.Anchor)
 		if errResult != nil {
 			return *errResult
 		}
@@ -233,10 +233,10 @@ func verifySingle(text, pubPEM string) CryptoRing {
 // receipt.VerifyChain — the exact function `obsigna receipt verify` uses. A
 // parse failure returns an error Result (the input could not be read as a
 // chain), distinct from a chain that parses but fails verification (FAIL).
-func verifyChain(text, pubPEM, mode string) (CryptoRing, []receipt.AgentReceipt, *Result) {
+func verifyChain(text, pubPEM, mode, anchorText string) (CryptoRing, []receipt.AgentReceipt, *Result) {
 	receipts, err := parseReceipts(text)
 	if err != nil {
-		er := errorResult(mode, ModeChain, "could not parse chain: "+err.Error())
+		er := errorResult(mode, ModeChain, anchorText, "could not parse chain: "+err.Error())
 		return CryptoRing{}, nil, &er
 	}
 	cv := receipt.VerifyChain(receipts, pubPEM)
@@ -279,12 +279,15 @@ func evaluateAnchor(anchorText, anchorKeyPEM, headHash string, headSeq int, head
 		ring.Note = "anchor proof is not a valid signed checkpoint: " + err.Error()
 		return ring
 	}
-	ring.Checked = true
 	ok, err := checkpoint.Verify(signed, anchorKeyPEM)
 	if err != nil {
+		// The signature could not be evaluated at all (malformed signature, bad
+		// PEM): leave Checked false so the ring reads "not evaluated", not a
+		// misleading "not anchored".
 		ring.Note = "checkpoint proof could not be evaluated: " + err.Error()
 		return ring
 	}
+	ring.Checked = true
 	if !ok {
 		ring.Note = "checkpoint signature does not verify under the supplied anchor public key"
 		return ring
@@ -386,7 +389,11 @@ func inferMode(text string) string {
 	return ModeSingle
 }
 
-func errorResult(mode, inputKind, msg string) Result {
+// errorResult builds an ERROR verdict (the request could not be evaluated).
+// anchorText is the request's anchor proof: an unevaluable request does not
+// evaluate the anchor either, but Supplied still reflects whether the user
+// pasted a proof so the AnchorRing contract holds.
+func errorResult(mode, inputKind, anchorText, msg string) Result {
 	if inputKind == "" {
 		inputKind = ModeSingle
 	}
@@ -397,7 +404,7 @@ func errorResult(mode, inputKind, msg string) Result {
 		InputKind: inputKind,
 		Verdict:   VerdictError,
 		Crypto:    CryptoRing{Consistent: false, Detail: msg},
-		Anchor:    AnchorRing{Note: "not evaluated"},
+		Anchor:    AnchorRing{Supplied: strings.TrimSpace(anchorText) != "", Note: "not evaluated"},
 	}
 }
 
