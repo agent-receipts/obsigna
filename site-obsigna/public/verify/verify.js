@@ -175,7 +175,11 @@
   function anchorRing(result) {
     var a = result.anchor || {};
     var state, cls;
-    if (a.trusted) {
+    if (result.verdict === "error") {
+      // The request was not evaluated at all, so neither ring has a real
+      // verdict — mirror the crypto ring rather than implying "not anchored".
+      state = "Not evaluated"; cls = "na";
+    } else if (a.trusted) {
       state = "Anchored"; cls = "ok";
     } else if (a.supplied) {
       state = "Not evaluated"; cls = "na";
