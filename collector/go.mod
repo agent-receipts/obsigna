@@ -2,13 +2,9 @@ module obsigna.dev/collector
 
 go 1.26.1
 
-// Pin the toolchain to the patch (ADR-0035): reproducible-build attestation
-// requires every builder use the same compiler bytes. CI consumes this via
-// `setup-go` with go-version-file so it stops floating to the latest 1.26.x.
-toolchain go1.26.1
-
 require (
-	modernc.org/sqlite v1.50.1
+	modernc.org/sqlite v1.52.0
+	obsigna.dev/sdk/go v0.22.0
 )
 
 require (
