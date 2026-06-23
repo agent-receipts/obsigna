@@ -426,6 +426,24 @@ func writeNewSecretFile(path string, data []byte, mode os.FileMode) error {
 	return nil
 }
 
+// requireForensicKey validates that an enabled disclosure policy has a forensic
+// public key to encrypt to, and logs its activation. surface is the lowercase
+// policy name ("parameter"/"response") and target is the human phrase for what
+// gets sealed ("parameters"/"tool responses"). It is a no-op when the policy is
+// disabled, and returns an error when the policy is enabled without a key.
+func requireForensicKey(surface, target, policyValue string, policy pipeline.DisclosurePolicy, forensicPublicKey []byte, logger *log.Logger) error {
+	if !policy.Enabled() {
+		return nil
+	}
+	if len(forensicPublicKey) == 0 {
+		return fmt.Errorf("%s disclosure %q requires a forensic public key (--forensic-public-key); without one there is nothing to encrypt to", surface, policyValue)
+	}
+	fp, _ := receipt.ForensicKeyFingerprint(forensicPublicKey)
+	logger.Printf("%s disclosure ACTIVE: policy=%s, forensic key %s — matching %s will be HPKE-encrypted to that key (recoverable only with the private key)",
+		strings.ToUpper(surface[:1])+surface[1:], policy.String(), fp, target)
+	return nil
+}
+
 // Run starts the daemon and blocks until ctx is cancelled. It returns the
 // first fatal error or nil on graceful shutdown.
 func Run(ctx context.Context, cfg Config) error {
@@ -583,22 +601,14 @@ func Run(ctx context.Context, cfg Config) error {
 
 	// Parameter and response disclosure share the single forensic key but fire
 	// independently; either policy being on requires a key to encrypt to.
-	switch {
-	case policy.Enabled() && len(forensicPublicKey) == 0:
-		return fmt.Errorf("parameter disclosure %q requires a forensic public key (--forensic-public-key); without one there is nothing to encrypt to", cfg.ParameterDisclosure)
-	case policy.Enabled():
-		fp, _ := receipt.ForensicKeyFingerprint(forensicPublicKey)
-		cfg.Logger.Printf("Parameter disclosure ACTIVE: policy=%s, forensic key %s — matching parameters will be HPKE-encrypted to that key (recoverable only with the private key)", policy.String(), fp)
-	case len(forensicPublicKey) > 0 && !responsePolicy.Enabled():
-		cfg.Logger.Printf("NOTICE: a forensic public key is set but parameter disclosure policy is off; no parameters will be disclosed. Set --parameter-disclosure (true|high|<action-types>) to enable.")
+	if err := requireForensicKey("parameter", "parameters", cfg.ParameterDisclosure, policy, forensicPublicKey, cfg.Logger); err != nil {
+		return err
 	}
-
-	switch {
-	case responsePolicy.Enabled() && len(forensicPublicKey) == 0:
-		return fmt.Errorf("response disclosure %q requires a forensic public key (--forensic-public-key); without one there is nothing to encrypt to", cfg.ResponseDisclosure)
-	case responsePolicy.Enabled():
-		fp, _ := receipt.ForensicKeyFingerprint(forensicPublicKey)
-		cfg.Logger.Printf("Response disclosure ACTIVE: policy=%s, forensic key %s — matching tool responses will be HPKE-encrypted to that key (recoverable only with the private key)", responsePolicy.String(), fp)
+	if err := requireForensicKey("response", "tool responses", cfg.ResponseDisclosure, responsePolicy, forensicPublicKey, cfg.Logger); err != nil {
+		return err
+	}
+	if len(forensicPublicKey) > 0 && !policy.Enabled() && !responsePolicy.Enabled() {
+		cfg.Logger.Printf("NOTICE: a forensic public key is set but no disclosure policy is on; nothing will be disclosed. Set --parameter-disclosure or --response-disclosure (true|high|<action-types>) to enable.")
 	}
 
 	pp := pipeline.New(state, ks, st, cfg.IssuerID)

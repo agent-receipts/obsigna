@@ -706,17 +706,13 @@ func canonicalSHA256(raw json.RawMessage) (string, error) {
 // It returns nil on any failure (non-object payload, HPKE error) after logging,
 // so the caller falls back to a hash-only receipt rather than dropping the
 // event. The hash is computed independently by the caller and is unaffected.
-func (p *Pipeline) encryptDisclosure(payload json.RawMessage) *receipt.DisclosureEnvelope {
+// kid is the recipient fingerprint, resolved once per receipt by the caller.
+func (p *Pipeline) encryptDisclosure(payload json.RawMessage, kid string) *receipt.DisclosureEnvelope {
 	var params map[string]any
 	if err := json.Unmarshal(payload, &params); err != nil {
 		// Disclosure requires a JSON object (HPKE plaintext is the canonical
 		// object); arrays/primitives cannot be disclosed. Hash-only fallback.
 		p.logError("disclosure skipped (payload is not a JSON object): %v", err)
-		return nil
-	}
-	kid, err := receipt.ForensicKeyFingerprint(p.ForensicPublicKey)
-	if err != nil {
-		p.logError("disclosure skipped (forensic key fingerprint failed): %v", err)
 		return nil
 	}
 	env, err := receipt.EncryptDisclosure(params, p.ForensicPublicKey, kid)
@@ -790,6 +786,23 @@ func (p *Pipeline) buildAndSign(
 	// disclosure ("high") fire correctly.
 	risk := taxonomy.ResolveActionType(actionType).RiskLevel
 
+	// Resolve the forensic recipient fingerprint once per receipt, only when a
+	// disclosure policy could actually fire. It depends only on the static
+	// forensic public key, so computing it here lets both the parameter and
+	// response disclosure paths reuse it instead of each re-hashing the key.
+	// Empty when no key is configured, both policies are off, or the key is
+	// malformed — in every case both paths fall back to hash-only.
+	var forensicKid string
+	if len(p.ForensicPublicKey) == 32 &&
+		(p.DisclosurePolicy.Enabled() || p.ResponseDisclosurePolicy.Enabled()) {
+		kid, err := receipt.ForensicKeyFingerprint(p.ForensicPublicKey)
+		if err != nil {
+			p.logError("disclosure skipped (forensic key fingerprint failed): %v", err)
+		} else {
+			forensicKid = kid
+		}
+	}
+
 	action := receipt.Action{
 		Type:           actionType,
 		ToolName:       f.Tool.Name,
@@ -823,9 +836,9 @@ func (p *Pipeline) buildAndSign(
 		// than dropping the event. A privacy-preserving hash-only receipt keeps
 		// the chain gap-free; refusing the event would punch a hole in the audit
 		// trail, which is the worse outcome for an audit system.
-		if len(p.ForensicPublicKey) == 32 &&
+		if forensicKid != "" &&
 			p.DisclosurePolicy.ShouldDisclose(actionType, risk) {
-			if env := p.encryptDisclosure(f.Input); env != nil {
+			if env := p.encryptDisclosure(f.Input, forensicKid); env != nil {
 				action.ParametersDisclosure = env
 			}
 		}
@@ -868,9 +881,9 @@ func (p *Pipeline) buildAndSign(
 		// canonical bytes, so tamper-evidence is independent of disclosure; the
 		// envelope is additive and recoverable only by the forensic private-key
 		// holder. Best-effort: a failure falls back to hash-only for this receipt.
-		if len(p.ForensicPublicKey) == 32 &&
+		if forensicKid != "" &&
 			p.ResponseDisclosurePolicy.ShouldDisclose(actionType, risk) {
-			if env := p.encryptDisclosure(f.Output); env != nil {
+			if env := p.encryptDisclosure(f.Output, forensicKid); env != nil {
 				outcome.ResponseDisclosure = env
 			}
 		}
