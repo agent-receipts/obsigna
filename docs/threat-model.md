@@ -68,7 +68,7 @@ An attacker who compromises the daemon could rewrite the chain's rotation events
 
 Action parameters are committed via `parameters_hash` by default (privacy-preserving, tamper-evident). Operators who need on-demand forensic recovery enable [ADR-0012](adr/0012-payload-disclosure-policy.md) parameter disclosure: the daemon encrypts elected parameters into a separately-keyed HPKE envelope (`action.parameters_disclosure`) inside the signed receipt body, and an offline responder recovers them with the matching private key (SDK `DecryptDisclosure`). **Both the daemon-side sealing and the responder-side decryption are shipped.** The forensic decryption key lives with the responder, not the daemon — so the daemon (and therefore a compromised daemon) cannot decrypt past disclosures.
 
-Tool **output/response is committed via `response_hash` only** — there is no response-disclosure envelope yet, so responses (which often carry the sensitive payload: file contents, query results) cannot be forensically recovered. This input/output asymmetry is tracked in [#819](https://github.com/agent-receipts/obsigna/issues/819).
+Tool **output/response is committed via `response_hash`**, and spec v0.6.0 defines the `outcome.response_disclosure` HPKE envelope that mirrors the parameter-disclosure format. The daemon-side sealing of responses and the SDK-side recovery path are **not yet wired**, so responses (which often carry the sensitive payload: file contents, query results) cannot yet be forensically recovered in practice. Closing this input/output asymmetry is tracked in [#819](https://github.com/agent-receipts/obsigna/issues/819).
 
 Plaintext secrets in receipts are forbidden by policy (see [AGENTS.md security section](../AGENTS.md)).
 
