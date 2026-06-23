@@ -47,13 +47,12 @@
   els.loadExample.addEventListener("click", function () {
     var ex = window.OBSIGNA_EXAMPLES || {};
     if (mode === "single") {
-      // The disclosed single receipt is signed by its own key.
+      // The disclosed single receipt and its checkpoint are signed by their own
+      // keys; the checkpoint anchors this receipt's head (a length-1 chain).
       els.pubkey.value = ex.singlePublicKey || "";
       els.receipts.value = ex.singleReceipt || "";
-      // The example checkpoint anchors the chain head (sequence 3), so it does
-      // not apply to the single-receipt example; leave the anchor fields empty.
-      els.anchor.value = "";
-      els.anchorKey.value = "";
+      els.anchor.value = ex.singleAnchorCheckpoint || "";
+      els.anchorKey.value = ex.singleAnchorPublicKey || "";
     } else {
       els.pubkey.value = ex.publicKey || "";
       els.receipts.value = ex.chain || "";
