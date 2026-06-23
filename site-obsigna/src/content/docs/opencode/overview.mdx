@@ -14,14 +14,14 @@ graph LR
     T1[Native tools — bash, edit, write…] -- "tool.execute.after" --> PL[opencode-plugin]
     T2[MCP tools — GitHub, Atlassian…] -- "stdio / JSON-RPC" --> P[mcp-proxy]
   end
-  PL -- "Unix socket (emit only)" --> D[agent-receipts-daemon]
+  PL -- "Unix socket (emit only)" --> D[obsigna-daemon]
   P -- "Unix socket" --> D
   D --> DB[(receipts.db)]
 ```
 
 ## Trust model — read this first
 
-The plugin runs **inside** the OpenCode process, so it is an **emitter only**. It forwards each tool call to `agent-receipts-daemon`, which holds the key, canonicalises (RFC 8785), signs (Ed25519), and chains the receipt ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). The plugin **never signs and never holds a key**.
+The plugin runs **inside** the OpenCode process, so it is an **emitter only**. It forwards each tool call to `obsigna-daemon`, which holds the key, canonicalises (RFC 8785), signs (Ed25519), and chains the receipt ([ADR-0010](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0010-daemon-process-separation.md)). The plugin **never signs and never holds a key**.
 
 This placement is **honest-operator-grade**, not adversary-resistant. The agent controls the plugin, so a compromised OpenCode can omit or misreport a native tool call. If you need a placement that holds against the agent itself, route those tools through MCP and the proxy (Tier A). The two tiers are complementary: Tier A is adversary-resistant for the MCP channel; Tier B maximises coverage of the native channel.
 
