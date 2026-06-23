@@ -114,13 +114,13 @@ across workstreams they can be parallelised.
 
 | Item | ADR | Issue | Status |
 |---|---|---|---|
-| Cloud KMS `Signer` adapters (AWS KMS, GCP Cloud KMS, Azure Key Vault) | ADR-0018 | #534 | done |
+| Cloud KMS `Signer` adapter — AWS KMS shipped across all three SDKs (separate module/package/extra). GCP Cloud KMS and Azure Key Vault not built; substitutable by a user `Signer` implementation, and reopen when a deployment needs them. | ADR-0018 | #534 | done |
 
 ### SDK payload handling
 
 | Item | ADR | Issue | Status |
 |---|---|---|---|
-| Bound remaining inline plaintext fields — cap `error` / `prompt_preview` + truncation flag (hash-first model superseded the original `PayloadStrategy` framing; content-addressed/GDPR erasure split to #731, v1.5) | ADR-0019 § S3 | #478 | planned |
+| Bound remaining inline plaintext fields — cap `error` / `prompt_preview` + truncation flag (hash-first model superseded the original `PayloadStrategy` framing; content-addressed/GDPR erasure split to #731, v1.5) | ADR-0019 § S3 | #478 | done |
 | `parameterDisclosure` Phase A — cross-SDK + OpenClaw migration (envelope, Python SDK, OpenClaw rename, cross-SDK tests all shipped) | ADR-0012 | #280 | done |
 
 ### Cross-SDK parity
@@ -128,7 +128,7 @@ across workstreams they can be parallelised.
 | Item | ADR | Issue | Status |
 |---|---|---|---|
 | Python SDK `eventType` naming alignment | ADR-0019 § S1 | (folded into conformance vectors) | done |
-| `KeyProvider` / `Signer` parity across TS, Python, Go | ADR-0018 | tracked per-SDK | planned |
+| `KeyProvider` / `Signer` parity across TS, Python, Go — verified 2026-06-23: all three expose `KeyProvider`, `GeneratingKeyProvider` with the identical `AGENTRECEIPTS_PRODUCTION` guard + error type, a `Signer` interface, and an AWS `KMSSigner` in a separate optional module/package/extra | ADR-0018 | tracked per-SDK | done |
 | `HttpEmitter` parity across TS, Python, Go | ADR-0020 | tracked per-SDK | done |
 
 ---
