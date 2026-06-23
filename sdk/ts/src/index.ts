@@ -4,9 +4,12 @@ export {
 	type DaemonEmitterOptions,
 	defaultSocketPath,
 	type EmitEvent,
+	type EmitTarget,
 	type EmitTool,
 	EmitTransportError,
 	MAX_FRAME_SIZE,
+	MAX_IDENTITY_FIELD_LEN,
+	MAX_TARGET_RESOURCE_LEN,
 	SUPPORTED_FRAME_VERSION,
 } from "./daemon-emitter.js";
 export {

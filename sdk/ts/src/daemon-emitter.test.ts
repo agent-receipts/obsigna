@@ -24,6 +24,8 @@ import {
 	type EmitEvent,
 	EmitTransportError,
 	MAX_FRAME_SIZE,
+	MAX_IDENTITY_FIELD_LEN,
+	MAX_TARGET_RESOURCE_LEN,
 	resolveSocketPath,
 	type SocketPathDeps,
 	SUPPORTED_FRAME_VERSION,
@@ -229,6 +231,95 @@ describe("DaemonEmitter — validation errors (caller bugs)", () => {
 		e.close();
 	});
 
+	it("rejects a target with only system set", async () => {
+		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
+		const err = await e.emit({
+			...GOOD_EVENT,
+			target: { system: "filesystem", resource: "" },
+		});
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toMatch(/both be set or both empty/);
+		e.close();
+	});
+
+	it("rejects a target with only resource set", async () => {
+		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
+		const err = await e.emit({
+			...GOOD_EVENT,
+			target: { system: "", resource: "/etc/hosts" },
+		});
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toMatch(/both be set or both empty/);
+		e.close();
+	});
+
+	it("rejects a target.system over the byte cap", async () => {
+		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
+		const err = await e.emit({
+			...GOOD_EVENT,
+			target: {
+				system: "a".repeat(MAX_IDENTITY_FIELD_LEN + 1),
+				resource: "/etc/hosts",
+			},
+		});
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toMatch(/target_system exceeds 256 bytes/);
+		e.close();
+	});
+
+	it("rejects a target.resource over the byte cap", async () => {
+		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
+		const err = await e.emit({
+			...GOOD_EVENT,
+			target: {
+				system: "filesystem",
+				resource: "a".repeat(MAX_TARGET_RESOURCE_LEN + 1),
+			},
+		});
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toMatch(/target_resource exceeds 4096 bytes/);
+		e.close();
+	});
+
+	it("measures the target.system cap in UTF-8 bytes, not characters", async () => {
+		// "あ" is 3 UTF-8 bytes but 1 JS char (well within UTF-16 length).
+		// 86 copies = 258 bytes (> 256) yet only 86 .length, so a char-length
+		// check would wrongly accept this.
+		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
+		const system = "あ".repeat(86);
+		expect(system.length).toBeLessThanOrEqual(MAX_IDENTITY_FIELD_LEN);
+		expect(Buffer.byteLength(system, "utf8")).toBeGreaterThan(
+			MAX_IDENTITY_FIELD_LEN,
+		);
+		const err = await e.emit({
+			...GOOD_EVENT,
+			target: { system, resource: "/etc/hosts" },
+		});
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toMatch(/target_system exceeds 256 bytes/);
+		e.close();
+	});
+
+	it("accepts a multi-byte target at the byte boundary", async () => {
+		// A multi-byte resource whose byte length is exactly the cap must pass —
+		// proves the check is inclusive and byte-accurate. Use an echo server so
+		// the emit reaches the write path rather than failing transport.
+		const sockPath = tempSockPath("target-boundary");
+		const server = startEchoServer(sockPath);
+		await server.ready;
+		const e = new DaemonEmitter({ socketPath: sockPath });
+		// "あ" is 3 bytes; 1365 * 3 = 4095, + one ASCII byte = 4096 = cap.
+		const resource = `${"あ".repeat(1365)}a`;
+		expect(Buffer.byteLength(resource, "utf8")).toBe(MAX_TARGET_RESOURCE_LEN);
+		const err = await e.emit({
+			...GOOD_EVENT,
+			target: { system: "filesystem", resource },
+		});
+		expect(err).toBeNull();
+		e.close();
+		await server.stop();
+	});
+
 	it("returns an error after close", async () => {
 		const sockPath = tempSockPath("closed");
 		const server = startEchoServer(sockPath);
@@ -344,6 +435,29 @@ describe("DaemonEmitter — frame round-trip", () => {
 		expect(err).toBeInstanceOf(Error);
 		expect(err?.message).toMatch(/actionType must be a string/);
 		e.close();
+	});
+
+	it("target is forwarded as target_system / target_resource", async () => {
+		await emitter.emit({
+			...GOOD_EVENT,
+			target: { system: "filesystem", resource: "/etc/hosts" },
+		});
+		await waitFor(async () => (await server.frames()).length > 0);
+
+		const frames = await server.frames();
+		const f = JSON.parse(frames[0] ?? "{}");
+		expect(f.target_system).toBe("filesystem");
+		expect(f.target_resource).toBe("/etc/hosts");
+	});
+
+	it("target_system and target_resource are absent when target is omitted", async () => {
+		await emitter.emit(GOOD_EVENT);
+		await waitFor(async () => (await server.frames()).length > 0);
+
+		const frames = await server.frames();
+		const f = JSON.parse(frames[0] ?? "{}");
+		expect(f).not.toHaveProperty("target_system");
+		expect(f).not.toHaveProperty("target_resource");
 	});
 
 	it("input and output are forwarded as raw JSON values (not double-encoded)", async () => {

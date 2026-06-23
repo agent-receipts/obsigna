@@ -33,6 +33,21 @@ export const MAX_FRAME_SIZE = 1 << 20;
 export const SUPPORTED_FRAME_VERSION = "1";
 
 /**
+ * Maximum UTF-8 byte length of an identity-style field. Applies to
+ * {@link EmitTarget.system}. The daemon enforces the same limit
+ * (`maxIdentityFieldLen`); validating client-side surfaces violations before
+ * the write rather than as a silent daemon-side rejection.
+ */
+export const MAX_IDENTITY_FIELD_LEN = 256;
+
+/**
+ * Maximum UTF-8 byte length of {@link EmitTarget.resource}. File paths can
+ * reach 4096 bytes on Linux (PATH_MAX), so a wider cap than
+ * {@link MAX_IDENTITY_FIELD_LEN} is used. The daemon enforces the same limit.
+ */
+export const MAX_TARGET_RESOURCE_LEN = 4096;
+
+/**
  * Inclusive range of emitter-frame schema versions this SDK can speak to the
  * daemon — its declared daemon-protocol range in the ADR-0024 Gate #8 sense.
  * Today the SDK emits exactly one version ({@link SUPPORTED_FRAME_VERSION}), so
@@ -75,6 +90,19 @@ export interface EmitTool {
 	name: string;
 }
 
+/**
+ * Identifies the system and resource an action operates on. `system` names a
+ * resource domain (e.g. "filesystem"); `resource` is the path or identifier
+ * within that domain (e.g. a file path). Both must be set together — a
+ * half-populated target is rejected.
+ */
+export interface EmitTarget {
+	/** Resource domain, e.g. "filesystem". */
+	system: string;
+	/** Path or identifier within the domain, e.g. a file path. */
+	resource: string;
+}
+
 /** One tool invocation to forward to the daemon. */
 export interface EmitEvent {
 	/** Stable channel identifier (required, non-empty). */
@@ -112,6 +140,17 @@ export interface EmitEvent {
 	output?: string;
 	/** Human-readable error message when the tool call failed. */
 	error?: string;
+	/**
+	 * Optional target identifying the resource the action operates on (e.g. a
+	 * file path for filesystem tools). When set, the daemon maps it to
+	 * `action.target.{system,resource}` on the receipt — for example
+	 * `{ system: "filesystem", resource: "<file path>" }`. Both `system` and
+	 * `resource` must be set together; a half-populated target is rejected.
+	 * `system` is capped at {@link MAX_IDENTITY_FIELD_LEN} UTF-8 bytes and
+	 * `resource` at {@link MAX_TARGET_RESOURCE_LEN}. Omitted from the frame when
+	 * unset.
+	 */
+	target?: EmitTarget;
 	/** Policy decision for this call. */
 	decision: "allowed" | "denied" | "pending";
 }
@@ -165,6 +204,8 @@ interface WireFrame {
 	input?: string;
 	output?: string;
 	error?: string;
+	target_system?: string;
+	target_resource?: string;
 	decision: string;
 }
 
@@ -397,6 +438,12 @@ export class DaemonEmitter {
 		if (ev.actionType !== undefined && typeof ev.actionType !== "string") {
 			return new Error("emitter: actionType must be a string");
 		}
+		if (ev.target !== undefined) {
+			const targetErr = validateTarget(ev.target);
+			if (targetErr !== null) {
+				return targetErr;
+			}
+		}
 		if (ev.input !== undefined && !isValidJson(ev.input)) {
 			return new Error("emitter: input is not valid JSON");
 		}
@@ -421,6 +468,12 @@ export class DaemonEmitter {
 			...(ev.input !== undefined ? { input: RAW_INPUT_SENTINEL } : {}),
 			...(ev.output !== undefined ? { output: RAW_OUTPUT_SENTINEL } : {}),
 			...(ev.error ? { error: ev.error } : {}),
+			...(ev.target
+				? {
+						target_system: ev.target.system,
+						target_resource: ev.target.resource,
+					}
+				: {}),
 			decision: ev.decision,
 		};
 
@@ -709,6 +762,44 @@ export class DaemonEmitter {
 			// A throwing debugLog must not take down the host process.
 		}
 	}
+}
+
+/**
+ * Validates an {@link EmitTarget} against the daemon's rules, returning a
+ * caller-bug Error on violation or null when valid. Caps are measured in UTF-8
+ * bytes (via Buffer.byteLength), not JS string length, to match the daemon and
+ * the Go emitter, which count bytes — a multi-byte string under the char limit
+ * can still exceed the byte cap.
+ */
+function validateTarget(target: EmitTarget): Error | null {
+	if (
+		typeof target.system !== "string" ||
+		typeof target.resource !== "string"
+	) {
+		return new Error(
+			"emitter: target.system and target.resource must be strings",
+		);
+	}
+	// Both set or both empty — a half-populated target would produce an
+	// ActionTarget with an empty system or resource in the signed receipt.
+	if ((target.system !== "") !== (target.resource !== "")) {
+		return new Error(
+			"emitter: target.system and target.resource must both be set or both empty",
+		);
+	}
+	const systemBytes = Buffer.byteLength(target.system, "utf8");
+	if (systemBytes > MAX_IDENTITY_FIELD_LEN) {
+		return new Error(
+			`emitter: target_system exceeds ${MAX_IDENTITY_FIELD_LEN} bytes (got ${systemBytes})`,
+		);
+	}
+	const resourceBytes = Buffer.byteLength(target.resource, "utf8");
+	if (resourceBytes > MAX_TARGET_RESOURCE_LEN) {
+		return new Error(
+			`emitter: target_resource exceeds ${MAX_TARGET_RESOURCE_LEN} bytes (got ${resourceBytes})`,
+		);
+	}
+	return null;
 }
 
 /**
