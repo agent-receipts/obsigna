@@ -17,6 +17,7 @@
     pubkey: document.getElementById("pubkey"),
     receipts: document.getElementById("receipts"),
     anchor: document.getElementById("anchor"),
+    anchorKey: document.getElementById("anchor-pubkey"),
     verify: document.getElementById("verify"),
     loadExample: document.getElementById("load-example"),
     clear: document.getElementById("clear"),
@@ -47,8 +48,14 @@
     els.pubkey.value = ex.publicKey || "";
     if (mode === "single") {
       els.receipts.value = ex.singleReceipt || "";
+      // The example checkpoint anchors the chain head (sequence 3), so it does
+      // not apply to the single-receipt example; leave the anchor fields empty.
+      els.anchor.value = "";
+      els.anchorKey.value = "";
     } else {
       els.receipts.value = ex.chain || "";
+      els.anchor.value = ex.anchorCheckpoint || "";
+      els.anchorKey.value = ex.anchorPublicKey || "";
     }
     els.result.hidden = true;
   });
@@ -57,6 +64,7 @@
     els.pubkey.value = "";
     els.receipts.value = "";
     els.anchor.value = "";
+    els.anchorKey.value = "";
     els.result.hidden = true;
     els.status.textContent = "";
   });
@@ -71,6 +79,7 @@
       receipts: els.receipts.value,
       public_key: els.pubkey.value,
       anchor: els.anchor.value,
+      anchor_public_key: els.anchorKey.value,
     };
     var raw;
     try {
@@ -181,7 +190,13 @@
       state = "Not evaluated"; cls = "na";
     } else if (a.trusted) {
       state = "Anchored"; cls = "ok";
+    } else if (a.checked) {
+      // A checkpoint was evaluated but did not corroborate this head (bad
+      // signature, wrong key, or a head/sequence/chain mismatch).
+      state = "Not anchored"; cls = "warn";
     } else if (a.supplied) {
+      // A proof was pasted but could not be evaluated (no anchor key, or it did
+      // not parse as a signed checkpoint).
       state = "Not evaluated"; cls = "na";
     } else {
       state = "Not anchored"; cls = "warn";

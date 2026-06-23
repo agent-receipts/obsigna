@@ -14,20 +14,22 @@
 //
 //   - Cryptographic consistency: every signature valid, the hash chain
 //     unbroken, canonicalization correct. This is what the Go core proves.
-//   - External-anchor trust: a checkpoint/rotation anchor proof corroborates the
-//     chain head out of band. Anchor verification (input mode "c") is a tracked
-//     follow-up; this build never reports an anchor as trusted, so a
-//     cryptographically clean but unanchored chain is a QUALIFIED pass, never a
-//     FULL pass.
+//   - External-anchor trust: a signed checkpoint corroborates the chain head out
+//     of band. When a checkpoint proof and its anchor key are supplied, the
+//     checkpoint signature is verified and bound to the observed head; an
+//     authentic, matching checkpoint makes the chain a FULL pass. A
+//     cryptographically clean but unanchored chain is a QUALIFIED pass.
 package verifier
 
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 
+	"obsigna.dev/sdk/go/checkpoint"
 	"obsigna.dev/sdk/go/receipt"
 )
 
@@ -42,8 +44,8 @@ const (
 // two rings below and round-tripped through WASM unchanged.
 const (
 	// VerdictFull means cryptographically consistent AND corroborated by a
-	// trusted external anchor. Unreachable until anchor verification ships;
-	// defined so the type is honest and the UI can render it.
+	// trusted external anchor — a signed checkpoint that verifies under the
+	// supplied anchor key and commits to this exact chain head.
 	VerdictFull = "full"
 	// VerdictQualified means cryptographically consistent but not externally
 	// anchored — "internally consistent; not externally anchored".
@@ -63,9 +65,15 @@ type Request struct {
 	Mode      string `json:"mode"`
 	Receipts  string `json:"receipts"`
 	PublicKey string `json:"public_key"`
-	// Anchor carries an external anchor proof for the reserved "chain-anchored"
-	// mode. Accepted but not yet evaluated; see Anchor.Note in the result.
+	// Anchor carries an external anchor proof: the JSON of a signed checkpoint
+	// (checkpoint.Signed) committing to a chain head. When supplied alongside
+	// AnchorPublicKey it is verified and bound to the observed chain head; an
+	// authentic, matching checkpoint raises the verdict from qualified to full.
 	Anchor string `json:"anchor,omitempty"`
+	// AnchorPublicKey is the PEM/SPKI Ed25519 key the checkpoint signature is
+	// checked against. It may differ from the receipt issuer key — anchoring is
+	// out-of-band, so the anchor key is obtained and trusted separately.
+	AnchorPublicKey string `json:"anchor_public_key,omitempty"`
 }
 
 // CryptoRing is the cryptographic-consistency verdict.
@@ -83,9 +91,10 @@ type CryptoRing struct {
 	Detail string `json:"detail,omitempty"`
 }
 
-// AnchorRing is the external-anchor trust verdict. Until anchor verification
-// ships, Supplied may be true (the user pasted a proof) but Checked/Trusted are
-// always false.
+// AnchorRing is the external-anchor trust verdict. Supplied is true when the
+// user pasted a proof; Checked is true once the checkpoint signature was
+// evaluated; Trusted is true only when that checkpoint is authentic AND commits
+// to the observed chain head.
 type AnchorRing struct {
 	Supplied bool   `json:"supplied"`
 	Checked  bool   `json:"checked"`
@@ -138,19 +147,41 @@ func evaluate(req Request) Result {
 		return errorResult(mode, inputKind, "invalid public key: "+err.Error())
 	}
 
-	anchor := anchorRing(req.Anchor)
-
-	var crypto CryptoRing
+	// The observed chain head — its canonical hash, sequence, and chain id — is
+	// what a supplied checkpoint is bound against. Captured per mode below.
+	var (
+		crypto      CryptoRing
+		headHash    string
+		headSeq     int
+		headChainID string
+		haveHead    bool
+	)
 	switch inputKind {
 	case ModeSingle:
 		crypto = verifySingle(req.Receipts, req.PublicKey)
+		headHash = crypto.ReceiptHash
+		if seq, chainID, ok := singleHead(req.Receipts); ok {
+			headSeq, headChainID, haveHead = seq, chainID, true
+		}
 	default:
 		var errResult *Result
-		crypto, errResult = verifyChain(req.Receipts, req.PublicKey, mode, anchor)
+		var receipts []receipt.AgentReceipt
+		crypto, receipts, errResult = verifyChain(req.Receipts, req.PublicKey, mode)
 		if errResult != nil {
 			return *errResult
 		}
+		if len(receipts) > 0 {
+			head := receipts[len(receipts)-1]
+			if h, err := receipt.HashReceipt(head); err == nil {
+				headHash = h
+			}
+			headSeq = head.CredentialSubject.Chain.Sequence
+			headChainID = head.CredentialSubject.Chain.ChainID
+			haveHead = true
+		}
 	}
+
+	anchor := evaluateAnchor(req.Anchor, req.AnchorPublicKey, headHash, headSeq, headChainID, haveHead)
 
 	res := Result{
 		OK:        true,
@@ -161,6 +192,17 @@ func evaluate(req Request) Result {
 	}
 	res.Verdict = verdict(crypto.Consistent, anchor.Trusted)
 	return res
+}
+
+// singleHead parses a single receipt for the chain-position fields a checkpoint
+// binds against. A parse failure is not fatal here — verifySingle already turns
+// a malformed body into a FAIL; this only means an anchor cannot be bound.
+func singleHead(text string) (seq int, chainID string, ok bool) {
+	var r receipt.AgentReceipt
+	if err := json.Unmarshal(bytes.TrimSpace([]byte(text)), &r); err != nil {
+		return 0, "", false
+	}
+	return r.CredentialSubject.Chain.Sequence, r.CredentialSubject.Chain.ChainID, true
 }
 
 // verifySingle checks one receipt's signature over its verbatim wire bytes
@@ -191,12 +233,11 @@ func verifySingle(text, pubPEM string) CryptoRing {
 // receipt.VerifyChain — the exact function `obsigna receipt verify` uses. A
 // parse failure returns an error Result (the input could not be read as a
 // chain), distinct from a chain that parses but fails verification (FAIL).
-func verifyChain(text, pubPEM, mode string, anchor AnchorRing) (CryptoRing, *Result) {
+func verifyChain(text, pubPEM, mode string) (CryptoRing, []receipt.AgentReceipt, *Result) {
 	receipts, err := parseReceipts(text)
 	if err != nil {
 		er := errorResult(mode, ModeChain, "could not parse chain: "+err.Error())
-		er.Anchor = anchor
-		return CryptoRing{}, &er
+		return CryptoRing{}, nil, &er
 	}
 	cv := receipt.VerifyChain(receipts, pubPEM)
 	c := CryptoRing{
@@ -207,25 +248,62 @@ func verifyChain(text, pubPEM, mode string, anchor AnchorRing) (CryptoRing, *Res
 	if !cv.Valid && cv.Error != "" {
 		c.Detail = cv.Error
 	}
-	return c, nil
+	return c, receipts, nil
 }
 
-// anchorRing reports the external-anchor verdict. Anchor verification is a
-// tracked follow-up; a supplied proof is acknowledged but never trusted, so the
-// overall verdict can rise to QUALIFIED but never FULL.
-func anchorRing(anchorText string) AnchorRing {
+// evaluateAnchor reports the external-anchor verdict. When a checkpoint proof
+// and an anchor public key are supplied, it verifies the checkpoint signature
+// (checkpoint.Verify) and binds the authenticated checkpoint to the observed
+// chain head: same chain id, same head sequence, same head receipt hash. Only a
+// proof that is both authentic AND commits to this exact head sets Trusted —
+// which is what lifts the verdict to FULL.
+//
+// The anchor ring is independent of the crypto ring (spec trust-model). An
+// authentic checkpoint that matches the head is Trusted even when an earlier
+// receipt breaks the chain: that honestly reports "this head was anchored" while
+// the crypto ring separately reports the break (and verdict() still yields FAIL).
+func evaluateAnchor(anchorText, anchorKeyPEM, headHash string, headSeq int, headChainID string, haveHead bool) AnchorRing {
 	if strings.TrimSpace(anchorText) == "" {
 		return AnchorRing{
 			Supplied: false,
 			Note:     "no external anchor proof supplied — the chain is checked for internal consistency only",
 		}
 	}
-	return AnchorRing{
-		Supplied: true,
-		Checked:  false,
-		Trusted:  false,
-		Note:     "external-anchor verification is not available in this build (tracked follow-up); the supplied proof was not evaluated",
+	ring := AnchorRing{Supplied: true}
+	if strings.TrimSpace(anchorKeyPEM) == "" {
+		ring.Note = "an anchor public key is required to evaluate the supplied checkpoint proof; the proof was not evaluated"
+		return ring
 	}
+	var signed checkpoint.Signed
+	if err := json.Unmarshal([]byte(anchorText), &signed); err != nil {
+		ring.Note = "anchor proof is not a valid signed checkpoint: " + err.Error()
+		return ring
+	}
+	ring.Checked = true
+	ok, err := checkpoint.Verify(signed, anchorKeyPEM)
+	if err != nil {
+		ring.Note = "checkpoint proof could not be evaluated: " + err.Error()
+		return ring
+	}
+	if !ok {
+		ring.Note = "checkpoint signature does not verify under the supplied anchor public key"
+		return ring
+	}
+	// Signature is authentic; bind it to the observed chain head.
+	switch {
+	case !haveHead:
+		ring.Note = "checkpoint is authentic but the chain head could not be read to bind it"
+	case signed.ChainID != headChainID:
+		ring.Note = fmt.Sprintf("checkpoint anchors chain %q but the receipts are chain %q", signed.ChainID, headChainID)
+	case signed.Sequence != int64(headSeq):
+		ring.Note = fmt.Sprintf("checkpoint anchors sequence %d but the chain head is sequence %d — possible tail truncation or a stale anchor", signed.Sequence, headSeq)
+	case signed.ReceiptHash != headHash:
+		ring.Note = "checkpoint head hash does not match the chain head receipt hash"
+	default:
+		ring.Trusted = true
+		ring.Note = "checkpoint is authentic and commits to this exact chain head"
+	}
+	return ring
 }
 
 // verdict folds the two rings into a single label without ever collapsing them:

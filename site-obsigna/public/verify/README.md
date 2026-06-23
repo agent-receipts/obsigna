@@ -20,8 +20,10 @@ page and its WebAssembly module load, it makes no network requests.
 - **Two verdicts, never collapsed.** Cryptographic consistency and
   external-anchor trust are reported separately. A cryptographically consistent
   but unanchored chain is a *qualified* pass, visually distinct from a *full*
-  pass. External-anchor verification is a tracked follow-up and is not yet
-  evaluated.
+  pass. Supplying a signed checkpoint and its anchor public key evaluates the
+  external-anchor ring: when the checkpoint verifies and commits to this chain's
+  head, the chain is a *full* pass. The anchor key is trusted separately from
+  the issuer key — anchoring is out-of-band by design (ADR-0008).
 
 ## Files
 
