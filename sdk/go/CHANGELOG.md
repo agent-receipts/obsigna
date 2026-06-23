@@ -11,6 +11,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Changed
+
+- **Published `go.mod` no longer lists `github.com/BurntSushi/toml` or `gopkg.in/yaml.v3` as indirect dependencies.** The emitter↔daemon end-to-end integration test moved to the daemon module (which already requires sdk/go, the correct dependency direction), removing sdk/go's test-only import of `obsigna.dev/daemon`. That import was the only thing pulling the daemon's transitive deps into sdk/go's manifest and the reason `go mod tidy` against the published SDK tried — and failed — to resolve `obsigna.dev/daemon` (ADR-0037). `go get obsigna.dev/sdk/go` now resolves a smaller, daemon-free graph, and the post-release README-snippet and daemon-protocol gates run clean.
+
 ## [0.22.0] - 2026-06-23
 
 Graduates `0.22.0-alpha.1` after the alpha pass. Ships the grounded-principal conformance tier (ADR-0038, spec §7.9): `GrantResolver` interface, `VerifyGroundedPrincipalTier`, `GroundedPrincipalViolation`, and `GroundedOutcome`.
