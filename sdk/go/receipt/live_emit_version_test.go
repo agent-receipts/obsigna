@@ -9,7 +9,7 @@ import "testing"
 // breaks that SDK's test in isolation, closing the gap surfaced by #512 where
 // the existing v030 cross-SDK byte-identicality tests load a pre-built JSON
 // fixture and never consult the SDK's VERSION constant.
-const liveEmitVersion = "0.5.0"
+const liveEmitVersion = "0.6.0"
 
 // TestCreateStampsCrossSDKVersion asserts that Create() stamps the
 // cross-SDK-agreed literal version string. This pins the SDK's Version

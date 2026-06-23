@@ -70,7 +70,7 @@ func commandTree() tree {
 					"show":         {"Print the full fields of a single receipt by sequence number.", showcli.Run},
 					"list":         {"List recent receipts from the store.", listcli.Run},
 					"verify-event": {"Verify one historical receipt's end-to-end pipeline provenance.", verifyeventcli.Run},
-					"disclose":     {"Decrypt a receipt's parameters_disclosure with the forensic key.", disclosecli.Run},
+					"disclose":     {"Decrypt a receipt's parameters_disclosure (or, with --response, response_disclosure) using the forensic key.", disclosecli.Run},
 				},
 			},
 			"keys": {

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Forensic response disclosure** ([#819](https://github.com/agent-receipts/obsigna/issues/819)) — a `--response-disclosure` policy flag (env `AGENTRECEIPTS_RESPONSE_DISCLOSURE`, TOML `response_disclosure`) that seals elected tool responses into `outcome.response_disclosure`, mirroring `--parameter-disclosure`. Same value space (`false|true|high|<action types>`), shares the single forensic key, and fires independently of parameter disclosure. `outcome.response_hash` remains the authoritative commitment; sealing is best-effort and falls back to hash-only on error. `obsigna receipt disclose --response` decrypts the response envelope. Receipts now stamp protocol version `0.6.0` / context v3 (sdk/go catch-up).
+
 ## [0.29.0] - 2026-06-23
 
 Graduates `0.29.0-alpha.1` after the alpha pass. No code changes since the alpha; this entry formally promotes the checkpoint anchor nil-guard hardening to stable.

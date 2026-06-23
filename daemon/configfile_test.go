@@ -41,6 +41,7 @@ chain_id = "prod"
 issuer_id = "did:agent-receipts-daemon:host"
 verification_method = "did:agent-receipts-daemon:host#k1"
 parameter_disclosure = "high"
+response_disclosure = ["fs.read", "net.http"]
 redact_patterns = "/etc/agent-receipts/redact.yaml"
 unsafe_socket_path = true
 shutdown_deadline = "500ms"
@@ -70,6 +71,9 @@ shutdown_deadline = "500ms"
 	}
 	if fc.ParameterDisclosure == nil || fc.ParameterDisclosure.Value != "high" {
 		t.Errorf("parameter_disclosure = %v", fc.ParameterDisclosure)
+	}
+	if fc.ResponseDisclosure == nil || fc.ResponseDisclosure.Value != "fs.read,net.http" {
+		t.Errorf("response_disclosure = %v, want fs.read,net.http", fc.ResponseDisclosure)
 	}
 	if fc.UnsafeSocketPath == nil || !*fc.UnsafeSocketPath {
 		t.Errorf("unsafe_socket_path = %v", fc.UnsafeSocketPath)

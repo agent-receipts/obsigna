@@ -321,6 +321,7 @@ func resolveConfig(args []string, getenv func(string) string, errOut io.Writer) 
 	fs.StringVar(&cfg.VerificationMethodID, "verification-method", cfg.VerificationMethodID, "proof.verificationMethod (env: AGENTRECEIPTS_VERIFICATION_METHOD)")
 	fs.StringVar(&cfg.AnchorLogPath, "anchor-log", cfg.AnchorLogPath, "Append-only external-witness log for rotation events (ADR-0015). When set, --rotate writes the rotation event here before committing locally; a write failure aborts the rotation. (env: AGENTRECEIPTS_ANCHOR_LOG)")
 	fs.StringVar(&cfg.ParameterDisclosure, "parameter-disclosure", cfg.ParameterDisclosure, "Which actions encrypt their parameters into parameters_disclosure (ADR-0012): false|true|high|<comma-separated action types>. Requires --forensic-public-key. (env: AGENTRECEIPTS_PARAMETER_DISCLOSURE)")
+	fs.StringVar(&cfg.ResponseDisclosure, "response-disclosure", cfg.ResponseDisclosure, "Which actions encrypt their tool response into outcome.response_disclosure (ADR-0012, spec v0.6.0+): false|true|high|<comma-separated action types>. Independent of --parameter-disclosure; requires --forensic-public-key. (env: AGENTRECEIPTS_RESPONSE_DISCLOSURE)")
 	fs.BoolVar(&cfg.UnsafeSocketPath, "unsafe-socket-path", cfg.UnsafeSocketPath, "Permit a --socket/AGENTRECEIPTS_SOCKET path outside the per-platform safe set (logs a warning; does not override TCP rejection) (env: AGENTRECEIPTS_UNSAFE_SOCKET_PATH)")
 	fs.StringVar(&cfg.RedactPatternsPath, "redact-patterns", cfg.RedactPatternsPath, "Path to a YAML file of additional redaction patterns (merged with built-in defaults) (env: AGENTRECEIPTS_REDACT_PATTERNS)")
 	fs.DurationVar(&cfg.ShutdownDeadline, "shutdown-deadline", cfg.ShutdownDeadline, "Best-effort time budget for emitting interrupted-chain terminators on SIGTERM/SIGINT (cannot preempt in-progress SQLite I/O)")
@@ -497,6 +498,9 @@ func applyFileConfig(cfg *daemon.Config, fc *daemon.FileConfig) {
 	if fc.ParameterDisclosure != nil {
 		cfg.ParameterDisclosure = fc.ParameterDisclosure.Value
 	}
+	if fc.ResponseDisclosure != nil {
+		cfg.ResponseDisclosure = fc.ResponseDisclosure.Value
+	}
 	if fc.UnsafeSocketPath != nil {
 		cfg.UnsafeSocketPath = *fc.UnsafeSocketPath
 	}
@@ -557,6 +561,9 @@ func envOverlay(cfg *daemon.Config, getenv func(string) string) error {
 	}
 	if v := getenv("AGENTRECEIPTS_PARAMETER_DISCLOSURE"); v != "" {
 		cfg.ParameterDisclosure = v
+	}
+	if v := getenv("AGENTRECEIPTS_RESPONSE_DISCLOSURE"); v != "" {
+		cfg.ResponseDisclosure = v
 	}
 	if v := getenv("AGENTRECEIPTS_UNSAFE_SOCKET_PATH"); v != "" {
 		b, err := strconv.ParseBool(v)
@@ -621,6 +628,7 @@ func printConfig(w io.Writer, cfg daemon.Config) {
 	fmt.Fprintf(w, "issuer_id = %q\n", cfg.IssuerID)
 	fmt.Fprintf(w, "verification_method = %q\n", cfg.VerificationMethodID)
 	fmt.Fprintf(w, "parameter_disclosure = %q\n", cfg.ParameterDisclosure)
+	fmt.Fprintf(w, "response_disclosure = %q\n", cfg.ResponseDisclosure)
 	fmt.Fprintf(w, "redact_patterns = %q\n", cfg.RedactPatternsPath)
 	fmt.Fprintf(w, "unsafe_socket_path = %t\n", cfg.UnsafeSocketPath)
 	fmt.Fprintf(w, "shutdown_deadline = %q\n", cfg.ShutdownDeadline.String())

@@ -11,7 +11,7 @@ import (
 
 // Protocol constants (unexported to prevent mutation).
 var (
-	protocolContext        = []string{"https://www.w3.org/ns/credentials/v2", "https://agentreceipts.ai/context/v2"}
+	protocolContext        = []string{"https://www.w3.org/ns/credentials/v2", "https://agentreceipts.ai/context/v3"}
 	protocolCredentialType = []string{"VerifiableCredential", "AgentReceipt"}
 )
 
@@ -21,7 +21,7 @@ func Context() []string { return append([]string{}, protocolContext...) }
 // CredentialType returns a copy of the credential type array.
 func CredentialType() []string { return append([]string{}, protocolCredentialType...) }
 
-const Version = "0.5.0"
+const Version = "0.6.0"
 
 // RiskLevel classifies the security risk of an action. It aliases risk.Level
 // (the receipt-free leaf type) so callers that must classify tool calls without
@@ -310,6 +310,12 @@ type Outcome struct {
 	ReversalOf            string        `json:"reversal_of,omitempty"`
 	StateChange           *StateChange  `json:"state_change,omitempty"`
 	ResponseHash          string        `json:"response_hash,omitempty"`
+	// ResponseDisclosure seals the tool response in a v1 HPKE envelope (ADR-0012,
+	// spec v0.6.0+), mirroring Action.ParametersDisclosure for the output side.
+	// ResponseHash remains the authoritative tamper-evidence commitment; this field
+	// is additive and recoverable only by the forensic private-key holder. Omitted
+	// when the issuer did not enable response disclosure.
+	ResponseDisclosure *DisclosureEnvelope `json:"response_disclosure,omitempty"`
 }
 
 // Authorization captures the scope and expiry of an action.
