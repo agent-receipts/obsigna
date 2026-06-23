@@ -23,13 +23,9 @@ package crosssdk_test
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
-	"errors"
-	"fmt"
 	"os"
 	"testing"
 
@@ -123,7 +119,7 @@ func TestV030VectorsValidateAgainstSchema(t *testing.T) {
 func TestV030ReceiptHashAndSignature(t *testing.T) {
 	f := loadV030(t)
 
-	pub, err := parseEd25519PublicPEMTest(f.Keys.PublicKey)
+	pub, err := receipt.ParsePublicKey(f.Keys.PublicKey)
 	if err != nil {
 		t.Fatalf("parse public key: %v", err)
 	}
@@ -191,22 +187,4 @@ func TestV030ReceiptHashAndSignature(t *testing.T) {
 			}
 		})
 	}
-}
-
-// parseEd25519PublicPEMTest is duplicated locally so the test does not depend
-// on unexported helpers in sdk/go/receipt. It mirrors signing.go's parser.
-func parseEd25519PublicPEMTest(pemStr string) (ed25519.PublicKey, error) {
-	block, _ := pem.Decode([]byte(pemStr))
-	if block == nil {
-		return nil, errors.New("decode PEM public key: no PEM block found")
-	}
-	key, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse SPKI public key: %w", err)
-	}
-	edKey, ok := key.(ed25519.PublicKey)
-	if !ok {
-		return nil, errors.New("public key is not Ed25519")
-	}
-	return edKey, nil
 }

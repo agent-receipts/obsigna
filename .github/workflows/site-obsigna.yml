@@ -6,13 +6,13 @@ on:
     # The blog source of truth lives in site/; sync-blog.mjs mirrors it into
     # this site at build time. Without site/blog paths here, a blog-only edit
     # never retriggers an obsigna.dev rebuild, leaving the mirror stale.
-    # The /verify WASM verifier is built from the Go core (sdk/go) plus its
-    # wrapper (cross-sdk-tests/verifier, cmd/verify-wasm) and build script, so a
-    # change to any of those must redeploy obsigna.dev to keep the binary fresh.
-    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, sdk/ts/**, sdk/py/**, mcp-proxy/**, hook/**, cross-sdk-tests/verifier/**, cross-sdk-tests/cmd/verify-wasm/**, scripts/build-verify-wasm.sh]
+    # The /verify WASM verifier is built from the Go core (sdk/go) plus the
+    # web-verifier module and build script, so a change to any of those must
+    # redeploy obsigna.dev to keep the binary fresh.
+    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, sdk/ts/**, sdk/py/**, mcp-proxy/**, hook/**, web-verifier/**, scripts/build-verify-wasm.sh]
   pull_request:
     branches: [main]
-    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, cross-sdk-tests/verifier/**, cross-sdk-tests/cmd/verify-wasm/**, scripts/build-verify-wasm.sh]
+    paths: [site-obsigna/**, site/src/content/docs/blog/**, site/public/blog/**, sdk/go/**, web-verifier/**, scripts/build-verify-wasm.sh]
   # Manual rebuild — e.g. to resync the blog mirror after a missed trigger.
   workflow_dispatch:
 

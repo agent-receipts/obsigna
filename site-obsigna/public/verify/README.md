@@ -8,8 +8,8 @@ page and its WebAssembly module load, it makes no network requests.
 
 - **One verification implementation.** The cryptographic checks
   (JCS/RFC 8785 canonicalization, Ed25519 signature verification, hash-chain
-  walking) run in `obsigna-verify.wasm`, compiled from
-  `cross-sdk-tests/cmd/verify-wasm`, which wraps `obsigna.dev/sdk/go/receipt` —
+  walking) run in `obsigna-verify.wasm`, compiled from the `web-verifier`
+  module (`web-verifier/cmd/wasm`), which wraps `obsigna.dev/sdk/go/receipt` —
   the same core as the `obsigna receipt verify` CLI. There is no JavaScript
   reimplementation of any verification step; `verify.js` only marshals input and
   renders output.
@@ -29,7 +29,7 @@ page and its WebAssembly module load, it makes no network requests.
 |------|--------|-----------|
 | `index.html`, `styles.css`, `verify.js` | hand-written UI (no verification logic) | yes |
 | `examples.js` | public test fixtures from `cross-sdk-tests/v0*_vectors.json` | yes |
-| `obsigna-verify.wasm` | built from `cross-sdk-tests/cmd/verify-wasm` | **no — generated** |
+| `obsigna-verify.wasm` | built from `web-verifier/cmd/wasm` | **no — generated** |
 | `wasm_exec.js` | copied from the Go toolchain (`$GOROOT/lib/wasm/`) | **no — generated** |
 
 The two generated files are produced fresh from source at build/deploy time (see

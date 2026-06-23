@@ -75,7 +75,7 @@ func verifyRotationEvent(activeKeyPEM string, kr *KeyRotation) (newKeyPEM string
 		return "", fmt.Errorf("unsupported new_algorithm %q: only %q is supported", kr.NewAlgorithm, algorithmEd25519)
 	}
 
-	outRaw, err := parsePublicKey(activeKeyPEM)
+	outRaw, err := ParsePublicKey(activeKeyPEM)
 	if err != nil {
 		return "", fmt.Errorf("parse outgoing key: %w", err)
 	}

@@ -194,7 +194,7 @@ func verifyCanonical(canonical, proofType, proofValue, publicKeyPEM string) (boo
 		return false, fmt.Errorf("invalid signature length: got %d, want %d", len(signature), ed25519.SignatureSize)
 	}
 
-	pubKey, err := parsePublicKey(publicKeyPEM)
+	pubKey, err := ParsePublicKey(publicKeyPEM)
 	if err != nil {
 		return false, err
 	}
@@ -218,7 +218,12 @@ func parsePrivateKey(pemStr string) (ed25519.PrivateKey, error) {
 	return edKey, nil
 }
 
-func parsePublicKey(pemStr string) (ed25519.PublicKey, error) {
+// ParsePublicKey decodes a PEM-encoded SPKI Ed25519 public key. It is the
+// single shared parser for the only key format the protocol accepts, exported
+// so callers that must validate a public key at a trust boundary (e.g. the
+// browser verifier) do not hand-roll their own pem/x509/ed25519 decode. It
+// returns an error if the input is not PEM, not a valid SPKI key, or not Ed25519.
+func ParsePublicKey(pemStr string) (ed25519.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemStr))
 	if block == nil {
 		return nil, errors.New("failed to decode PEM public key")

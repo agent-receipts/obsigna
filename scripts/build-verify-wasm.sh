@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Build the obsigna.dev/verify browser verifier.
 #
-# Compiles the single Go verify core (cross-sdk-tests/cmd/verify-wasm, which
-# wraps obsigna.dev/sdk/go/receipt — the same code as `obsigna receipt verify`)
-# to GOOS=js GOARCH=wasm and stages it, plus the toolchain's matching
-# wasm_exec.js loader, into the site's public dir. The CLI<->WASM conformance
-# gate (cross-sdk-tests/verify_wasm_gate_test.go) pins the same wrapper, so the
+# Compiles the single Go verify core (web-verifier/cmd/wasm, which wraps
+# obsigna.dev/sdk/go/receipt — the same code as `obsigna receipt verify`) to
+# GOOS=js GOARCH=wasm and stages it, plus the toolchain's matching wasm_exec.js
+# loader, into the site's public dir. The CLI<->WASM conformance gate
+# (cross-sdk-tests/verify_wasm_gate_test.go) pins the same wrapper, so the
 # deployed binary can never diverge from the verifier the gate checks.
 #
 # Outputs are generated, not committed (see .gitignore). Run this before
@@ -19,8 +19,8 @@ out_dir="$repo_root/site-obsigna/public/verify"
 mkdir -p "$out_dir"
 
 echo "building browser verifier -> $out_dir/obsigna-verify.wasm"
-( cd "$repo_root/cross-sdk-tests" && GOOS=js GOARCH=wasm go build -trimpath \
-    -o "$out_dir/obsigna-verify.wasm" ./cmd/verify-wasm )
+( cd "$repo_root/web-verifier" && GOOS=js GOARCH=wasm go build -trimpath \
+    -o "$out_dir/obsigna-verify.wasm" ./cmd/wasm )
 
 # Fail loudly on an empty/truncated artifact rather than deploying a /verify
 # page that 404s or fails to instantiate with no CI signal.

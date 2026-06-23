@@ -5,7 +5,7 @@
 // the Go verify core in obsigna.dev/sdk/go/receipt. It deliberately implements
 // NONE of those steps itself: the same receipt.VerifyRaw / receipt.VerifyChain
 // functions power `obsigna receipt verify`, so the browser and the CLI can never
-// drift. The WASM gate (verify_wasm_gate_test.go) compiles this package to
+// drift. The conformance gate (in cross-sdk-tests) compiles this package to
 // GOOS=wasip1 GOARCH=wasm and asserts that the compiled output is byte-identical
 // to a native call on the full conformance-vector corpus.
 //
@@ -23,10 +23,7 @@ package verifier
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"io"
 	"strings"
@@ -35,8 +32,7 @@ import (
 )
 
 // Input modes. "single" verifies one receipt's signature; "chain" verifies a
-// linked sequence (JSON array or JSONL). The reserved "chain-anchored" mode is
-// the tracked follow-up for external-anchor proofs and is not yet evaluated.
+// linked sequence (JSON array or JSONL).
 const (
 	ModeSingle = "single"
 	ModeChain  = "chain"
@@ -132,12 +128,13 @@ func evaluate(req Request) Result {
 	// Boundary validation: the public key is a trust boundary. Parsing it here
 	// (not a verification step — no canonicalization, signature, or hash work)
 	// lets us cleanly separate a usage error (bad/absent key → ERROR) from a
-	// receipt that genuinely fails to verify (→ FAIL).
+	// receipt that genuinely fails to verify (→ FAIL). receipt.ParsePublicKey is
+	// the SDK's single shared parser for the only key format the protocol accepts.
 	if strings.TrimSpace(req.PublicKey) == "" {
 		return errorResult(mode, inputKind,
 			"a public key is required: receipt signatures are verified against the issuer's Ed25519 public key, which you must obtain out of band")
 	}
-	if err := validatePublicKey(req.PublicKey); err != nil {
+	if _, err := receipt.ParsePublicKey(req.PublicKey); err != nil {
 		return errorResult(mode, inputKind, "invalid public key: "+err.Error())
 	}
 
@@ -309,23 +306,6 @@ func inferMode(text string) string {
 		}
 	}
 	return ModeSingle
-}
-
-// validatePublicKey checks that pemStr is a PEM-encoded SPKI Ed25519 public key.
-// This is input validation at a trust boundary, not a verification step.
-func validatePublicKey(pemStr string) error {
-	block, _ := pem.Decode([]byte(pemStr))
-	if block == nil {
-		return errors.New("not PEM-encoded")
-	}
-	key, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return errors.New("not a valid SPKI public key")
-	}
-	if _, ok := key.(ed25519.PublicKey); !ok {
-		return errors.New("not an Ed25519 key (Ed25519 is the only supported algorithm)")
-	}
-	return nil
 }
 
 func errorResult(mode, inputKind, msg string) Result {

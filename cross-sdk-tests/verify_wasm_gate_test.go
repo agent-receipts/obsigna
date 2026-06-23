@@ -4,7 +4,7 @@ package crosssdk_test
 
 // Conformance gate for the browser verifier (obsigna.dev/verify).
 //
-// It compiles cmd/verify-wasm-cli to GOOS=wasip1 GOARCH=wasm — the same
+// It compiles web-verifier/cmd/wasm-cli to GOOS=wasip1 GOARCH=wasm — the same
 // verifier.Run that the GOOS=js GOARCH=wasm browser build runs — executes it
 // under wazero, and asserts its output is BYTE-IDENTICAL to a native
 // verifier.Run call on every conformance vector. Both paths delegate to the Go
@@ -32,7 +32,7 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"github.com/tetratelabs/wazero/sys"
 
-	"obsigna.dev/cross-sdk-tests/verifier"
+	"obsigna.dev/web-verifier/verifier"
 )
 
 // request mirrors verifier.Request without importing it as the public wire
@@ -292,7 +292,10 @@ func newWASMRunner(t *testing.T) *wasmRunner {
 	t.Helper()
 
 	wasmPath := filepath.Join(t.TempDir(), "verify-wasm-cli.wasm")
-	build := exec.Command("go", "build", "-trimpath", "-o", wasmPath, "./cmd/verify-wasm-cli")
+	// Build the production browser verifier's WASI twin from the web-verifier
+	// module (resolved via the repo-root go.work) — the same verifier.Run the
+	// GOOS=js GOARCH=wasm browser build runs.
+	build := exec.Command("go", "build", "-trimpath", "-o", wasmPath, "obsigna.dev/web-verifier/cmd/wasm-cli")
 	build.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build wasip1 verifier: %v\n%s", err, out)

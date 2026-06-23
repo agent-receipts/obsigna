@@ -8,4 +8,5 @@ use (
 	./mcp-proxy
 	./sdk/go
 	./sdk/go/aws
+	./web-verifier
 )
