@@ -10,9 +10,14 @@
 // daemon-local sink/log machinery.
 package checkpoint
 
-import sdk "obsigna.dev/sdk/go/checkpoint"
+import (
+	"crypto/ed25519"
 
-// Portable checkpoint types and crypto, re-exported from the SDK. See
+	sdk "obsigna.dev/sdk/go/checkpoint"
+)
+
+// Portable checkpoint types, re-exported from the SDK so the daemon's emitter,
+// reader, and callers keep one `checkpoint.*` surface. See
 // obsigna.dev/sdk/go/checkpoint for the design constraints (ADR-0008).
 type (
 	Checkpoint = sdk.Checkpoint
@@ -20,8 +25,14 @@ type (
 	Signer     = sdk.Signer
 )
 
-var (
-	Sign             = sdk.Sign
-	Verify           = sdk.Verify
-	PublicKeyFromPEM = sdk.PublicKeyFromPEM
-)
+// Sign, Verify, and PublicKeyFromPEM delegate to the SDK. They are thin wrapper
+// functions rather than var aliases so the crypto entrypoints stay immutable
+// (a var would let any importer reassign them) and function-shaped for docs and
+// grep.
+func Sign(cp Checkpoint, signer Signer) (Signed, error) { return sdk.Sign(cp, signer) }
+
+func Verify(s Signed, publicKeyPEM string) (bool, error) { return sdk.Verify(s, publicKeyPEM) }
+
+func PublicKeyFromPEM(publicKeyPEM []byte) (ed25519.PublicKey, error) {
+	return sdk.PublicKeyFromPEM(publicKeyPEM)
+}
