@@ -46,7 +46,7 @@ jobs:
       - name: Request pkg.go.dev indexing
         run: |
           VERSION="${GITHUB_REF_NAME#sdk/go/v}"
-          URL="https://proxy.golang.org/github.com/agent-receipts/ar/sdk/go/@v/v${VERSION}.info"
+          URL="https://proxy.golang.org/obsigna.dev/sdk/go/@v/v${VERSION}.info"
           succeeded=false
           for attempt in 1 2 3; do
             if curl -fsS "$URL"; then succeeded=true; break; fi

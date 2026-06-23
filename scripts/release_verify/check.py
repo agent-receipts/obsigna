@@ -44,7 +44,7 @@ import time
 # Constants
 # ---------------------------------------------------------------------------
 
-GO_MODULE = "github.com/agent-receipts/ar/sdk/go"
+GO_MODULE = "obsigna.dev/sdk/go"
 TS_PACKAGE = "@obsigna/sdk-ts"
 PY_PACKAGE = "obsigna"
 
@@ -191,7 +191,7 @@ def _parse_go_list_version(output: str) -> str | None:
     """Extract the version (without the leading 'v') from `go list -m` output.
 
     `go list -m` prints lines like:
-        github.com/agent-receipts/ar/sdk/go v0.12.0
+        obsigna.dev/sdk/go v0.12.0
 
     Returns the bare semver string (e.g. "0.12.0"), or None if not found.
     """
@@ -200,7 +200,7 @@ def _parse_go_list_version(output: str) -> str | None:
 
 
 def verify_go(version: str, workdir: str) -> int:
-    """Fetch github.com/agent-receipts/ar/sdk/go@vVERSION from the Go proxy
+    """Fetch obsigna.dev/sdk/go@vVERSION from the Go proxy
     and confirm the resolved version."""
     go_mod = [
         "module example.com/release-verify\n",
