@@ -1,28 +1,26 @@
 //go:build integration && (linux || darwin)
 
-// Tests run end-to-end against an in-process agent-receipts daemon.
+// End-to-end tests of the Go SDK emitter against an in-process daemon.
+//
+// These live in the daemon module — not in sdk/go — because the SDK is the
+// lower layer: the daemon requires sdk/go, so an emitter↔daemon test belongs
+// on the daemon side where importing both is the natural dependency direction.
+// Keeping it here means sdk/go's published module graph never references
+// obsigna.dev/daemon, so `go mod tidy` against the published SDK stays clean
+// (ADR-0037). The daemon module already hosts the other emitter integration
+// tests and shares their helpers (startEmitterDaemon, writeTestKey,
+// waitForReceiptCount, sockettest.ShortSocketDir).
 //
 // Build-tag-gated to:
-//   - integration: the test imports obsigna.dev/daemon, but
-//     sdk/go's published go.mod cannot require the daemon module — daemon
-//     already requires sdk/go, and a back-edge would create an import cycle.
-//     Under GOWORK=off (publish/verify path) the import would fail to resolve,
-//     so the integration tag keeps the test out of the default `go test ./...`
-//     run and pulls it in only via `go test -tags=integration` where go.work
-//     wires the two modules locally. Matches sdk/go/integration_test.go and
-//     sdk/go/cross_language_test.go which gate the same way for the same
-//     reason.
+//   - integration: boots a real daemon; daemon CI runs `go test -tags=integration`.
 //   - linux/darwin: the emitter speaks AF_UNIX and the daemon refuses to start
-//     on other platforms — running these tests on a Windows builder would fail
-//     at daemon.Run, not at the emitter we want to exercise.
-package emitter_test
+//     on other platforms — running these on a Windows builder would fail at
+//     daemon.Run, not at the emitter we want to exercise.
+package daemon_test
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"io"
 	"log"
@@ -36,50 +34,13 @@ import (
 	"time"
 
 	"obsigna.dev/daemon"
+	"obsigna.dev/daemon/internal/sockettest"
 	"obsigna.dev/sdk/go/emitter"
 	"obsigna.dev/sdk/go/receipt"
 	"obsigna.dev/sdk/go/store"
 )
 
-// shortSocketDir returns a temp directory whose path is short enough that a
-// socket filename inside it fits within the 104-byte AF_UNIX sun_path limit
-// on macOS. t.TempDir() on macOS produces ~119-char paths under
-// /var/folders/..., which exceed the limit and trip `bind: invalid argument`.
-//
-// Daemon-side tests use daemon/internal/sockettest.ShortSocketDir for the
-// same reason; that helper lives in an internal package and is not
-// importable from sdk/go, so this file inlines the same logic.
-func shortSocketDir(t *testing.T) string {
-	t.Helper()
-	base := "/tmp"
-	if _, err := os.Stat(base); err != nil {
-		base = os.TempDir()
-	}
-	dir, err := os.MkdirTemp(base, "ar*")
-	if err != nil {
-		t.Fatalf("MkdirTemp: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return dir
-}
-
-func writeTestKey(t *testing.T, path string) {
-	t.Helper()
-	_, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	der, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
-	if err := os.WriteFile(path, pemBytes, 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-type daemonHandle struct {
+type emitterDaemonHandle struct {
 	cfg      daemon.Config
 	cancel   context.CancelFunc
 	done     <-chan error
@@ -87,7 +48,7 @@ type daemonHandle struct {
 	stopErr  error
 }
 
-func startDaemon(t *testing.T, dir string) *daemonHandle {
+func startEmitterDaemon(t *testing.T, dir string) *emitterDaemonHandle {
 	t.Helper()
 	cfg := daemon.Config{
 		SocketPath: filepath.Join(dir, "events.sock"),
@@ -132,7 +93,7 @@ func startDaemon(t *testing.T, dir string) *daemonHandle {
 		}
 	}
 
-	d := &daemonHandle{cfg: cfg, cancel: cancel, done: done}
+	d := &emitterDaemonHandle{cfg: cfg, cancel: cancel, done: done}
 	t.Cleanup(func() { d.stop(t) })
 	return d
 }
@@ -140,8 +101,8 @@ func startDaemon(t *testing.T, dir string) *daemonHandle {
 // stop shuts the daemon down deterministically and waits for Run to return.
 // Idempotent via sync.Once so tests that explicitly stop a daemon mid-test
 // (TestEmit_ReconnectAfterDaemonRestart) do not race the t.Cleanup
-// registered by startDaemon — both paths converge on a single shutdown.
-func (d *daemonHandle) stop(t *testing.T) {
+// registered by startEmitterDaemon — both paths converge on a single shutdown.
+func (d *emitterDaemonHandle) stop(t *testing.T) {
 	t.Helper()
 	d.stopOnce.Do(func() {
 		d.cancel()
@@ -166,28 +127,6 @@ func (d *daemonHandle) stop(t *testing.T) {
 	}
 }
 
-func waitForReceiptCount(t *testing.T, dbPath, chainID string, want int, timeout time.Duration) []receipt.AgentReceipt {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for {
-		s, err := store.OpenReadOnly(dbPath)
-		if err != nil {
-			t.Fatalf("open store: %v", err)
-		}
-		got, err := s.GetChain(chainID)
-		if cerr := s.Close(); cerr != nil {
-			t.Logf("close store: %v", cerr)
-		}
-		if err == nil && len(got) >= want {
-			return got
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %d receipts in chain %s; got %d (err=%v)", want, chainID, len(got), err)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-}
-
 // silentLogger discards every log line so the fire-and-forget drop logs
 // do not pollute test output. Shared across tests rather than reallocated
 // per-call — the handler has no per-test state.
@@ -198,7 +137,7 @@ var silentLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 // chain, with monotonic sequence and the channel/tool/decision values the
 // emitter sent.
 func TestEmit_FrameRoundTrip(t *testing.T) {
-	d := startDaemon(t, shortSocketDir(t))
+	d := startEmitterDaemon(t, sockettest.ShortSocketDir(t))
 
 	em, err := emitter.NewDaemon(
 		emitter.WithSocketPath(d.cfg.SocketPath),
@@ -250,7 +189,7 @@ func TestEmit_FrameRoundTrip(t *testing.T) {
 // generated a fresh UUID per emit would fragment a logical agent session
 // into N receipts with N session_ids.
 func TestEmit_SessionIDStableAcrossEmits(t *testing.T) {
-	d := startDaemon(t, shortSocketDir(t))
+	d := startEmitterDaemon(t, sockettest.ShortSocketDir(t))
 
 	em, err := emitter.NewDaemon(
 		emitter.WithSocketPath(d.cfg.SocketPath),
@@ -293,7 +232,7 @@ func TestEmit_SessionIDStableAcrossEmits(t *testing.T) {
 // starts re-marshalling Input, one of the two payloads would canonicalise
 // to a different byte stream than the other, breaking this property.
 func TestEmit_HashDeterminism(t *testing.T) {
-	d := startDaemon(t, shortSocketDir(t))
+	d := startEmitterDaemon(t, sockettest.ShortSocketDir(t))
 
 	em, err := emitter.NewDaemon(
 		emitter.WithSocketPath(d.cfg.SocketPath),
@@ -334,7 +273,7 @@ func TestEmit_HashDeterminism(t *testing.T) {
 // socket path does not exist on disk. (The default surface-error behaviour is
 // covered by the unit tests in emitter_unix_test.go.)
 func TestEmit_BestEffortWhenDaemonDown(t *testing.T) {
-	dir := shortSocketDir(t)
+	dir := sockettest.ShortSocketDir(t)
 	socketPath := filepath.Join(dir, "no-such-daemon.sock")
 
 	em, err := emitter.NewDaemon(
@@ -371,8 +310,8 @@ func TestEmit_BestEffortWhenDaemonDown(t *testing.T) {
 // session_id the emitter started with. Without lazy re-dial after a write
 // failure, every post-restart Emit would silently drop forever.
 func TestEmit_ReconnectAfterDaemonRestart(t *testing.T) {
-	dir := shortSocketDir(t)
-	d1 := startDaemon(t, dir)
+	dir := sockettest.ShortSocketDir(t)
+	d1 := startEmitterDaemon(t, dir)
 
 	// WithBestEffort so the stale-connection write failure on the first
 	// post-restart Emit returns nil and the reconnect loop keeps going
@@ -407,7 +346,7 @@ func TestEmit_ReconnectAfterDaemonRestart(t *testing.T) {
 	// path. The second daemon resumes the existing chain (ADR-0010 OQ2:
 	// the daemon resumes from GetChainTail).
 	d1.stop(t)
-	d2 := startDaemon(t, dir)
+	d2 := startEmitterDaemon(t, dir)
 
 	// Loop until reconnect lands a receipt. The emitter holds a stale
 	// connection from daemon 1; the first Emit may fail at write time,
@@ -467,8 +406,8 @@ func TestEmit_ReconnectAfterDaemonRestart(t *testing.T) {
 // silently dropping. A silent post-Close drop would mask use-after-close
 // bugs in the caller (e.g. a deferred Emit firing after Close).
 func TestEmit_ReturnsErrorAfterClose(t *testing.T) {
-	dir := shortSocketDir(t)
-	d := startDaemon(t, dir)
+	dir := sockettest.ShortSocketDir(t)
+	d := startEmitterDaemon(t, dir)
 
 	em, err := emitter.NewDaemon(
 		emitter.WithSocketPath(d.cfg.SocketPath),
@@ -622,7 +561,7 @@ func TestEmit_RejectsOversizeTargetFields(t *testing.T) {
 // integration scenario where a host (Claude Code, an agent loop) owns
 // the session identifier and the emitter must propagate it untouched.
 func TestEmit_WithSessionIDOverride(t *testing.T) {
-	d := startDaemon(t, shortSocketDir(t))
+	d := startEmitterDaemon(t, sockettest.ShortSocketDir(t))
 
 	const hostSession = "host-supplied-session-9f3a"
 	em, err := emitter.NewDaemon(
