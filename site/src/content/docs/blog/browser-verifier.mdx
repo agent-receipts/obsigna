@@ -1,0 +1,49 @@
+---
+title: "Run the check yourself: a browser verifier for Agent Receipts"
+description: "A client-side verifier at obsigna.dev/verify: paste a receipt or a chain and check its signatures, hash chain, and JCS canonicalization in the browser. The cryptographic checks run in WebAssembly compiled from the same Go verify core as the obsigna receipt verify CLI, with a CI gate pinning the WASM and native builds of that core byte-identical, and nothing you paste leaves the machine."
+head:
+  - tag: link
+    attrs:
+      rel: canonical
+      href: https://agentreceipts.ai/blog/browser-verifier/
+---
+
+_Published 2026-06-24_
+
+---
+
+The verifier at [obsigna.dev/verify/](https://obsigna.dev/verify/) checks an Agent Receipt, or a whole chain, in the browser. Paste the JSON, paste the issuer's public key, and it reports whether the signatures hold, the hash chain is unbroken, and the JCS (RFC 8785) canonicalization is correct. No install, no account, no upload.
+
+The reason to trust the answer is what runs underneath it. The cryptographic checks are not a JavaScript reimplementation of the protocol. They are the Go verify core in `sdk/go/receipt` — the same `VerifyRaw` and `VerifyChain` functions that back `obsigna receipt verify` — compiled to WebAssembly and loaded into the page. There is one verification implementation in this project, and the browser runs it unchanged.
+
+A CI gate keeps it that way. The conformance-vector corpus is run through both the native build and the WASM build of that core, and the two outputs are asserted byte-identical, so the browser and the core cannot drift. `obsigna receipt verify` is built on that same core, so the cryptographic checks the CLI runs and the ones the browser runs are the same code, kept in step by a test that has to pass.
+
+## Nothing leaves the machine
+
+Receipts and keys you paste are never uploaded and never stored, not on a server and not in browser storage. Once the page and the WASM module have loaded, the verifier makes no network calls. You can confirm that: open the devtools Network tab, clear the log, run a verification, and watch no new requests appear. The check happens in the tab, against bytes that never go anywhere.
+
+## What a pass actually means
+
+A signature check proves consistency under the public key you supply. A valid signature says the chain is internally consistent under that key. It does not say who the key belongs to. Key trust is out of band, and the verifier is explicit about which question it has answered. We frame the result as three rings.
+
+| Ring | Question | What /verify does |
+|---|---|---|
+| 1 — Cryptographic consistency | Are the signatures valid, the hash chain unbroken, the canonicalization correct? | Delivered. This is the qualified pass. |
+| 2 — External-anchor trust | Is the chain head corroborated by something outside the chain? | Evaluated when you supply a signed checkpoint and its key. A match lifts the verdict to full. |
+| 3 — Legal admissibility | Is this evidence a court or regulator would accept? | Out of scope. No claim made. |
+
+![The obsigna.dev/verify result panel showing a green FULL PASS verdict, "Cryptographically consistent and externally anchored," above two cards: "Cryptographic consistency: Pass" (ring 1) and "External-anchor trust: Anchored" (ring 2).](/blog/verify-full-pass.png)
+
+_A full pass: ring 1 (cryptographic consistency) and ring 2 (external-anchor trust) both satisfied. With no anchor supplied, the same chain clears ring 1 alone and the verdict reads as a qualified pass._
+
+**Ring 1** is the floor. Signatures verify, hash links join, canonicalization matches. A chain that clears ring 1 and nothing more is a _qualified_ pass: internally consistent, not externally corroborated.
+
+**Ring 2** is what separates a qualified pass from a full one. Supply a signed checkpoint that commits to the chain head, plus the anchor key it was signed under, and the verifier checks the checkpoint signature and binds it to the head: same chain id, same sequence, same head hash. An authentic, matching checkpoint raises the verdict to full. The anchor key is yours to obtain and trust. The tool verifies the checkpoint you hand it; it does not vouch for who issued it or tell you whether that issuer deserves your trust.
+
+**Ring 3** is a different layer, and the verifier makes no claim on it. It does not assert admissibility, and it does not attribute any action to a real-world person, organization, or agent identity. A receipt names an issuer key and a principal; what those map to in the world is outside what cryptography settles here.
+
+The tool proves ring 1, evaluates ring 2 against an anchor you already trust, and refuses ring 3. The [trust model](https://agentreceipts.ai/specification/trust-model/) and [receipt chain verification](https://agentreceipts.ai/specification/receipt-chain-verification/) pages on agentreceipts.ai carry the full detail of where each ring's authority starts and stops.
+
+## Why a browser tool
+
+Non-repudiation needs a check an outsider can run independently. A browser tool with no install and no server dependency is the strongest form of that. Verifying a chain does not require trusting Obsigna's infrastructure, because nothing leaves the machine and the core running in the tab is the same one an auditor runs on the [`obsigna receipt verify`](https://obsigna.dev/reference/cli-commands/#obsigna-receipt-verify) CLI. Open [the verifier](https://obsigna.dev/verify/), paste a chain, and check it yourself.
