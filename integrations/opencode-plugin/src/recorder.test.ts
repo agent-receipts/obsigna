@@ -96,6 +96,92 @@ describe("ReceiptRecorder — one receipt per native tool call", () => {
 	});
 });
 
+describe("ReceiptRecorder — file-identity target", () => {
+	it.each([
+		"edit",
+		"write",
+		"read",
+	])("sets a filesystem target from filePath for %s", async (tool) => {
+		const { recorder, emitters } = harness();
+		await recorder.recordResult({
+			tool,
+			sessionID: "s1",
+			callID: "c1",
+			args: { filePath: "src/recorder.ts" },
+		});
+		expect(emitters.get("s1")?.events[0]?.target).toEqual({
+			system: "filesystem",
+			resource: "src/recorder.ts",
+		});
+	});
+
+	it("trims surrounding whitespace from the resource path", async () => {
+		const { recorder, emitters } = harness();
+		await recorder.recordResult({
+			tool: "write",
+			sessionID: "s1",
+			callID: "c1",
+			args: { filePath: "  a.ts  " },
+		});
+		expect(emitters.get("s1")?.events[0]?.target).toEqual({
+			system: "filesystem",
+			resource: "a.ts",
+		});
+	});
+
+	it("leaves target unset for a tool with no filePath (bash command)", async () => {
+		const { recorder, emitters } = harness();
+		await recorder.recordResult({
+			tool: "bash",
+			sessionID: "s1",
+			callID: "c1",
+			args: { command: "go test ./..." },
+		});
+		expect(emitters.get("s1")?.events[0]?.target).toBeUndefined();
+	});
+
+	it("leaves target unset for grep (pattern arg, no filePath)", async () => {
+		const { recorder, emitters } = harness();
+		await recorder.recordResult({
+			tool: "grep",
+			sessionID: "s1",
+			callID: "c1",
+			args: { pattern: "TODO" },
+		});
+		expect(emitters.get("s1")?.events[0]?.target).toBeUndefined();
+	});
+
+	it("leaves target unset for an empty or whitespace filePath", async () => {
+		const { recorder, emitters } = harness();
+		await recorder.recordResult({
+			tool: "write",
+			sessionID: "s1",
+			callID: "c1",
+			args: { filePath: "   " },
+		});
+		await recorder.recordResult({
+			tool: "write",
+			sessionID: "s1",
+			callID: "c2",
+			args: { filePath: "" },
+		});
+		const events = emitters.get("s1")?.events ?? [];
+		expect(events[0]?.target).toBeUndefined();
+		expect(events[1]?.target).toBeUndefined();
+	});
+
+	it("leaves target unset for a non-string filePath", async () => {
+		const { recorder, emitters } = harness();
+		await recorder.recordResult({
+			tool: "write",
+			sessionID: "s1",
+			callID: "c1",
+			args: { filePath: 42 },
+		});
+		expect(emitters.get("s1")?.events[0]?.target).toBeUndefined();
+	});
+});
+
 describe("ReceiptRecorder — intent/params bridging", () => {
 	it("falls back to before-hook args when the after-hook omits them", async () => {
 		const { recorder, emitters } = harness();

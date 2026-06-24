@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@obsigna/sdk-ts':
-        specifier: ^0.14.1
-        version: 0.14.1
+        specifier: ^0.16.0
+        version: 0.16.0
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.4.9
@@ -135,8 +135,8 @@ packages:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
 
-  '@obsigna/sdk-ts@0.14.1':
-    resolution: {integrity: sha512-J2GkZMwD9CGcAv88iAC8r0SfHSAmyk1Hr+HjiI2hm663tOpMxMxqa6N2RCzNUWCMq9IBVk504JNTig7xHw4o1Q==}
+  '@obsigna/sdk-ts@0.16.0':
+    resolution: {integrity: sha512-j7OBZzsfzm86hLIIA7b2RqNSPz+zZJ/79g+x92iMD7NOLOttdVjdTXoiZio4rPFn1TQWeP4sqaxB5KGVZCXYHA==}
     engines: {node: '>=22.11.0'}
 
   '@opencode-ai/plugin@1.16.2':
@@ -737,7 +737,7 @@ snapshots:
       '@tybys/wasm-util': 0.10.2
     optional: true
 
-  '@obsigna/sdk-ts@0.14.1':
+  '@obsigna/sdk-ts@0.16.0':
     dependencies:
       undici: 8.5.0
       zod: 4.4.3

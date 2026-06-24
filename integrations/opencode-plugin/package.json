@@ -38,7 +38,7 @@
 	},
 	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
-		"@obsigna/sdk-ts": "^0.14.1"
+		"@obsigna/sdk-ts": "^0.16.0"
 	},
 	"peerDependencies": {
 		"@opencode-ai/plugin": ">=0.1.0"
