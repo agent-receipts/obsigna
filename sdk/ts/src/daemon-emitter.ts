@@ -468,7 +468,10 @@ export class DaemonEmitter {
 			...(ev.input !== undefined ? { input: RAW_INPUT_SENTINEL } : {}),
 			...(ev.output !== undefined ? { output: RAW_OUTPUT_SENTINEL } : {}),
 			...(ev.error ? { error: ev.error } : {}),
-			...(ev.target
+			// Both fields are non-empty here (validateTarget enforces both-or-
+			// neither); guarding on `system` omits an all-empty target so the
+			// frame matches the Go emitter's omitempty behaviour.
+			...(ev.target?.system
 				? {
 						target_system: ev.target.system,
 						target_resource: ev.target.resource,
@@ -771,29 +774,32 @@ export class DaemonEmitter {
  * the Go emitter, which count bytes — a multi-byte string under the char limit
  * can still exceed the byte cap.
  */
-function validateTarget(target: EmitTarget): Error | null {
-	if (
-		typeof target.system !== "string" ||
-		typeof target.resource !== "string"
-	) {
+function validateTarget(target: unknown): Error | null {
+	// Guard null and non-objects: callers without TypeScript can pass anything,
+	// and validateTarget must return a caller-bug Error rather than throw.
+	if (typeof target !== "object" || target === null) {
+		return new Error("emitter: target must be an object");
+	}
+	const { system, resource } = target as Partial<EmitTarget>;
+	if (typeof system !== "string" || typeof resource !== "string") {
 		return new Error(
 			"emitter: target.system and target.resource must be strings",
 		);
 	}
 	// Both set or both empty — a half-populated target would produce an
 	// ActionTarget with an empty system or resource in the signed receipt.
-	if ((target.system !== "") !== (target.resource !== "")) {
+	if ((system !== "") !== (resource !== "")) {
 		return new Error(
 			"emitter: target.system and target.resource must both be set or both empty",
 		);
 	}
-	const systemBytes = Buffer.byteLength(target.system, "utf8");
+	const systemBytes = Buffer.byteLength(system, "utf8");
 	if (systemBytes > MAX_IDENTITY_FIELD_LEN) {
 		return new Error(
 			`emitter: target_system exceeds ${MAX_IDENTITY_FIELD_LEN} bytes (got ${systemBytes})`,
 		);
 	}
-	const resourceBytes = Buffer.byteLength(target.resource, "utf8");
+	const resourceBytes = Buffer.byteLength(resource, "utf8");
 	if (resourceBytes > MAX_TARGET_RESOURCE_LEN) {
 		return new Error(
 			`emitter: target_resource exceeds ${MAX_TARGET_RESOURCE_LEN} bytes (got ${resourceBytes})`,

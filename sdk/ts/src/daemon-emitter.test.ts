@@ -22,6 +22,7 @@ import {
 	DaemonEmitter,
 	defaultSocketPath,
 	type EmitEvent,
+	type EmitTarget,
 	EmitTransportError,
 	MAX_FRAME_SIZE,
 	MAX_IDENTITY_FIELD_LEN,
@@ -253,6 +254,19 @@ describe("DaemonEmitter — validation errors (caller bugs)", () => {
 		e.close();
 	});
 
+	it("returns an Error (does not throw) for a null target from a JS caller", async () => {
+		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
+		const err = await e.emit({
+			...GOOD_EVENT,
+			// A non-TypeScript caller can pass null; emit() must report it as a
+			// caller-bug Error rather than throwing on a null property access.
+			target: null as unknown as EmitTarget,
+		});
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toMatch(/target must be an object/);
+		e.close();
+	});
+
 	it("rejects a target.system over the byte cap", async () => {
 		const e = new DaemonEmitter({ socketPath: tempSockPath("noop") });
 		const err = await e.emit({
@@ -452,6 +466,16 @@ describe("DaemonEmitter — frame round-trip", () => {
 
 	it("target_system and target_resource are absent when target is omitted", async () => {
 		await emitter.emit(GOOD_EVENT);
+		await waitFor(async () => (await server.frames()).length > 0);
+
+		const frames = await server.frames();
+		const f = JSON.parse(frames[0] ?? "{}");
+		expect(f).not.toHaveProperty("target_system");
+		expect(f).not.toHaveProperty("target_resource");
+	});
+
+	it("omits the wire fields for an all-empty target (matches Go omitempty)", async () => {
+		await emitter.emit({ ...GOOD_EVENT, target: { system: "", resource: "" } });
 		await waitFor(async () => (await server.frames()).length > 0);
 
 		const frames = await server.frames();
