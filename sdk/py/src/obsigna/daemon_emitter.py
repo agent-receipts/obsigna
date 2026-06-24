@@ -39,6 +39,17 @@ logger = logging.getLogger(__name__)
 # MaxFrameSize must agree with the daemon's socket.MaxFrameSize (1 MiB).
 MAX_FRAME_SIZE = 1 << 20
 
+# MAX_IDENTITY_FIELD_LEN caps target_system at 256 UTF-8 bytes, matching the
+# daemon and the Go/TS emitters (Go MaxIdentityFieldLen, TS
+# MAX_IDENTITY_FIELD_LEN). Measured in bytes, not code points.
+MAX_IDENTITY_FIELD_LEN = 256
+
+# MAX_TARGET_RESOURCE_LEN caps target_resource at 4096 UTF-8 bytes. File paths
+# can reach 4096 bytes on Linux (PATH_MAX), so a wider cap than
+# MAX_IDENTITY_FIELD_LEN is used; the daemon and the Go/TS emitters enforce the
+# same limit. Measured in bytes, not code points.
+MAX_TARGET_RESOURCE_LEN = 4096
+
 # SupportedFrameVersion mirrors the daemon's pipeline.SupportedFrameVersion.
 SUPPORTED_FRAME_VERSION = "1"
 
@@ -228,6 +239,8 @@ class DaemonEmitter:
         decision: str,
         tool_server: str = "",
         action_type: str = "",
+        target_system: str = "",
+        target_resource: str = "",
         input: bytes | str | None = None,
         output: bytes | str | None = None,
         error: str = "",
@@ -264,6 +277,15 @@ class DaemonEmitter:
             risk level: the daemon always resolves risk itself rather than
             trusting an emitter-supplied value, so this field cannot be used to
             downgrade risk and evade a disclosure policy.
+        target_system:
+            Optional resource domain the action operates on, mapped by the
+            daemon to ``action.target.system`` (e.g. ``"filesystem"``). Must be
+            set together with ``target_resource`` — a half-populated target is
+            rejected. Capped at 256 UTF-8 bytes.
+        target_resource:
+            Optional path or identifier within ``target_system``, mapped by the
+            daemon to ``action.target.resource`` (e.g. a file path). Must be set
+            together with ``target_system``. Capped at 4096 UTF-8 bytes.
         input:
             Optional raw JSON bytes or string. Passed verbatim to the daemon —
             NOT re-serialised. Must be valid JSON when non-empty.
@@ -311,6 +333,36 @@ class DaemonEmitter:
                 "emitter: action_type must be a str,"
                 f" got {type(action_type).__name__!r}"
             )
+        if not isinstance(target_system, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise ValueError(
+                "emitter: target_system must be a str,"
+                f" got {type(target_system).__name__!r}"
+            )
+        if not isinstance(target_resource, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise ValueError(
+                "emitter: target_resource must be a str,"
+                f" got {type(target_resource).__name__!r}"
+            )
+        # Both set or both empty — a half-populated target would produce an
+        # ActionTarget with an empty system or resource in the signed receipt,
+        # which the daemon's XOR rule rejects.
+        if (target_system != "") != (target_resource != ""):
+            raise ValueError(
+                "emitter: target_system and target_resource must both be set"
+                " or both empty"
+            )
+        target_system_bytes = len(target_system.encode("utf-8"))
+        if target_system_bytes > MAX_IDENTITY_FIELD_LEN:
+            raise ValueError(
+                f"emitter: target_system exceeds {MAX_IDENTITY_FIELD_LEN} bytes"
+                f" (got {target_system_bytes})"
+            )
+        target_resource_bytes = len(target_resource.encode("utf-8"))
+        if target_resource_bytes > MAX_TARGET_RESOURCE_LEN:
+            raise ValueError(
+                f"emitter: target_resource exceeds {MAX_TARGET_RESOURCE_LEN} bytes"
+                f" (got {target_resource_bytes})"
+            )
         if not isinstance(error, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise ValueError(
                 f"emitter: error must be a str, got {type(error).__name__!r}"
@@ -332,6 +384,11 @@ class DaemonEmitter:
         }
         if action_type:
             frame["action_type"] = action_type
+        # Both fields are non-empty here (validated above), so an all-empty
+        # target is omitted from the frame entirely.
+        if target_system and target_resource:
+            frame["target_system"] = target_system
+            frame["target_resource"] = target_resource
         if raw_input is not None:
             frame["input"] = _RawJSON(raw_input)
         if raw_output is not None:

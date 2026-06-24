@@ -349,6 +349,69 @@ class TestDaemonEmitterValidation:
         with pytest.raises(ValueError, match="error must be a str"):
             self.e.emit(channel="sdk", tool_name="noop", decision="allowed", error=42)  # type: ignore[arg-type]
 
+    def test_non_str_target_system(self) -> None:
+        with pytest.raises(ValueError, match="target_system must be a str"):
+            self.e.emit(  # type: ignore[arg-type]
+                channel="sdk", tool_name="noop", decision="allowed", target_system=42
+            )
+
+    def test_non_str_target_resource(self) -> None:
+        with pytest.raises(ValueError, match="target_resource must be a str"):
+            self.e.emit(  # type: ignore[arg-type]
+                channel="sdk", tool_name="noop", decision="allowed", target_resource=42
+            )
+
+    def test_half_populated_target_system_only(self) -> None:
+        with pytest.raises(ValueError, match="both be set or both empty"):
+            self.e.emit(
+                channel="sdk",
+                tool_name="noop",
+                decision="allowed",
+                target_system="filesystem",
+            )
+
+    def test_half_populated_target_resource_only(self) -> None:
+        with pytest.raises(ValueError, match="both be set or both empty"):
+            self.e.emit(
+                channel="sdk",
+                tool_name="noop",
+                decision="allowed",
+                target_resource="/etc/hosts",
+            )
+
+    def test_oversize_target_system(self) -> None:
+        with pytest.raises(ValueError, match="target_system exceeds 256 bytes"):
+            self.e.emit(
+                channel="sdk",
+                tool_name="noop",
+                decision="allowed",
+                target_system="a" * 257,
+                target_resource="/etc/hosts",
+            )
+
+    def test_oversize_target_resource(self) -> None:
+        with pytest.raises(ValueError, match="target_resource exceeds 4096 bytes"):
+            self.e.emit(
+                channel="sdk",
+                tool_name="noop",
+                decision="allowed",
+                target_system="filesystem",
+                target_resource="/" + "a" * 4096,
+            )
+
+    def test_target_system_byte_length_not_code_points(self) -> None:
+        # 200 code points but each is 2 UTF-8 bytes (400 bytes total), so the
+        # cap is measured in bytes, not characters: char count is under 256 but
+        # byte count exceeds it.
+        with pytest.raises(ValueError, match="target_system exceeds 256 bytes"):
+            self.e.emit(
+                channel="sdk",
+                tool_name="noop",
+                decision="allowed",
+                target_system="é" * 200,
+                target_resource="/etc/hosts",
+            )
+
     def test_invalid_input_json(self) -> None:
         with pytest.raises(ValueError, match="input is not valid JSON"):
             self.e.emit(
@@ -721,6 +784,52 @@ class TestActionType:
             }
         )
         assert "action_type" not in frame
+
+
+class TestTarget:
+    """The emitter forwards a populated target to the daemon.
+
+    target_system / target_resource map to action.target.{system,resource} in
+    the signed receipt. Both fields are required together (the daemon's XOR
+    rule); an all-empty target is omitted so existing callers are unaffected.
+    """
+
+    def test_target_present_in_frame(self) -> None:
+        frame = _capture_one_frame(
+            {
+                "channel": "sdk",
+                "tool_name": "rm",
+                "decision": "allowed",
+                "target_system": "filesystem",
+                "target_resource": "/etc/hosts",
+            }
+        )
+        assert frame["target_system"] == "filesystem"
+        assert frame["target_resource"] == "/etc/hosts"
+
+    def test_target_absent_when_omitted(self) -> None:
+        frame = _capture_one_frame(
+            {
+                "channel": "sdk",
+                "tool_name": "rm",
+                "decision": "allowed",
+            }
+        )
+        assert "target_system" not in frame
+        assert "target_resource" not in frame
+
+    def test_target_absent_when_both_empty(self) -> None:
+        frame = _capture_one_frame(
+            {
+                "channel": "sdk",
+                "tool_name": "rm",
+                "decision": "allowed",
+                "target_system": "",
+                "target_resource": "",
+            }
+        )
+        assert "target_system" not in frame
+        assert "target_resource" not in frame
 
 
 # ---------------------------------------------------------------------------
