@@ -18,12 +18,18 @@
 
 ## Last updated
 
-`2026-06-23` — **Reconciliation sweep after a two-week gap.** ~100 PRs merged since the prior `2026-06-08` snapshot retired the entire old active DAG (closures 0–2, wave-1/2 items, and all ADR-0024 verification gates had already shipped). The shipped detail for those is removed from this file (git + PRs are the record) and the live sections below are rebuilt around the work that is genuinely in flight. Headline: the **Obsigna brand split + dual-site docs** and the **ADR-0037 Go vanity-path migration** both completed; **grounded-principal** (ADR-0038) and **checkpoint anchoring** landed as features; release train carried sdk/go to **0.23.0** and the umbrella to **0.29.0**. The only live foreground node is the **checkpoint-crypto extraction** (PR #932, green) and its downstream #872 follow-ups.
+`2026-06-24` — **Active DAG is clear.** The two foreground closures both completed: forensic **response disclosure** shipped (#936 merged, #819 closed — Go SDK + daemon caught up to TS/Py, protocol bumped to 0.6.0/context v3), and the **checkpoint-anchoring** thread closed out (#932 crypto extraction + #933 browser-verifier wiring merged; #872 closed — its v1-relevant hardening shipped in #914, the v1.5 residue folded into #484). No open active nodes remain. **The headline "next" is now a decision, not code: declare v1** — see *Decisions blocked on Otto*. v1 is engineering-complete (all Post-3 + v1 blockers done, Signer/KeyProvider parity verified across SDKs, no open in-flight limitation).
+
+`2026-06-23` — **Reconciliation sweep after a two-week gap.** ~100 PRs merged since the prior `2026-06-08` snapshot retired the entire old active DAG (closures 0–2, wave-1/2 items, and all ADR-0024 verification gates had already shipped). The shipped detail for those is removed from this file (git + PRs are the record) and the live sections below are rebuilt around the work that is genuinely in flight. Headline: the **Obsigna brand split + dual-site docs** and the **ADR-0037 Go vanity-path migration** both completed; **grounded-principal** (ADR-0038) and **checkpoint anchoring** landed as features; release train carried sdk/go to **0.23.0** and the umbrella to **0.29.0**.
 
 ---
 
 ## Decisions blocked on Otto
 
+- **Declare v1 (the headline).** v1 is engineering-complete and has no open in-flight limitation. What remains is a decision + a release act, not code:
+  1. **Version-label call** — spec is at `0.6.0`, SDKs at `0.x` (sdk-go 0.23.0, sdk-ts 0.15.0, sdk-py 0.14.0, umbrella 0.29.0). Decide what carries the 1.0 stamp: spec → 1.0.0 only / coordinated 1.0 across everything / positioning-only declaration keeping 0.x numbers.
+  2. **v1 limitations statement** — mostly assembled already in `docs/threat-model.md`; consolidate the deferred gaps (v1.5: #482/#483/#484/#492/#731; v2: #481/#485; out-of-scope: #151) into one explicit "known limitations" note.
+  3. **Announcement / positioning** — ties to the Post-3 HN demo, whose blockers are cleared.
 - **PR #708** (`doc-e2e persona fleet`) — scheduled CI that executes the documented journeys. Parked on Otto: repo secret + action-SHA pin + workflow `permissions` sign-off. Unchanged for weeks; decide to land-with-guardrails or close.
 - **Draft-PR triage** — review-or-close decisions on three idle drafts:
   - **#532** hermes-agent plugin (open since 2026-05-22).
@@ -35,40 +41,20 @@
 
 ## Active nodes (DAG)
 
-### Closure — checkpoint anchoring (the one live foreground thread)
+**No open active nodes.** Both foreground closures completed (see the ledger below): forensic response disclosure (#819 → #936) and checkpoint anchoring (#932/#933 merged, #872 closed). The next foreground work is the **declare-v1 decision** under *Decisions blocked on Otto*, which is not a farmable code node.
 
-Out-of-band Ed25519 commitment to chain HEAD, written to pluggable sinks (`file:`/`git:`/`syslog:`); `verify --against-anchor` detects receipt-store tail truncation. ADR-0008 §2. Shipped opt-in/experimental in `obsigna v0.27.0-alpha.1` (#871); production hardening landed in #914. Remaining work is the SDK-surfacing refactor and the residual #872 follow-ups.
-
-#### `checkpoint-crypto-extraction`
-- state: in-flight
-- depends_on: [`checkpoint-anchor` (#871, shipped), `browser-verifier` (#924, shipped)]
-- prs: #932 (open — **green, mergeable, not draft; awaiting Otto merge**)
-- notes: behaviour-preserving move of the portable checkpoint wire types + sign/verify crypto out of `daemon/internal/checkpoint` into a new public package `obsigna.dev/sdk/go/checkpoint`. Prerequisite for wiring external-anchor verification into the browser verifier (#924), which can't import an internal package of another module.
-
-#### `checkpoint-production-hardening-followups`
-- state: open
-- depends_on: [`checkpoint-crypto-extraction`]
-- issues: #872 (open — post-spike follow-ups; #914 shipped the main hardening, residual items remain)
-- farmable: yes (once #932 merges)
-- notes: the items standing between the opt-in anchor and something operators should *rely on*. Pick up after the crypto package is public.
-
-### Closure — forensic disclosure (one item left)
-
-Disclosure subcommand (#843), `--init` bundles forensic key + disclosure-on config (#882), and spec v0.6.0 `outcome.response_disclosure` HPKE envelope (#913) all shipped. Remaining:
-
-#### `disclose-tool-output`
-- state: open
-- depends_on: []
-- issues: #819 (Support forensic disclosure/sealing of tool *output*, not just parameters — ADR-0012)
-- farmable: yes
-- notes: extends sealing from parameters to tool output; the spec envelope (#913) is the substrate.
+In-flight PRs (background, not blocking the DAG):
+- **#943** — `docs(threat-model): response disclosure is shipped` — flips the stale "not yet wired" note (interim #935 wording that #936 superseded). Docs-only, awaiting merge.
+- **#942** — `feat(sdk-ts): add target to the daemon emitter frame` — cross-SDK parity for `action.target` on the TS emitter (mirrors Go/hook). New work.
 
 ---
 
-## Recently shipped — ledger (`2026-06-08` → `2026-06-23`)
+## Recently shipped — ledger (`2026-06-08` → `2026-06-24`)
 
 Collapsed record of closures that completed in this window. Detail lives in the PRs.
 
+- **Forensic response disclosure — SHIPPED.** `outcome.response_disclosure` end-to-end (ADR-0012, #819). Spec v0.6.0 + TS + Py shipped in #913; Go SDK + daemon completed in #936 (`EncryptResponse`/`DecryptResponse`, daemon `--response-disclosure` sealing `f.Output`, `obsigna receipt disclose --response`), which also bumped the Go SDK to protocol 0.6.0 / context v3 to match TS/Py. Threat-model note flipped to shipped (#943).
+- **Checkpoint anchoring — CLOSED OUT.** Crypto extraction into `obsigna.dev/sdk/go/checkpoint` (#932) + external-anchor verification wired into the browser verifier (#933) merged; #872 closed — its v1-relevant hardening shipped in #914 (async sink emission, `verify --against-anchor` scaling, cadence tuning), and the v1.5 residue (production-grade sinks, durability/retry spool, git-sink efficiency) folded into #484.
 - **Obsigna brand split + dual-site docs — SHIPPED.** README reframed as Agent Receipts (protocol/spec) vs Obsigna (tools) (#829); docs split into two sites (#830), tooling links → obsigna.dev (#831); SDK/cmd-name alignment + CLI rename to `obsigna receipt <verb>` (#821–#827, #844); browse-link canonicalization `ar` → `obsigna` (#828); SEO + Plausible + Google Search Console (#838–#842); blog-source site retrigger (#854); examples-repo link + dashboard refresh (#874, #903).
 - **ADR-0037 Go vanity-path migration — SHIPPED (completes the previously-flagged gap).** ADR-0037 (#846); full module migration to `obsigna.dev/…` (#922); go-import vanity meta tags + post-deploy liveness check (#912); release gates repointed at the vanity path (#926); `require obsigna.dev/sdk/go v0.22.0` in daemon/hook/mcp-proxy (#927) + collector (#928); integration test moved to the daemon module (#929); dependabot ignores internal modules (#881); dependency allowlist pruned (#931).
 - **Grounded principal / attribution — SHIPPED.** Daemon derives receipt principal from kernel-attested peer uid → `did:user:<login>` (#847); ADR-0038 grounded-principal conformance tier (#895) implemented across SDKs (spec §7.9, #915); attribution blog "Your agents are isolated. Your shared state isn't." (#849, #850); EU AI Act traceability language (#845).
@@ -92,13 +78,14 @@ Collapsed record of closures that completed in this window. Detail lives in the 
 
 ## Next farmable (computed)
 
-As of `2026-06-23`:
+As of `2026-06-24`: **no farmable code nodes remain** — the active DAG is clear. The next foreground work is the **declare-v1 decision** (above), which is Otto's to make, not an agent task.
 
-1. **`checkpoint-crypto-extraction` (#932)** — already done and green; needs Otto's merge, not an agent. Merging it unblocks #872 follow-ups and external-anchor verification in the browser verifier.
-2. **`disclose-tool-output` (#819)** — farmable now; the spec envelope (#913) is in place.
-3. **`checkpoint-production-hardening-followups` (#872)** — farmable once #932 merges.
+The next *bodies* of work, once Otto sequences them, are background clusters that need breaking into nodes first:
+- **v1.5 — regulated-industries readiness:** #482 (RFC 3161 TSA timestamp anchoring — cheap+core, rides on the shipped checkpoint anchor), #483 (key revocation), #484 (production-grade checkpoint sinks + the #872 residue), #492 (regional TSA), #731 (content-addressed payload + GDPR erasure).
+- **ADR-0027 opensandbox cluster:** #768/#770–#774.
+- **Reliability / storage:** #739, #729, #730, #762.
 
-Beyond those, the active graph is otherwise clear. The next *bodies* of work are background clusters (ADR-0027 opensandbox; reliability/storage) that need sequencing into nodes before they're farmable. Foreground decisions pending Otto: #708 (doc-e2e fleet), the three idle drafts (#532/#442/#444), and #803 (rebrand leftovers).
+Foreground decisions pending Otto: declare v1 (headline), #708 (doc-e2e fleet), the idle drafts (#532/#442/#444), #803 (rebrand leftovers).
 
 ---
 
