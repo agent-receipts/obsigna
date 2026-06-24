@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-24
+
 ### Added
 
 - **File-identity metadata on receipts.** The plugin now emits `action.target.resource` for native file tools. When a tool call carries a `filePath` (OpenCode's `read`, `write`, `edit`, `patch`, `apply_patch`), the recorder attaches `{ system: "filesystem", resource: <filePath> }` to the frame; the daemon maps it onto `action.target.{system,resource}`. The extraction is opportunistic and tool-agnostic — tools without a `filePath` (`bash`, `glob`, `grep`, `list`, `webfetch`) yield no target — mirroring the Claude Code hook's `file_path` extraction. Like the action map, this is honest-operator metadata the agent supplies. Shell-command target parsing (`bash` redirects) is a possible follow-up. ([#939](https://github.com/agent-receipts/obsigna/issues/939))
