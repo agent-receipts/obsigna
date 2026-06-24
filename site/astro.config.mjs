@@ -153,6 +153,10 @@ export default defineConfig({
           items: [
             { label: "All Posts", slug: "blog" },
             {
+              label: "Run the check yourself: a browser verifier",
+              slug: "blog/browser-verifier",
+            },
+            {
               label: "Your agents are isolated. Your shared state isn't.",
               slug: "blog/attribution-over-undo",
             },
