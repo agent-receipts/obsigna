@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Added
+
+- **`EmitEvent.target`** ([#939](https://github.com/agent-receipts/obsigna/issues/939)) — new optional `{ system, resource }` field on the `DaemonEmitter` frame, forwarded to the daemon as `target_system` / `target_resource` and mapped onto `action.target.{system,resource}` (file-identity metadata). `system` is capped at 256 UTF-8 bytes and `resource` at 4096; both must be set together (a half-populated target is rejected), matching the Go emitter and daemon. Caps are measured in UTF-8 bytes, not JS string length. Exports `EmitTarget`, `MAX_IDENTITY_FIELD_LEN`, and `MAX_TARGET_RESOURCE_LEN`. The daemon already accepted these frame fields; this exposes them through the TS emitter (Phase 1 of #939). Additive and backwards-compatible: omitting `target` preserves the previous behaviour.
+
 ## [0.15.0] - 2026-06-23
 
 Graduates `0.15.0-alpha.1` after the alpha pass. Ships the grounded-principal conformance tier (ADR-0038, spec §7.9) and `outcome.response_disclosure` HPKE envelope (spec v0.6.0).
