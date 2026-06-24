@@ -186,6 +186,29 @@ describe("round-trip against a fake daemon socket", () => {
 		expect(bySession.get("subagent")).toEqual(["filesystem.file.modify"]);
 	});
 
+	it("delivers a filesystem target on the frame for file tools", async () => {
+		await recorder.recordResult({
+			tool: "write",
+			sessionID: "root",
+			callID: "c1",
+			args: { filePath: "out.txt" },
+		});
+		await recorder.recordResult({
+			tool: "bash",
+			sessionID: "root",
+			callID: "c2",
+			args: { command: "ls" },
+		});
+
+		await waitForFrames(server, 2);
+		const frames = server.frames().map((f) => JSON.parse(f));
+		expect(frames[0]?.target_system).toBe("filesystem");
+		expect(frames[0]?.target_resource).toBe("out.txt");
+		// bash carries no filePath, so no target fields reach the frame.
+		expect(frames[1]?.target_system).toBeUndefined();
+		expect(frames[1]?.target_resource).toBeUndefined();
+	});
+
 	it("preserves input bytes verbatim for the daemon to hash", async () => {
 		// Whitespace and key order are preserved exactly so the daemon's
 		// RFC 8785 canonicalisation hashes the bytes the plugin produced.

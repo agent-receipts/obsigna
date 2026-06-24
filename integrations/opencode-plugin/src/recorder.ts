@@ -24,7 +24,11 @@
  * guessing.
  */
 
-import { DaemonEmitter, type EmitEvent } from "@obsigna/sdk-ts/emitter";
+import {
+	DaemonEmitter,
+	type EmitEvent,
+	type EmitTarget,
+} from "@obsigna/sdk-ts/emitter";
 import { resolveActionType } from "./actions.js";
 import { type ResolvedConfig, shouldEmit } from "./config.js";
 
@@ -184,6 +188,16 @@ export class ReceiptRecorder {
 		if (result.error) {
 			ev.error = result.error;
 		}
+		// Opportunistic, honest-operator file-identity metadata: when the args
+		// carry a `filePath`, surface it as the action's target. The daemon maps
+		// it onto `action.target.{system,resource}` on the receipt. Like the
+		// action map, this is emitter-supplied advisory metadata — a compromised
+		// OpenCode could omit or misreport it (see the trust-boundary note above).
+		// Only set it when fully populated; the SDK rejects a half-populated target.
+		const target = extractTarget(args);
+		if (target) {
+			ev.target = target;
+		}
 		return ev;
 	}
 
@@ -228,6 +242,33 @@ export class ReceiptRecorder {
 			},
 		);
 	}
+}
+
+/**
+ * Opportunistically derive a filesystem target from a tool call's args. Native
+ * OpenCode file tools (`read`, `write`, `edit`, `patch`, `apply_patch`) carry a
+ * camelCase `filePath`; non-file tools (`bash`, `glob`, `grep`, `list`,
+ * `webfetch`) do not, so they naturally yield no target. This mirrors the Claude
+ * Code hook's opportunistic `file_path` extraction (`extractFileTarget`).
+ *
+ * Returns a fully-populated `{ system: "filesystem", resource }` only when
+ * `filePath` is a non-empty (after trimming) string; otherwise `undefined`, so
+ * the caller never assigns a half-populated target (which the SDK rejects).
+ * Shell-command target extraction (parsing `bash` redirects) is out of scope.
+ */
+function extractTarget(args: unknown): EmitTarget | undefined {
+	if (typeof args !== "object" || args === null) {
+		return undefined;
+	}
+	const filePath = (args as { filePath?: unknown }).filePath;
+	if (typeof filePath !== "string") {
+		return undefined;
+	}
+	const resource = filePath.trim();
+	if (resource === "") {
+		return undefined;
+	}
+	return { system: "filesystem", resource };
 }
 
 /** Assemble the receipt output payload from the after-hook fields, dropping empties. */

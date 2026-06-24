@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **File-identity metadata on receipts.** The plugin now emits `action.target.resource` for native file tools. When a tool call carries a `filePath` (OpenCode's `read`, `write`, `edit`, `patch`, `apply_patch`), the recorder attaches `{ system: "filesystem", resource: <filePath> }` to the frame; the daemon maps it onto `action.target.{system,resource}`. The extraction is opportunistic and tool-agnostic — tools without a `filePath` (`bash`, `glob`, `grep`, `list`, `webfetch`) yield no target — mirroring the Claude Code hook's `file_path` extraction. Like the action map, this is honest-operator metadata the agent supplies. Shell-command target parsing (`bash` redirects) is a possible follow-up. ([#939](https://github.com/agent-receipts/obsigna/issues/939))
+
 ### Changed
 
+- **Bumped `@obsigna/sdk-ts` to `^0.16.0`** (was `^0.14.1`) for the `EmitEvent.target` / `EmitTarget` surface that carries the file-identity metadata above.
 - **Docs**: refer to the current binary names in `README.md` and `AGENTS.md` — `obsigna-daemon` (was `agent-receipts-daemon`), `obsigna-hook` (was `agent-receipts-hook`), and `obsigna verify` (was `agent-receipts verify`). Documentation-only; no code or behaviour changes.
 
 ## [0.1.0] - 2026-06-16
