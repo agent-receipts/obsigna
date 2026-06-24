@@ -1,6 +1,6 @@
 {
 	"name": "@obsigna/sdk-ts",
-	"version": "0.15.0",
+	"version": "0.16.0",
 	"description": "TypeScript SDK for the Agent Receipts protocol",
 	"license": "Apache-2.0",
 	"author": "Otto Jongerius",
