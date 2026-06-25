@@ -1,0 +1,126 @@
+---
+title: Agent Security Tooling Landscape — June 2026
+description: How the agent security space shifted in June 2026 — the cross-channel correlation gap closing as Pipelock spans HTTP, WebSocket and MCP in one evidence log, the W3C VC envelope and out-of-agent boundary as the durable differentiators, and the EU AI Act Article 12 clock holding at 2 August despite the Digital Omnibus deferrals.
+head:
+  - tag: link
+    attrs:
+      rel: canonical
+      href: https://agentreceipts.ai/blog/agent-security-tooling-landscape-june-2026/
+---
+
+_Published 2026-06-25_
+
+This is our dated read of the agent security space as of June 2026 — what we think, and when. For the always-current matrices, see the [living landscape](/ecosystem/landscape/). The previous snapshot is [May 2026](/blog/agent-security-tooling-landscape-may-2026/).
+
+## A refund, four logs, one missing edit
+
+A support agent reconciles a disputed refund. It reads the ticket over MCP, calls the payments API over HTTPS, runs a reconciliation script in the shell, and edits a service config directly through its host runtime's native file tool. Six weeks later a regulator asks a plain question: who authorised the refund, and what did the agent actually touch?
+
+Four tools watched four slices of that session. Each kept its own log in its own format, none of them shares a session identifier with the others, and the one that mattered most — the native file edit, made through the runtime rather than through any proxied channel — sits in none of them. Reconstructing the session means hand-stitching four exports and accepting that one channel is simply dark.
+
+That scenario is the centre of gravity this month. The verdict: the correlation gap it describes is closing rather than closed, and the projects closing it are worth reading carefully.
+
+## Executive summary
+
+Three things moved in June.
+
+1. **Cross-channel correlation stopped being an empty box.** Pipelock's spring releases carry HTTP, WebSocket and MCP traffic in a single firewall-scoped evidence log, with learn-and-lock contract enforcement across every URL-bearing transport plus the MCP tool-call surface. Canyon Road's Watchtower has offered cross-channel correlation commercially for a while. So the honest framing is no longer "this is unoccupied" — it is "this is being occupied, and the question is from which vantage."
+
+2. **The receipt-format field got crowded and more standards-shaped.** Pipelock shipped Audit Packet v0 with first-party verifiers in Go, TypeScript and Rust and a standalone `pipelock-verifier` CLI, canonicalises with RFC 8785 JCS — the same canonicalisation our receipts use — and published an in-toto agent-action-receipt predicate (DSSE-wrapped) plus a SCITT signed-statement profile. A signed, portable, independently-verifiable record is now a multi-vendor expectation, not a single-project trait.
+
+3. **Two baseline entries were wrong and we are correcting them.** What we and others filed under "Microsoft AGT" is, on re-checking the source, the **Microsoft Agent Framework** — an orchestration framework with OpenTelemetry and Purview integration, not an audit or signing toolkit. And **Asqav** signs server-side as a hosted custodial service, not in-agent. Both corrections move players across the axis that we think matters most.
+
+The durable read underneath all of it is unchanged. Receipts are table stakes. What separates projects is the [W3C Verifiable Credential envelope](/specification/overview/) and the [out-of-agent trust boundary](/blog/daemon-process-separation/) — where the signing key lives, and whether the record travels.
+
+## What changed since May
+
+### Pipelock now spans the channels
+
+Pipelock's three releases (v2.4.0 on 6 May, v2.5.0 on 20 May, v2.6.0 on 30 May) are the month's largest single move, and they touch the gap our refund scenario opens with.
+
+| Capability | What landed |
+|---|---|
+| **Cross-channel evidence** | One firewall-scoped evidence log across HTTP, WebSocket and the MCP tool-call surface; operation-level egress control matches outbound HTTP API operations, including GraphQL mutation root fields |
+| **Portable record** | Audit Packet v0 schema, RFC 8785 JCS canonicalisation, first-party verifiers in Go / TypeScript / Rust, and a standalone `pipelock-verifier` CLI |
+| **Standards alignment** | in-toto agent-action-receipt v0.1 predicate (DSSE wrapping) and a SCITT signed-statement profile, with a per-primitive prior-art map citing SCITT, RFC 9421, SPIFFE, OpenTelemetry GenAI and others |
+| **Containment** | `pipelock contain install` introduces a 3-UID model — a dedicated `pipelock-proxy` OS user owning the state directory and binary the agent user cannot replace |
+
+Two of these matter to how we position. The 3-UID containment gives Pipelock's proxy its own OS user, so the lazy "it signs in-process, same blast radius as the agent" line no longer fits cleanly — it now has real separation for the firewall vantage. And the RFC 8785 + verifier + in-toto/SCITT stack means the format conversation is consolidating around primitives we already share.
+
+This is convergence, not collision. A portable record is worth more when more than one tool can emit and read it. Pipelock watches the request line from inside it; we attest from outside it. Those vantages compose.
+
+### The audit & provenance table, corrected
+
+| | Primary product | Signing locus | Envelope | Notes |
+|---|---|---|---|---|
+| **Agent Receipts** | Provenance record | **Out-of-agent daemon** | W3C VC (Ed25519, RFC 8785) | Keys + chain outside the audited process; one chain across MCP, hook (native tools) and HTTP |
+| **nono** | Provenance record | **Out-of-process** (append-only Merkle log) | Sigstore / Rekor anchored | Same out-of-agent side; binary-identity binding; latest release v0.55.0 (17 May), no movement since |
+| **Pipelock** | Firewall + evidence | In-path proxy, dedicated OS user (3-UID) | Audit Packet v0 (RFC 8785 JCS); in-toto/DSSE + SCITT | One evidence log across HTTP / WS / MCP; Go / TS / Rust verifiers |
+| **Asqav** | Provenance record | **Server-side / custodial** (hosted) | Signed records (ML-DSA-65, RFC 3161) | Remote-custodial, _not_ in-agent (correction); threshold ML-DSA, SD-JWT tokens, DORA + EU AI Act reporting |
+| **InALign** | Alignment + audit | In-process (+ optional external anchor) | SHA-256 hash chain + W3C PROV graph | Optional `inalign-anchor` anchors the chain root externally; 32 MCP tools, MITRE ATT&CK/ATLAS mapping |
+
+Two corrections to last month's table. **Asqav** runs all ML-DSA cryptography server-side; the SDK is a thin client to a hosted service, so it belongs in the remote-custodial column rather than in-agent. **InALign** keeps its SHA-256 chain but also builds a W3C PROV knowledge graph and offers an optional blockchain anchor for the chain root — so it is a second project anchored to a W3C standard, though PROV is the provenance-graph model, not the Verifiable Credential envelope. The VC envelope itself is still ours alone in this set.
+
+### "Microsoft AGT" was the Agent Framework
+
+The most-corrected entry in the baseline. The repository we and our sources read as a governance and audit toolkit is the **Microsoft Agent Framework**, the Semantic Kernel and AutoGen successor, for building and orchestrating multi-agent workflows. Its recent releases (python-1.8.0, dotnet-1.9.0) concern MCP skills discovery, A2A sessions, Foundry hosting and evals; python-1.6.0 made OpenTelemetry instrumentation default-on, and an `agent-framework-purview` package adds Microsoft Purview integration. None of that is a signed audit receipt.
+
+So the "Decision BOM," the completeness score, the in-process receipt signing and the framework-default governance install we attributed to a "Microsoft AGT" are retired — they were not supported by the source. Microsoft's presence in this space is real, but it is observability and orchestration with a Purview governance tie-in, not a competing receipt format. If a distinct Microsoft agent-audit toolkit exists, we will re-add it when we can point at it.
+
+### The adjacent ring keeps filling in
+
+Most of June's new names are adjacent to agent-action audit rather than in it, and the distinction is worth holding. They cluster into authorisation, commerce settlement, content-refusal provenance and regulated-finance governance.
+
+| Entrant | Domain | One-line read |
+|---|---|---|
+| **AgentROA** (`draft-nivalto-agentroa-route-authorization-01`) | Scope authorisation + receipts | BGP-ROA-modelled scope narrowing across delegation, with an Agent Execution Receipt at each capability-invocation boundary — overlaps the receipts space directly |
+| **Nelson DRP** (`draft-nelson-agent-delegation-receipts-10`) | Pre-execution authorisation | User-signed Authorisation Object with a model-state commitment, published to an append-only log before the runtime gets control |
+| **Marques / Asqav profile** (`draft-marques-asqav-compliance-receipts-05`) | Compliance receipts | Multi-jurisdiction profile binding receipt fields to EU AI Act, DORA, NIST, Colorado, HIPAA and SEC 17a-4 |
+| **MetaComp StableX KYA** | Regulated-finance governance | Singapore-licensed FI's "Know Your Agent" framework — tamper-resistant agent registry, authenticated record-keeping, FATF Travel Rule extended to agent-to-agent |
+| **SwarmSync VCAP** (`draft-stone-vcap-ap2-binding-00`) | Agent-commerce settlement | Escrow settlement bound to Google's AP2; its proof signature is shared-secret HMAC, so it is not independently third-party verifiable the way a public-key VC is |
+| **CAP-SRP / VeritasChain** | Content-refusal provenance | Cryptographic proof that a generation model _refused_ to produce harmful content; Ed25519 chain + Merkle + RFC 3161, SCITT/C2PA-aligned |
+| **OpenKedge** | Execution governance | Intent-governed state mutation with a hash-linked Intent-to-Execution Evidence Chain; notably puts log-integrity attacks out of scope, the opposite stance to a tamper-evidence-first trail |
+
+The signal is not any one of these. It is that "sign the agent's action, scope its authority, keep a record someone else can check" is now being approached from payments, from delegation, from compliance and from regulated finance at once. The agent-action audit centre of that activity stays small; the ring around it is busy.
+
+## The standards window
+
+The backdrop is still **EU AI Act Article 12** — automatic, tamper-resistant logging of high-risk AI system operation over its lifetime, almost verbatim the problem an independently-signed, hash-chained receipt solves.
+
+The regulatory clock moved, without moving the live deadline:
+
+- **Article 12 and the Article 9–17 / Article 26 obligations apply from 2 August 2026.** That date is unchanged.
+- The **Digital Omnibus** reached provisional political agreement on 6–7 May, was confirmed by Council Member State representatives on 13 May, and was formally endorsed by the European Parliament on 16 June. Formal adoption and Official Journal publication are expected in July 2026.
+- _Once adopted_, the Omnibus defers some obligations: standalone Annex III high-risk to 2 December 2027, Annex I (embedded in regulated products) to 2 August 2028, and the Article 50(2) synthetic-content watermarking duty to 2 December 2026. It also adds an Article 5 prohibition on AI-generated NCII and CSAM.
+- Until that Official Journal publication lands, **2 August 2026 remains the legally live date.** No finalised harmonised technical standard for Article 12 logging exists yet — `prEN 18229-1` and `ISO/IEC DIS 24970` are both still incomplete.
+
+On the format side, the venues are filling with individual submissions. None is working-group-adopted.
+
+| Effort | Venue | What it is | Maturity |
+|---|---|---|---|
+| **Audit Packet v0** | Pipelock | Receipt format with multi-language verifiers, RFC 8785 JCS, in-toto/DSSE + SCITT profiles | Shipping |
+| **W3C VC Data Integrity** | W3C | The envelope our receipts use; the CG argues canonicalisation (JSON-LD vs. RFC 8785) | Recommendation |
+| **draft-sharif-agent-audit-trail** | IETF | Hash-chained agent-action log, trust levels L0–L4 | Individual I-D, still -00, no movement since the baseline |
+| **draft-marques-asqav-compliance-receipts** | IETF | Multi-jurisdiction compliance profile of signed action receipts | Individual I-D (-05) |
+| **draft-nivalto-agentroa** / **draft-nelson-DRP** | IETF | Scope-authorisation receipts; delegation receipts | Individual I-Ds |
+| **W3C AIVS Community Group** | W3C | Agent integrity verification, session-grained rather than action-grained | Early-stage CG (SwarmSync.AI), converging in its spec PR |
+
+The room is louder than it was in May. That raises the value of being legible in it before the format question hardens: the receipt is a W3C VC, the differentiator is the out-of-agent boundary plus one chain across channels, and the format should be portable rather than forked.
+
+## Where we sit
+
+Nothing in June changed our architecture; it changed the neighbourhood. The receipt is still a W3C Verifiable Credential signed by `obsigna-daemon`, a separate OS user the agent process cannot reach, and the chain still spans MCP, the hook plane (native host-tool calls) and HTTP rather than living per-tool. The [browser verifier](/blog/browser-verifier/) shipped on 24 June makes the portability claim concrete: paste a receipt or a chain at obsigna.dev/verify and the signatures, hash chain and JCS canonicalisation are checked client-side, with nothing leaving the machine.
+
+The native plane is the part of the refund scenario the in-path proxies cannot reach. An egress firewall sees the payments API call; it does not see the file the runtime edited through its own tool surface. Covering that plane from outside the agent, and binding it into the same chain as the proxied channels, is the coverage we are positioned to hold.
+
+## Net assessment
+
+Receipts stopped being the differentiator some time ago, so our position is a combination rather than a single empty box. The audit runs out of the agent's path and only attests — it does not sit in the request line and does not take custody of customer data. It unifies several planes, including the native host-tool plane an in-path proxy never sees, into one chain. And that chain travels as a portable W3C Verifiable Credential a third party can check without our service.
+
+Pipelock is the nearest neighbour and the most useful one. It now carries HTTP, WebSocket and MCP in a single firewall-scoped evidence log and canonicalises with the same RFC 8785 we do. The sensible posture there is interoperation rather than rivalry: its egress evidence is exactly the kind of input a correlated trail should be able to ingest, and a portable record earns its keep only when more than one tool emits and reads it. We are not positioning as a firewall.
+
+Capturing the I/O rather than the protocol is also where this work converges with kernel-level tools such as agentsh. Staying in userspace, attestation-only, open and portable is the line that keeps the approaches distinct. None of this is a standing moat. The position holds only while we are in the standards rooms and shipping a correlated artifact, rather than describing one.
+
+## The read in one paragraph
+
+The correlation gap that defined the refund scenario is closing: Pipelock spans HTTP, WebSocket and MCP in one firewall-scoped evidence log, Watchtower has done cross-channel commercially, and the receipt-format field is consolidating around shared primitives (RFC 8785 JCS, multi-language verifiers, in-toto/DSSE and SCITT). Two baseline entries were corrected — "Microsoft AGT" is the orchestration-focused Agent Framework, and Asqav signs server-side as a custodial service. What stays distinctive is the combination: out-of-agent and attestation-only, unifying the proxied channels with the native plane the in-path tools miss, in a portable W3C VC envelope. The EU AI Act Article 12 clock still reads 2 August 2026. Full matrices, kept current, live in the [landscape document](/ecosystem/landscape/).

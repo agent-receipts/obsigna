@@ -8,27 +8,34 @@ head:
       href: https://agentreceipts.ai/ecosystem/landscape/
 ---
 
-This is the **living** landscape — we keep it current as the space moves. For point-in-time strategic reads ("what we thought, when"), see the dated snapshots: the most recent is [May 2026](/blog/agent-security-tooling-landscape-may-2026/), preceded by [April 2026](/blog/agent-security-tooling-landscape-april-2026/).
+This is the **living** landscape — we keep it current as the space moves. For point-in-time strategic reads ("what we thought, when"), see the dated snapshots: the most recent is [June 2026](/blog/agent-security-tooling-landscape-june-2026/), preceded by [May 2026](/blog/agent-security-tooling-landscape-may-2026/) and [April 2026](/blog/agent-security-tooling-landscape-april-2026/).
 
-_Last reviewed: 2026-05-29_
+_Last reviewed: 2026-06-25_
 
 ---
 
 ## Executive Summary
 
-The agent security space has matured past "can we intercept the agent?" into "can we prove what it did, in a form a third party will accept?" Every enforcement approach — MCP proxying, egress firewalling, kernel-level enforcement, application-level policy engines, and enterprise gateways — has at least one serious implementation. Microsoft's Agent Governance Toolkit (AGT, v3.0 Public Preview) is the most comprehensive single project; it now integrates directly into the Agent Framework, making governance a framework default rather than an opt-in install.
+The agent security space has matured past "can we intercept the agent?" into "can we prove what it did, in a form a third party will accept?" Every enforcement approach — MCP proxying, egress firewalling, kernel-level enforcement, application-level policy engines, and enterprise gateways — has at least one serious implementation.
 
 The decisive shift in 2026 is **provenance**: signed, hash-chained receipts went from a differentiator to table stakes. What now separates projects is the **trust boundary** — whether the process that signs the audit trail is the same process being audited — and whether the record is **portable** enough for an external verifier.
+
+The development to watch in June is **cross-channel correlation**. Pipelock now carries HTTP, WebSocket and MCP traffic in a single firewall-scoped evidence log, and Canyon Road's Watchtower has offered cross-channel correlation commercially. Correlating an agent's whole session is no longer an unoccupied gap; it is being occupied from different vantages, and the open questions are which channels each vantage can reach and whether the record leaves the tool that produced it.
 
 The space segments into five layers:
 
 | Layer | What it does | Key players |
 |---|---|---|
 | **MCP Gateways** (commercial) | Managed proxy for MCP traffic with auth, audit, rate limiting | MintMCP, Peta, TrueFoundry, Lasso, Gravitee, Traefik Hub |
-| **Agent Firewalls** (open-source) | Intercept + scan agent traffic (MCP and/or HTTP) | Pipelock, mcp-firewall (ressl), Agent Wall, mcp-firewall (dzervas) |
+| **Agent Firewalls** (open-source) | Intercept + scan agent traffic (MCP and/or HTTP) | Pipelock, mcp-firewall (ressl), mcp-firewall (dzervas) |
 | **Kernel-Level Enforcement** | OS-level syscall interception, sandboxing | agentsh / Canyon Road, Anthropic sandbox-runtime |
-| **Governance Frameworks** | Application-level policy engine, identity, compliance | Microsoft AGT, GitHub Agentic Workflows |
+| **Governance Frameworks** | Application-level policy engine, identity, compliance | GitHub Agentic Workflows, MetaComp StableX KYA (regulated finance) |
 | **Audit & Provenance** | The provenance record *is* the product | Agent Receipts, nono, Asqav, InALign |
+
+A note on two baseline entries we have corrected this cycle:
+
+- **Microsoft Agent Framework is not an agent-audit toolkit.** Earlier landscape reads listed a "Microsoft AGT / Agent Governance Toolkit" with signed receipts, a "Decision BOM," and in-process signing. On re-checking the source, that repository is the Microsoft Agent Framework — the Semantic Kernel and AutoGen successor for building and orchestrating multi-agent workflows. Its work is MCP skills discovery, A2A sessions, Foundry hosting, evals, default-on OpenTelemetry instrumentation, and a Microsoft Purview integration (`agent-framework-purview`). That is observability and orchestration with a governance tie-in, not a signed-receipt format. We have removed it from the audit/governance comparisons below. If a distinct Microsoft agent-audit toolkit exists, we will re-add it when it can be pointed at.
+- **"Agent Wall" is unverified.** The MCP-proxy "Agent Wall" tracked in earlier matrices could not be re-located this cycle; `agentwall.tech` resolves to a different product (an enterprise anti-scraping / paywall firewall). The entry is removed pending re-sourcing.
 
 ---
 
@@ -38,12 +45,14 @@ The category that crystallized in May 2026: tools whose primary product is the p
 
 | | Primary product | Signing locus | Envelope | Notes |
 |---|---|---|---|---|
-| **Agent Receipts** | Provenance record | **Out-of-agent daemon** | W3C VC (Ed25519, RFC 8785) | Keys + chain outside the audited process; one chain across all channels |
-| **nono** | Provenance record | **Out-of-process** (append-only Merkle log) | Sigstore/Rekor anchored | Closest on the boundary axis; binary-identity binding |
-| **Asqav** | Provenance record | In-agent / SDK | Signed records (ML-DSA-65, RFC 3161 timestamps) | Audit-first; post-quantum signing, EU AI Act audit packs |
-| **InALign** | Alignment + audit | In-process | SHA-256 hash chain | MCP-native; MITRE-mapped detection, EU AI Act checks |
+| **Agent Receipts** | Provenance record | **Out-of-agent daemon** | W3C VC (Ed25519, RFC 8785) | Keys + chain outside the audited process; one chain across MCP, hook (native tools) and HTTP |
+| **nono** | Provenance record | **Out-of-process** (append-only Merkle log) | Sigstore/Rekor anchored | Closest on the boundary axis; binary-identity binding; latest release v0.55.0 (2026-05-17), no movement since |
+| **Asqav** | Provenance record | **Server-side / custodial** (hosted) | Signed records (ML-DSA-65, RFC 3161 timestamps) | Remote-custodial — all ML-DSA runs server-side; the SDK is a thin client. Threshold ML-DSA, SD-JWT tokens, DORA + EU AI Act reporting |
+| **InALign** | Alignment + audit | In-process (+ optional external anchor) | SHA-256 hash chain + W3C PROV graph | Optional `inalign-anchor` anchors the chain root externally; 32 MCP tools, MITRE ATT&CK/ATLAS mapping |
 
-> Several of these entrants are weeks old; rows carry verified specifics where available, not fabricated detail. The axis that matters is in-agent vs. out-of-agent signing and record portability — and on the first question, **nono lands on the same side as Agent Receipts**, so the differentiation runs through the portable [W3C VC](/specification/overview/) envelope and the single cross-channel chain. See [the audit boundary belongs outside the agent](/blog/daemon-process-separation/) for why the boundary is the durable property.
+> The axis that matters is in-agent vs. out-of-agent signing and record portability. On the first question, **nono lands on the same side as Agent Receipts**, so the differentiation runs through the portable [W3C VC](/specification/overview/) envelope and the single cross-channel chain. Two corrections this cycle: **Asqav** signs server-side as a hosted custodial service, not in-agent; **InALign** adds a W3C PROV knowledge graph and an optional external anchor, but PROV is the provenance-graph model, not the Verifiable Credential envelope — the VC envelope is still unique to Agent Receipts in this set. See [the audit boundary belongs outside the agent](/blog/daemon-process-separation/) for why the boundary is the durable property.
+
+**Convergence from the firewall layer.** Pipelock (an agent firewall, below) now emits **Audit Packet v0** — a portable record canonicalised with RFC 8785 JCS, with first-party verifiers in Go, TypeScript and Rust, plus an in-toto agent-action-receipt predicate (DSSE-wrapped) and a SCITT signed-statement profile. Its primary product is still the firewall, but its evidence story has moved squarely into this layer's territory. That is convergence on shared primitives rather than a competing audit-first product.
 
 ---
 
@@ -51,25 +60,27 @@ The category that crystallized in May 2026: tools whose primary product is the p
 
 These are the tools most relevant to an individual builder or small team entering the space.
 
-| | **Microsoft AGT** | **Pipelock** | **mcp-firewall (ressl)** | **agentsh (Canyon Road)** | **Agent Wall** | **mcp-firewall (dzervas)** |
-|---|---|---|---|---|---|---|
-| **Released** | v3.0 Public Preview (Apr 2026) | Jan 2026 | Feb 2026 | 2025–2026 | Feb 2026 | 2026 |
-| **Language** | Python (primary), TS, .NET, Rust, Go SDKs | Go | Python | Go + system-level | Node.js | Rust |
-| **License** | MIT | Apache 2.0 | AGPL-3.0 (commercial available) | Source-available (commercial) | MIT | MIT |
-| **Approach** | Application middleware + Agent Framework integration | Egress proxy + MCP proxy | MCP stdio proxy + SDK library | Kernel enforcement (Landlock, FUSE, ptrace, seccomp) | MCP stdio proxy | Claude Code pre-tool-use hook |
-| **MCP proxy** | No (framework adapters) | Yes (stdio) | Yes (stdio) | No (syscall-level) | Yes (stdio) | No (hook-based) |
-| **HTTP/egress proxy** | No | Yes (7-layer scanner) | No | Yes (network proxy) | No | No |
-| **Shell/command control** | No | No | No | Yes (shell shim, ptrace) | No | No |
-| **File I/O control** | No | Integrity monitoring | No | Yes (FUSE, Landlock) | No | No |
-| **Policy engine** | YAML + OPA/Rego + Cedar | YAML config | YAML + OPA/Rego | YAML policy | YAML config | Jsonnet |
-| **DLP / secret scanning** | No | Yes (regex, entropy, env leak) | Yes (response scanning) | Yes (output redaction) | Yes | No |
-| **Prompt injection detection** | MCP scanner module | Yes (response scanning) | Yes (8 inbound checks) | No | Yes | No |
-| **Cryptographic identity** | Ed25519 DIDs + ML-DSA-65 | Ed25519 signing | Ed25519 audit chain | No | No | No |
-| **Audit logging** | Structured + OTEL | JSON + Prometheus; EvidenceReceipt v2 | JSON + signed hash chain | Structured + OTEL | JSON | No |
-| **Compliance reporting** | EU AI Act, NIST, HIPAA, SOC 2, OWASP | OWASP mapping | DORA, FINMA, SOC 2 | No | No | No |
-| **Dashboard** | No | Prometheus/stats endpoint | Yes (web UI) | Via Watchtower (commercial) | Yes (web UI) | No |
-| **Framework integrations** | Agent Framework + 12+ (LangChain, CrewAI, AutoGen, etc.) | Claude Code, Cursor | Claude Desktop, Cursor, any MCP client | Vercel, E2B, Daytona, Cloudflare, etc. | Any MCP client | Claude Code, Copilot CLI |
-| **Trust model** | Same-process middleware | Capability separation (proxy has no secrets) | Same-process proxy | Kernel-enforced isolation | Same-process proxy | Hook-based |
+| | **Pipelock** | **mcp-firewall (ressl)** | **agentsh (Canyon Road)** | **mcp-firewall (dzervas)** |
+|---|---|---|---|---|
+| **Released** | Jan 2026 (v2.6.0, May 2026) | Feb 2026 | 2025–2026 | 2026 |
+| **Language** | Go | Python | Go + system-level | Rust |
+| **License** | Apache 2.0 | AGPL-3.0 (commercial available) | Source-available (commercial) | MIT |
+| **Approach** | Egress proxy + MCP proxy; learn-and-lock contract enforcement | MCP stdio proxy + SDK library | Kernel enforcement (Landlock, FUSE, ptrace, seccomp) | Claude Code pre-tool-use hook |
+| **MCP proxy** | Yes (stdio + tool-call surface) | Yes (stdio) | No (syscall-level) | No (hook-based) |
+| **HTTP/egress proxy** | Yes (operation-level; HTTP + WebSocket; GraphQL-aware) | No | Yes (network proxy) | No |
+| **Shell/command control** | No | No | Yes (shell shim, ptrace) | No |
+| **File I/O control** | Integrity monitoring | No | Yes (FUSE, Landlock) | No |
+| **Policy engine** | YAML + learn-and-lock compiled contracts | YAML + OPA/Rego | YAML policy | Jsonnet |
+| **DLP / secret scanning** | Yes (regex, entropy, env leak); `scan` for invisible-Unicode/bidi | Yes (response scanning) | Yes (output redaction) | No |
+| **Prompt injection detection** | Yes (response scanning + file-injection scan) | Yes (8 inbound checks) | No | No |
+| **Cryptographic identity** | Ed25519 signing; SPIFFE actor identity; RFC 9421 signing-key directory | Ed25519 audit chain | No | No |
+| **Audit logging** | Audit Packet v0 (RFC 8785 JCS); Go/TS/Rust verifiers; in-toto/DSSE + SCITT | JSON + signed hash chain | Structured + OTEL | No |
+| **Compliance reporting** | OWASP, NIST AI RMF, HIPAA (7 frameworks) | DORA, FINMA, SOC 2 | No | No |
+| **Dashboard** | Prometheus/stats endpoint | Yes (web UI) | Via Watchtower (commercial) | No |
+| **Framework integrations** | Claude Code, Cursor, cline, opencode, codex, zed; Hermes | Claude Desktop, Cursor, any MCP client | Vercel, E2B, Daytona, Cloudflare, etc. | Claude Code, Copilot CLI |
+| **Trust model** | Capability separation; 3-UID containment (dedicated `pipelock-proxy` user) | Same-process proxy | Kernel-enforced isolation | Hook-based |
+
+The `mcp-firewall (ressl)`, `agentsh` and `mcp-firewall (dzervas)` columns are unchanged from the prior cycle; they were not re-examined this review, so their rows carry forward the last verified state.
 
 ---
 
@@ -84,6 +95,8 @@ These are the tools most relevant to an individual builder or small team enterin
 | **Human-in-the-loop** | No | Yes (approval workflows) | No | No | No | No |
 | **Compliance** | SOC 2 | SOC 2 | Varies | Gartner Cool Vendor 2024 | Enterprise certifications | Enterprise certifications |
 | **Best for** | Fast deployment, non-security-specialist teams | Regulated industries, credential management | High-throughput, perf-sensitive deployments | Security-first orgs wanting OSS flexibility | Orgs already on Gravitee | Orgs already on Traefik |
+
+*This table was not re-examined this review; rows carry forward the last verified state.*
 
 ---
 
@@ -104,9 +117,8 @@ These are the tools most relevant to an individual builder or small team enterin
 | Approach | Enforcement guarantee | Bypass risk | Setup complexity | Coverage scope |
 |---|---|---|---|---|
 | **Kernel-level** (agentsh) | Strongest — syscall interception | Very low (requires kernel exploit) | High (kernel 6.7+, FUSE, capabilities) | Shell, filesystem, network, processes |
-| **Egress proxy** (Pipelock) | Strong for network — capability separation | Medium (agent could use alternative channels) | Low (single binary) | Network egress, MCP responses |
-| **MCP stdio proxy** (mcp-firewall, Agent Wall) | Moderate — protocol-level interception | Medium (only covers MCP channel) | Low (wrap command) | MCP tool calls and responses only |
-| **Application middleware** (Microsoft AGT) | Weakest — same trust boundary as agent | High (agent can bypass if compromised) | Low (pip install) | Whatever the framework exposes |
+| **Egress proxy** (Pipelock) | Strong for network — capability separation | Medium (agent could use alternative channels) | Low (single binary) | HTTP + WebSocket egress, MCP responses |
+| **MCP stdio proxy** (mcp-firewall) | Moderate — protocol-level interception | Medium (only covers MCP channel) | Low (wrap command) | MCP tool calls and responses only |
 | **Hook-based** (dzervas/mcp-firewall) | Moderate — pre-execution check | Medium (depends on client enforcement) | Very low | Tool calls in supported clients |
 
 *Audit & provenance tools are not enforcement tools — they record rather than block. The analogous axis for them is the trust boundary: an in-process signer shares the agent's blast radius; an [out-of-agent signer](/blog/daemon-process-separation/) does not.*
@@ -115,37 +127,54 @@ These are the tools most relevant to an individual builder or small team enterin
 
 ## Key Primitives Convergence
 
-Multiple projects have independently converged on the same cryptographic and protocol primitives. By May 2026, signed hash-chained receipts are no longer differentiating — they are table stakes.
+Multiple projects have independently converged on the same cryptographic and protocol primitives. By mid-2026, signed hash-chained receipts are no longer differentiating — they are table stakes. The receipt-format conversation is consolidating around a shared set of canonicalisation and transparency primitives.
 
 | Primitive | Used by |
 |---|---|
-| **Ed25519 signing** | Microsoft AGT, Pipelock, mcp-firewall (ressl), Asqav, nono, Agent Receipts |
-| **SHA-256 hash chaining** | mcp-firewall (ressl), Agent Receipts |
-| **DIDs (Decentralized Identifiers)** | Microsoft AGT, Agent Receipts |
-| **OPA/Rego policies** | Microsoft AGT, mcp-firewall (ressl) |
-| **Cedar policies** | Microsoft AGT |
-| **Signed, hash-chained receipt** (any scheme — *table stakes*) | Agent Receipts, Pipelock (EvidenceReceipt v2), Asqav, nono, InALign, Microsoft AGT |
-| **W3C Verifiable Credentials** (data model envelope) | Agent Receipts only — competitors sign receipts with other schemes (Asqav: ML-DSA-65; nono: Sigstore/Rekor; Pipelock: Ed25519 JSONL), not the VC envelope |
+| **Ed25519 signing** | Pipelock, mcp-firewall (ressl), nono, Agent Receipts |
+| **SHA-256 hash chaining** | mcp-firewall (ressl), InALign, Agent Receipts |
+| **RFC 8785 JCS canonicalisation** | Agent Receipts, Pipelock (Audit Packet v0); also draft-sharif and x402-delegation drafts |
+| **ML-DSA-65** (post-quantum) | Asqav (server-side, threshold m-of-n) |
+| **Signed, hash-chained receipt** (any scheme — *table stakes*) | Agent Receipts, Pipelock (Audit Packet v0), Asqav, nono, InALign |
+| **W3C Verifiable Credentials** (data model envelope) | Agent Receipts only — competitors sign with other schemes (Asqav: ML-DSA-65; nono: Sigstore/Rekor; Pipelock: Audit Packet/JCS; InALign: SHA-256 + W3C PROV graph), not the VC envelope |
+| **in-toto / DSSE predicate + SCITT signed-statement** | Pipelock (CAP-SRP is SCITT-aligned, adjacent) |
 | **Sigstore / Rekor transparency log** | nono |
-| **OWASP Agentic AI Top 10** | Microsoft AGT, Pipelock, mcp-firewall (ressl) |
-| **YAML policy config** | All enforcement projects |
-| **Out-of-agent signing / log** | Agent Receipts (daemon owns keys + chain); nono (append-only log the agent can't reach); others sign in-process |
+| **SD-JWT selective disclosure** | Asqav (Verifiable Intent, adjacent) |
+| **SPIFFE actor identity** | Pipelock |
+| **Multi-language verifiers** | Pipelock (Go/TS/Rust); Agent Receipts (Go/TS/Py + browser WASM) |
+| **DIDs (Decentralized Identifiers)** | Agent Receipts |
+| **OPA/Rego policies** | mcp-firewall (ressl); OpenKedge (Cedar/OPA packs, adjacent) |
+| **OWASP Agentic AI Top 10** | Pipelock, mcp-firewall (ressl) |
+| **Out-of-agent signing / log** | Agent Receipts (daemon owns keys + chain); nono (append-only log the agent can't reach); Pipelock's 3-UID containment gives its proxy partial separation; most others sign in-process |
 | **Hook-based emission** | Claude Code (full tool-surface coverage), Codex CLI (partial — no WebSearch, partial shell); Agent Receipts aligns with both hook surfaces |
 
 ---
 
 ## Standards Window
 
-EU AI Act **Article 12** requires automatic, tamper-evident logging of high-risk AI system operation over its lifetime — nearly verbatim, the problem a hash-chained, independently-signed receipt solves. **August 2, 2026** is a genuine AI Act milestone, though some Annex III high-risk obligations were reportedly deferred (to late 2027) in a recent political agreement, so the deadline is softer than a single date implies. The direction of travel — tamper-evident logging as a legal expectation — is the durable signal.
+EU AI Act **Article 12** requires automatic, tamper-resistant logging of high-risk AI system operation over its lifetime — nearly verbatim, the problem a hash-chained, independently-signed receipt solves.
+
+The regulatory clock moved this cycle without moving the live deadline:
+
+- **Article 12 and the Article 9–17 / Article 26 obligations apply from 2 August 2026.** That date is unchanged.
+- The **Digital Omnibus on AI** reached provisional political agreement on 6–7 May 2026, was confirmed by Council Member State representatives on 13 May, and was formally endorsed by the European Parliament on 16 June. Formal adoption and Official Journal publication are expected in July 2026.
+- *Once adopted*, the Omnibus defers some obligations: standalone Annex III high-risk to 2 December 2027, Annex I (embedded in regulated products) to 2 August 2028, and the Article 50(2) synthetic-content watermarking duty to 2 December 2026. It also adds an Article 5 prohibition on AI-generated NCII and CSAM.
+- **Until Official Journal publication, 2 August 2026 remains the legally live date.** No finalised harmonised technical standard for Article 12 logging exists yet — `prEN 18229-1` (AI logging + human oversight) and `ISO/IEC DIS 24970` (AI system logging) are both incomplete.
+
+A growing set of format and protocol efforts is positioning into that space. None is IETF working-group-adopted; the IETF entries are individual Internet-Drafts.
 
 | Effort | Venue | What it is | Maturity |
 |---|---|---|---|
-| **EvidenceReceipt v2** | Pipelock | Receipt format (Ed25519, `evidence.jsonl`); bid to standardize the firewall-emitted record | Shipping |
-| **W3C VC Data Integrity** | W3C | The envelope our receipts use; CG argues canonicalization (JSON-LD vs. RFC 8785) | Recommendation |
-| **IETF draft-sharif** | IETF | `draft-sharif-agent-audit-trail`, a logging format for agent actions | Individual I-D (not WG-adopted) |
-| **W3C AIVS Community Group** | W3C | Agent audit primitives, session-grained rather than action-grained | Early-stage Community Group (not a Working Group) |
+| **Audit Packet v0** | Pipelock | Receipt format (RFC 8785 JCS) with Go/TS/Rust verifiers, in-toto/DSSE predicate + SCITT profile | Shipping |
+| **W3C VC Data Integrity** | W3C | The envelope our receipts use; the CG argues canonicalisation (JSON-LD vs. RFC 8785) | Recommendation |
+| **draft-sharif-agent-audit-trail** | IETF | Hash-chained agent-action log, trust levels L0–L4 | Individual I-D, still -00 (no movement this cycle) |
+| **draft-marques-asqav-compliance-receipts** | IETF | Multi-jurisdiction compliance profile of signed action receipts | Individual I-D (-05) |
+| **draft-nivalto-agentroa-route-authorization** | IETF | BGP-ROA-modelled scope authorisation with per-hop + execution receipts | Individual I-D (-01) |
+| **draft-nelson-agent-delegation-receipts** | IETF | User-signed delegation receipts with a model-state commitment | Individual I-D (-10) |
+| **draft-stone-vcap-ap2-binding** | IETF | VCAP escrow settlement bound to Google's AP2 (commerce) | Individual I-D (-00) |
+| **W3C AIVS Community Group** | W3C | Agent integrity verification, session-grained rather than action-grained | Early-stage Community Group (SwarmSync.AI) |
 
-General supply-chain transparency work (IETF SCITT, COSE receipts) is the substrate some of these build on, but it is software-supply-chain-oriented, not agent-audit-specific, so we don't count it as part of this race.
+General supply-chain transparency work (IETF SCITT, COSE receipts) is the substrate some of these build on; several agent-audit efforts now profile SCITT directly.
 
 Agent Receipts' position: the receipt is a W3C VC; the differentiator is the [out-of-agent boundary](/blog/daemon-process-separation/) plus one chain across channels; the format should be portable, and we will align with a credible standard rather than fork one.
 
@@ -153,18 +182,19 @@ Agent Receipts' position: the receipt is a W3C VC; the differentiator is the [ou
 
 ## Gap Analysis
 
-Areas that remain underserved despite the crowded landscape:
+Areas that remain underserved despite the crowded landscape. Where a gap is closing, the closest approaches are named — this is no longer an empty-box exercise.
 
 | Gap | Description | Who's closest |
 |---|---|---|
-| **Audit independent of the audited process** | Signing keys/log held outside the agent so the trail survives a compromised agent | Agent Receipts (daemon process separation) and nono (append-only log the agent can't reach); most other audit-first tools sign in-process |
-| **Unified cross-channel audit** | Correlating MCP calls + REST calls + shell commands + browser actions into one timeline per agent session | Agent Receipts (one daemon, one chain across channels); Canyon Road Watchtower (commercial/closed) |
-| **CISO-ready reporting** | PDF/HTML reports a security team can review to approve agentic AI adoption | mcp-firewall (ressl) has compliance reports; Microsoft AGT has framework mappings; neither produces turnkey CISO artifacts |
-| **HTTP/OpenAPI interception** | Policy-enforced proxy for agent REST API calls (not just MCP) | Pipelock (egress proxy); agentsh (network proxy) — but neither is OpenAPI-schema-aware |
-| **Browser automation governance** | Intercepting Puppeteer/Playwright/CDP actions with policy enforcement | Nobody (GitHub Copilot firewall explicitly doesn't cover this) |
-| **Policy portability standard** | A way to express agent policies that works across tools | Microsoft AGT supports 3 languages but no cross-tool standard exists |
-| **Agent identity federation** | Verifying agent identity across organizational boundaries | Microsoft AGT (SPIFFE/SVID) is closest; still early |
+| **Audit independent of the audited process** | Signing keys/log held outside the agent so the trail survives a compromised agent | Agent Receipts (daemon process separation) and nono (append-only log the agent can't reach); Pipelock's 3-UID containment now gives its proxy partial separation; most other audit-first tools still sign in-process |
+| **Unified cross-channel audit** | Correlating MCP calls + REST calls + shell commands + native tool actions into one timeline per session | *Closing.* Agent Receipts (one daemon, one chain across MCP, hook and HTTP, out-of-path, attestation-only); Pipelock (HTTP + WebSocket + MCP in one firewall-scoped evidence log, in-path); Canyon Road Watchtower (commercial/closed, kernel vantage) |
+| **Native host-tool plane** | The file edits and commands a runtime makes through its own native tools, invisible to in-path proxies watching MCP or egress | Agent Receipts (the hook plane is bound into the same chain as the proxied channels); in-path proxies do not see this surface |
+| **HTTP/OpenAPI interception** | Policy-enforced proxy for agent REST/HTTP calls (not just MCP) | *Closing.* Pipelock now matches outbound HTTP API operations at the operation level, including GraphQL mutation root fields; agentsh proxies the network at kernel level |
+| **Browser automation governance** | Intercepting Puppeteer/Playwright/CDP actions with policy enforcement | Underserved. Pipelock's operation-level egress covers the HTTP calls a browser driver makes but not CDP/Playwright semantics; agentsh governs the driver process at the syscall level. CDP-aware policy remains the thin spot |
+| **CISO-ready reporting** | PDF/HTML reports a security team can review to approve agentic AI adoption | mcp-firewall (ressl) has compliance reports; Asqav produces EU AI Act / DORA audit packs (custodial); turnkey, tool-neutral CISO artifacts are still thin |
+| **Policy portability standard** | A way to express agent policies that works across tools | No cross-tool policy standard exists; the record-format side is consolidating (RFC 8785 JCS, in-toto/SCITT) ahead of the policy side |
+| **Agent identity federation** | Verifying agent identity across organizational boundaries | SPIFFE actor identity (Pipelock) and DID/passport efforts (AgentROA scope authorisation, AEOESS) are early |
 
 ---
 
-*This document is kept current. For the point-in-time strategic read, see the [May 2026 snapshot](/blog/agent-security-tooling-landscape-may-2026/).*
+*This document is kept current. For the point-in-time strategic read, see the [June 2026 snapshot](/blog/agent-security-tooling-landscape-june-2026/).*

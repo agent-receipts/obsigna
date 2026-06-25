@@ -138,6 +138,10 @@ export default defineConfig({
           items: [
             { label: "All Posts", slug: "blog" },
             {
+              label: "Agent Security Tooling Landscape — June 2026",
+              slug: "blog/agent-security-tooling-landscape-june-2026",
+            },
+            {
               label: "Run the check yourself: a browser verifier",
               slug: "blog/browser-verifier",
             },
