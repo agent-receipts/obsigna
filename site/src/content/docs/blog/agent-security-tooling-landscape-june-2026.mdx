@@ -18,15 +18,15 @@ A support agent reconciles a disputed refund. It reads the ticket over MCP, call
 
 Four tools watched four slices of that session. Each kept its own log in its own format, none of them shares a session identifier with the others, and the one that mattered most — the native file edit, made through the runtime rather than through any proxied channel — sits in none of them. Reconstructing the session means hand-stitching four exports and accepting that one channel is simply dark.
 
-That scenario is the centre of gravity this month. The verdict: the correlation gap it describes is closing rather than closed, and the projects closing it are worth reading carefully.
+That scenario is the centre of gravity this month. The correlation gap it describes is closing, and the projects narrowing it are worth reading carefully.
 
 ## Executive summary
 
 Three things moved in June.
 
-1. **Cross-channel correlation stopped being an empty box.** Pipelock's spring releases carry HTTP, WebSocket and MCP traffic in a single firewall-scoped evidence log, with learn-and-lock contract enforcement across every URL-bearing transport plus the MCP tool-call surface. Canyon Road's Watchtower has offered cross-channel correlation commercially for a while. So the honest framing is no longer "this is unoccupied" — it is "this is being occupied, and the question is from which vantage."
+1. **Cross-channel correlation stopped being an empty box.** Pipelock's spring releases carry HTTP, WebSocket and MCP traffic in a single firewall-scoped evidence log, with learn-and-lock contract enforcement across every URL-bearing transport plus the MCP tool-call surface. Canyon Road's Watchtower has offered cross-channel correlation commercially for a while. The honest framing has shifted: this gap is being occupied, and the open question is from which vantage.
 
-2. **The receipt-format field got crowded and more standards-shaped.** Pipelock shipped Audit Packet v0 with first-party verifiers in Go, TypeScript and Rust and a standalone `pipelock-verifier` CLI, canonicalises with RFC 8785 JCS — the same canonicalisation our receipts use — and published an in-toto agent-action-receipt predicate (DSSE-wrapped) plus a SCITT signed-statement profile. A signed, portable, independently-verifiable record is now a multi-vendor expectation, not a single-project trait.
+2. **The receipt-format field got crowded and more standards-shaped.** Pipelock shipped Audit Packet v0 with first-party verifiers in Go, TypeScript and Rust and a standalone `pipelock-verifier` CLI, canonicalises with RFC 8785 JCS — the same canonicalisation our receipts use — and published an in-toto agent-action-receipt predicate (DSSE-wrapped) plus a SCITT signed-statement profile. A signed, portable, independently-verifiable record is now a multi-vendor expectation; several projects ship one.
 
 3. **Two baseline entries were wrong and we are correcting them.** What we and others filed under "Microsoft AGT" is, on re-checking the source, the **Microsoft Agent Framework** — an orchestration framework with OpenTelemetry and Purview integration, not an audit or signing toolkit. And **Asqav** signs server-side as a hosted custodial service, not in-agent. Both corrections move players across the axis that we think matters most.
 
@@ -47,7 +47,7 @@ Pipelock's three releases (v2.4.0 on 6 May, v2.5.0 on 20 May, v2.6.0 on 30 May) 
 
 Two of these matter to how we position. The 3-UID containment gives Pipelock's proxy its own OS user, so the lazy "it signs in-process, same blast radius as the agent" line no longer fits cleanly — it now has real separation for the firewall vantage. And the RFC 8785 + verifier + in-toto/SCITT stack means the format conversation is consolidating around primitives we already share.
 
-This is convergence, not collision. A portable record is worth more when more than one tool can emit and read it. Pipelock watches the request line from inside it; we attest from outside it. Those vantages compose.
+This is convergence. A portable record is worth more when more than one tool can emit and read it. Pipelock watches the request line from inside it; we attest from outside it. Those vantages compose.
 
 ### The audit & provenance table, corrected
 
@@ -81,7 +81,7 @@ Most of June's new names are adjacent to agent-action audit rather than in it, a
 | **CAP-SRP / VeritasChain** | Content-refusal provenance | Cryptographic proof that a generation model _refused_ to produce harmful content; Ed25519 chain + Merkle + RFC 3161, SCITT/C2PA-aligned |
 | **OpenKedge** | Execution governance | Intent-governed state mutation with a hash-linked Intent-to-Execution Evidence Chain; notably puts log-integrity attacks out of scope, the opposite stance to a tamper-evidence-first trail |
 
-The signal is not any one of these. It is that "sign the agent's action, scope its authority, keep a record someone else can check" is now being approached from payments, from delegation, from compliance and from regulated finance at once. The agent-action audit centre of that activity stays small; the ring around it is busy.
+The signal here is the spread: "sign the agent's action, scope its authority, keep a record someone else can check" is now being approached from payments, from delegation, from compliance and from regulated finance at once. The agent-action audit centre of that activity stays small; the ring around it is busy.
 
 ## The standards window
 
@@ -105,19 +105,19 @@ On the format side, the venues are filling with individual submissions. None is 
 | **draft-nivalto-agentroa** / **draft-nelson-DRP** | IETF | Scope-authorisation receipts; delegation receipts | Individual I-Ds |
 | **W3C AIVS Community Group** | W3C | Agent integrity verification, session-grained rather than action-grained | Early-stage CG (SwarmSync.AI), converging in its spec PR |
 
-The room is louder than it was in May. That raises the value of being legible in it before the format question hardens: the receipt is a W3C VC, the differentiator is the out-of-agent boundary plus one chain across channels, and the format should be portable rather than forked.
+The room is louder than it was in May. That raises the value of being legible in it before the format question hardens: the receipt is a W3C VC, the differentiator is the out-of-agent boundary plus one chain across channels, and the format should stay portable.
 
 ## Where we sit
 
-Nothing in June changed our architecture; it changed the neighbourhood. The receipt is still a W3C Verifiable Credential signed by `obsigna-daemon`, a separate OS user the agent process cannot reach, and the chain still spans MCP, the hook plane (native host-tool calls) and HTTP rather than living per-tool. The [browser verifier](/blog/browser-verifier/) shipped on 24 June makes the portability claim concrete: paste a receipt or a chain at obsigna.dev/verify and the signatures, hash chain and JCS canonicalisation are checked client-side, with nothing leaving the machine.
+Nothing in June changed our architecture; it changed the neighbourhood. The receipt is still a W3C Verifiable Credential signed by `obsigna-daemon`, a separate OS user the agent process cannot reach, and the chain still spans MCP, the hook plane (native host-tool calls) and HTTP as a single record. The [browser verifier](/blog/browser-verifier/) shipped on 24 June makes the portability claim concrete: paste a receipt or a chain at obsigna.dev/verify and the signatures, hash chain and JCS canonicalisation are checked client-side, with nothing leaving the machine.
 
 The native plane is the part of the refund scenario the in-path proxies cannot reach. An egress firewall sees the payments API call; it does not see the file the runtime edited through its own tool surface. Covering that plane from outside the agent, and binding it into the same chain as the proxied channels, is the coverage we are positioned to hold.
 
 ## Net assessment
 
-Receipts stopped being the differentiator some time ago, so our position is a combination rather than a single empty box. The audit runs out of the agent's path and only attests — it does not sit in the request line and does not take custody of customer data. It unifies several planes, including the native host-tool plane an in-path proxy never sees, into one chain. And that chain travels as a portable W3C Verifiable Credential a third party can check without our service.
+Receipts stopped being the differentiator some time ago, so our position rests on several properties at once. The audit runs out of the agent's path and only attests — it does not sit in the request line and does not take custody of customer data. It unifies several planes, including the native host-tool plane an in-path proxy never sees, into one chain. And that chain travels as a portable W3C Verifiable Credential a third party can check without our service.
 
-Pipelock is the nearest neighbour and the most useful one. It now carries HTTP, WebSocket and MCP in a single firewall-scoped evidence log and canonicalises with the same RFC 8785 we do. The sensible posture there is interoperation rather than rivalry: its egress evidence is exactly the kind of input a correlated trail should be able to ingest, and a portable record earns its keep only when more than one tool emits and reads it. We are not positioning as a firewall.
+Pipelock is the nearest neighbour and the most useful one. It now carries HTTP, WebSocket and MCP in a single firewall-scoped evidence log and canonicalises with the same RFC 8785 we do. The sensible posture there is interoperation: its egress evidence is exactly the kind of input a correlated trail should be able to ingest, and a portable record earns its keep only when more than one tool emits and reads it. We are not positioning as a firewall.
 
 Capturing the I/O rather than the protocol is also where this work converges with kernel-level tools such as agentsh. Staying in userspace, attestation-only, open and portable is the line that keeps the approaches distinct. None of this is a standing moat. The position holds only while we are in the standards rooms and shipping a correlated artifact, rather than describing one.
 
