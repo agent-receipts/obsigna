@@ -61,6 +61,8 @@ This is convergence. A portable record is worth more when more than one tool can
 
 Two corrections to last month's table. **Asqav** runs all ML-DSA cryptography server-side; the SDK is a thin client to a hosted service, so it belongs in the remote-custodial column rather than in-agent. **InALign** keeps its SHA-256 chain but also builds a W3C PROV knowledge graph and offers an optional blockchain anchor for the chain root — so it is a second project anchored to a W3C standard, though PROV is the provenance-graph model, not the Verifiable Credential envelope. The VC envelope itself is still ours alone in this set.
 
+**Data sovereignty.** Keeping the trail local is also a jurisdiction choice. The receipts stay on your machine, under your control, with no third-party processor in the chain. A hosted custodial signer adds one even when only hashes leave, because the keys, the signing service, and any metadata sent sit under the vendor's jurisdiction. For data-residency or processor-disclosure duties (EU AI Act, DORA), that is the difference between attesting to your own audit trail and vouching for someone else's.
+
 ### "Microsoft AGT" was the Agent Framework
 
 The most-corrected entry in the baseline. The repository we and our sources read as a governance and audit toolkit is the **Microsoft Agent Framework**, the Semantic Kernel and AutoGen successor, for building and orchestrating multi-agent workflows. Its recent releases (python-1.8.0, dotnet-1.9.0) concern MCP skills discovery, A2A sessions, Foundry hosting and evals; python-1.6.0 made OpenTelemetry instrumentation default-on, and an `agent-framework-purview` package adds Microsoft Purview integration. None of that is a signed audit receipt.
