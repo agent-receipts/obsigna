@@ -45,19 +45,19 @@ Pipelock's three releases (v2.4.0 on 6 May, v2.5.0 on 20 May, v2.6.0 on 30 May) 
 | **Standards alignment** | in-toto agent-action-receipt v0.1 predicate (DSSE wrapping) and a SCITT signed-statement profile, with a per-primitive prior-art map citing SCITT, RFC 9421, SPIFFE, OpenTelemetry GenAI and others |
 | **Containment** | `pipelock contain install` introduces a 3-UID model — a dedicated `pipelock-proxy` OS user owning the state directory and binary the agent user cannot replace |
 
-Two of these matter to how we position. The 3-UID containment gives Pipelock's proxy its own OS user, so the lazy "it signs in-process, same blast radius as the agent" line no longer fits cleanly — it now has real separation for the firewall vantage. And the RFC 8785 + verifier + in-toto/SCITT stack means the format conversation is consolidating around primitives we already share.
+Two of these matter to how we position. The 3-UID containment gives Pipelock's proxy its own OS user, so the lazy "it signs in-process, same blast radius as the agent" line no longer fits cleanly — it now has real separation for the firewall vantage. And the RFC 8785 + in-toto/SCITT stack means the format conversation is consolidating around primitives we already share. Multi-language verifiers are becoming table stakes rather than a differentiator; ours additionally runs in the browser as WASM, so anyone can check a receipt with nothing leaving their machine.
 
 This is convergence. A portable record is worth more when more than one tool can emit and read it. Pipelock watches the request line from inside it; we attest from outside it. Those vantages compose.
 
 ### The audit & provenance table, corrected
 
-| | Primary product | Signing locus | Envelope | Notes |
-|---|---|---|---|---|
-| **Agent Receipts** | Provenance record | **Out-of-agent daemon** | W3C VC (Ed25519, RFC 8785) | Keys + chain outside the audited process; one chain across MCP, hook (native tools) and HTTP |
-| **nono** | Provenance record | **Out-of-process** (append-only Merkle log) | Sigstore / Rekor anchored | Same out-of-agent side; binary-identity binding; latest release v0.55.0 (17 May), no movement since |
-| **Pipelock** | Firewall + evidence | In-path proxy, dedicated OS user (3-UID) | Audit Packet v0 (RFC 8785 JCS); in-toto/DSSE + SCITT | One evidence log across HTTP / WS / MCP; Go / TS / Rust verifiers |
-| **Asqav** | Provenance record | **Server-side / custodial** (hosted) | Signed records (ML-DSA-65, RFC 3161) | Remote-custodial, _not_ in-agent (correction); threshold ML-DSA, SD-JWT tokens, DORA + EU AI Act reporting |
-| **InALign** | Alignment + audit | In-process (+ optional external anchor) | SHA-256 hash chain + W3C PROV graph | Optional `inalign-anchor` anchors the chain root externally; 32 MCP tools, MITRE ATT&CK/ATLAS mapping |
+| | Primary product | Signing locus | Envelope | Where your data lives | Cost | Notes |
+|---|---|---|---|---|---|---|
+| **Agent Receipts** | Provenance record | **Out-of-agent daemon** | W3C VC (Ed25519, RFC 8785) | **Local by default** — your machine; optional self-host or outsource | **Free, local-first** | Keys + chain outside the audited process; one chain across MCP, hook (native tools) and HTTP; web/WASM verifier checks receipts in-browser with nothing leaving the machine |
+| **nono** | Provenance record | **Out-of-process** (append-only Merkle log) | Sigstore / Rekor anchored | Local log, anchored to the public Rekor transparency log | Free (open source) | Same out-of-agent side; binary-identity binding; latest release v0.55.0 (17 May), no movement since |
+| **Pipelock** | Firewall + evidence | In-path proxy, dedicated OS user (3-UID) | Audit Packet v0 (RFC 8785 JCS); in-toto/DSSE + SCITT | Local — you run the firewall | Free (open source, Apache 2.0) | One evidence log across HTTP / WS / MCP |
+| **Asqav** | Provenance record | **Server-side / custodial** (hosted) | Signed records (ML-DSA-65, RFC 3161) | **Server-side** — keys + signing on Asqav (API key required); only a hash + metadata sent by default, self-host option for full payloads | Free tier; Pro $39/mo, Business $149/mo | Remote-custodial, _not_ in-agent (correction); threshold ML-DSA, SD-JWT tokens, DORA + EU AI Act reporting |
+| **InALign** | Alignment + audit | In-process (+ optional external anchor) | SHA-256 hash chain + W3C PROV graph | Local chain, optional external anchor | Free (open source) | Optional `inalign-anchor` anchors the chain root externally; 32 MCP tools, MITRE ATT&CK/ATLAS mapping |
 
 Two corrections to last month's table. **Asqav** runs all ML-DSA cryptography server-side; the SDK is a thin client to a hosted service, so it belongs in the remote-custodial column rather than in-agent. **InALign** keeps its SHA-256 chain but also builds a W3C PROV knowledge graph and offers an optional blockchain anchor for the chain root — so it is a second project anchored to a W3C standard, though PROV is the provenance-graph model, not the Verifiable Credential envelope. The VC envelope itself is still ours alone in this set.
 
@@ -94,16 +94,16 @@ The regulatory clock moved, without moving the live deadline:
 - _Once adopted_, the Omnibus defers some obligations: standalone Annex III high-risk to 2 December 2027, Annex I (embedded in regulated products) to 2 August 2028, and the Article 50(2) synthetic-content watermarking duty to 2 December 2026. It also adds an Article 5 prohibition on AI-generated NCII and CSAM.
 - Until that Official Journal publication lands, **2 August 2026 remains the legally live date.** No finalised harmonised technical standard for Article 12 logging exists yet — `prEN 18229-1` and `ISO/IEC DIS 24970` are both still incomplete.
 
-On the format side, the venues are filling with individual submissions. None is working-group-adopted.
+On the format side, the venues are filling with individual submissions. None is working-group-adopted, and several are placeholders that have not advanced — the Momentum column flags which are actually live.
 
-| Effort | Venue | What it is | Maturity |
-|---|---|---|---|
-| **Audit Packet v0** | Pipelock | Receipt format with multi-language verifiers, RFC 8785 JCS, in-toto/DSSE + SCITT profiles | Shipping |
-| **W3C VC Data Integrity** | W3C | The envelope our receipts use; the CG argues canonicalisation (JSON-LD vs. RFC 8785) | Recommendation |
-| **draft-sharif-agent-audit-trail** | IETF | Hash-chained agent-action log, trust levels L0–L4 | Individual I-D, still -00, no movement since the baseline |
-| **draft-marques-asqav-compliance-receipts** | IETF | Multi-jurisdiction compliance profile of signed action receipts | Individual I-D (-05) |
-| **draft-nivalto-agentroa** / **draft-nelson-DRP** | IETF | Scope-authorisation receipts; delegation receipts | Individual I-Ds |
-| **W3C AIVS Community Group** | W3C | Agent integrity verification, session-grained rather than action-grained | Early-stage CG (SwarmSync.AI), converging in its spec PR |
+| Effort | Venue | What it is | Maturity | Momentum |
+|---|---|---|---|---|
+| **Audit Packet v0** | Pipelock | Receipt format with multi-language verifiers, RFC 8785 JCS, in-toto/DSSE + SCITT profiles | Shipping | **Active** — v2.4→v2.6 this spring |
+| **W3C VC Data Integrity** | W3C | The envelope our receipts use; the CG argues canonicalisation (JSON-LD vs. RFC 8785) | Recommendation | **Stable** — published standard |
+| **draft-sharif-agent-audit-trail** | IETF | Hash-chained agent-action log, trust levels L0–L4 | Individual I-D (-00) | **Stalled** — no update since the baseline |
+| **draft-marques-asqav-compliance-receipts** | IETF | Multi-jurisdiction compliance profile of signed action receipts | Individual I-D (-05) | **Active** — advanced to -05 (May 2026) |
+| **draft-nivalto-agentroa** / **draft-nelson-DRP** | IETF | Scope-authorisation receipts; delegation receipts | Individual I-Ds | **Active** — Nelson at -10 (Jun); Nivalto -01 (Apr) |
+| **W3C AIVS Community Group** | W3C | Agent integrity verification, session-grained rather than action-grained | Early-stage CG (SwarmSync.AI) | **Active (early)** — spec PR converging |
 
 The room is louder than it was in May. That raises the value of being legible in it before the format question hardens: the receipt is a W3C VC, the differentiator is the out-of-agent boundary plus one chain across channels, and the format should stay portable.
 

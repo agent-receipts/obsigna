@@ -43,12 +43,12 @@ A note on two baseline entries we have corrected this cycle:
 
 The category that crystallized in May 2026: tools whose primary product is the provenance record rather than enforcement. The differentiating axis is **where the signing key lives** (inside vs. outside the audited process) and **how portable** the record is.
 
-| | Primary product | Signing locus | Envelope | Notes |
-|---|---|---|---|---|
-| **Agent Receipts** | Provenance record | **Out-of-agent daemon** | W3C VC (Ed25519, RFC 8785) | Keys + chain outside the audited process; one chain across MCP, hook (native tools) and HTTP |
-| **nono** | Provenance record | **Out-of-process** (append-only Merkle log) | Sigstore/Rekor anchored | Closest on the boundary axis; binary-identity binding; latest release v0.55.0 (2026-05-17), no movement since |
-| **Asqav** | Provenance record | **Server-side / custodial** (hosted) | Signed records (ML-DSA-65, RFC 3161 timestamps) | Remote-custodial — all ML-DSA runs server-side; the SDK is a thin client. Threshold ML-DSA, SD-JWT tokens, DORA + EU AI Act reporting |
-| **InALign** | Alignment + audit | In-process (+ optional external anchor) | SHA-256 hash chain + W3C PROV graph | Optional `inalign-anchor` anchors the chain root externally; 32 MCP tools, MITRE ATT&CK/ATLAS mapping |
+| | Primary product | Signing locus | Envelope | Where your data lives | Cost | Notes |
+|---|---|---|---|---|---|---|
+| **Agent Receipts** | Provenance record | **Out-of-agent daemon** | W3C VC (Ed25519, RFC 8785) | Local by default — your machine; optional self-host or outsource | Free, local-first | Keys + chain outside the audited process; one chain across MCP, hook (native tools) and HTTP; web/WASM verifier checks receipts in-browser with nothing leaving the machine |
+| **nono** | Provenance record | **Out-of-process** (append-only Merkle log) | Sigstore/Rekor anchored | Local log, anchored to the public Rekor transparency log | Free (open source) | Closest on the boundary axis; binary-identity binding; latest release v0.55.0 (2026-05-17), no movement since |
+| **Asqav** | Provenance record | **Server-side / custodial** (hosted) | Signed records (ML-DSA-65, RFC 3161 timestamps) | Server-side — keys + signing on Asqav (API key required); only a hash + metadata sent by default, self-host option for full payloads | Free tier; Pro $39/mo, Business $149/mo | Remote-custodial — all ML-DSA runs server-side; the SDK is a thin client. Threshold ML-DSA, SD-JWT tokens, DORA + EU AI Act reporting |
+| **InALign** | Alignment + audit | In-process (+ optional external anchor) | SHA-256 hash chain + W3C PROV graph | Local chain, optional external anchor | Free (open source) | Optional `inalign-anchor` anchors the chain root externally; 32 MCP tools, MITRE ATT&CK/ATLAS mapping |
 
 > The axis that matters is in-agent vs. out-of-agent signing and record portability. On the first question, **nono lands on the same side as Agent Receipts**, so the differentiation runs through the portable [W3C VC](/specification/overview/) envelope and the single cross-channel chain. Two corrections this cycle: **Asqav** signs server-side as a hosted custodial service, not in-agent; **InALign** adds a W3C PROV knowledge graph and an optional external anchor, but PROV is the provenance-graph model, not the Verifiable Credential envelope — the VC envelope is still unique to Agent Receipts in this set. See [the audit boundary belongs outside the agent](/blog/daemon-process-separation/) for why the boundary is the durable property.
 
@@ -161,18 +161,18 @@ The regulatory clock moved this cycle without moving the live deadline:
 - *Once adopted*, the Omnibus defers some obligations: standalone Annex III high-risk to 2 December 2027, Annex I (embedded in regulated products) to 2 August 2028, and the Article 50(2) synthetic-content watermarking duty to 2 December 2026. It also adds an Article 5 prohibition on AI-generated NCII and CSAM.
 - **Until Official Journal publication, 2 August 2026 remains the legally live date.** No finalised harmonised technical standard for Article 12 logging exists yet — `prEN 18229-1` (AI logging + human oversight) and `ISO/IEC DIS 24970` (AI system logging) are both incomplete.
 
-A growing set of format and protocol efforts is positioning into that space. None is IETF working-group-adopted; the IETF entries are individual Internet-Drafts.
+A growing set of format and protocol efforts is positioning into that space. None is IETF working-group-adopted; the IETF entries are individual Internet-Drafts. The Momentum column flags which are advancing and which are dormant placeholders.
 
-| Effort | Venue | What it is | Maturity |
-|---|---|---|---|
-| **Audit Packet v0** | Pipelock | Receipt format (RFC 8785 JCS) with Go/TS/Rust verifiers, in-toto/DSSE predicate + SCITT profile | Shipping |
-| **W3C VC Data Integrity** | W3C | The envelope our receipts use; the CG argues canonicalisation (JSON-LD vs. RFC 8785) | Recommendation |
-| **draft-sharif-agent-audit-trail** | IETF | Hash-chained agent-action log, trust levels L0–L4 | Individual I-D, still -00 (no movement this cycle) |
-| **draft-marques-asqav-compliance-receipts** | IETF | Multi-jurisdiction compliance profile of signed action receipts | Individual I-D (-05) |
-| **draft-nivalto-agentroa-route-authorization** | IETF | BGP-ROA-modelled scope authorisation with per-hop + execution receipts | Individual I-D (-01) |
-| **draft-nelson-agent-delegation-receipts** | IETF | User-signed delegation receipts with a model-state commitment | Individual I-D (-10) |
-| **draft-stone-vcap-ap2-binding** | IETF | VCAP escrow settlement bound to Google's AP2 (commerce) | Individual I-D (-00) |
-| **W3C AIVS Community Group** | W3C | Agent integrity verification, session-grained rather than action-grained | Early-stage Community Group (SwarmSync.AI) |
+| Effort | Venue | What it is | Maturity | Momentum |
+|---|---|---|---|---|
+| **Audit Packet v0** | Pipelock | Receipt format (RFC 8785 JCS) with Go/TS/Rust verifiers, in-toto/DSSE predicate + SCITT profile | Shipping | **Active** — v2.4→v2.6 this spring |
+| **W3C VC Data Integrity** | W3C | The envelope our receipts use; the CG argues canonicalisation (JSON-LD vs. RFC 8785) | Recommendation | **Stable** — published standard |
+| **draft-sharif-agent-audit-trail** | IETF | Hash-chained agent-action log, trust levels L0–L4 | Individual I-D (-00) | **Stalled** — no update this cycle |
+| **draft-marques-asqav-compliance-receipts** | IETF | Multi-jurisdiction compliance profile of signed action receipts | Individual I-D (-05) | **Active** — advanced to -05 (May 2026) |
+| **draft-nivalto-agentroa-route-authorization** | IETF | BGP-ROA-modelled scope authorisation with per-hop + execution receipts | Individual I-D (-01) | **Quiet** — -01 since April |
+| **draft-nelson-agent-delegation-receipts** | IETF | User-signed delegation receipts with a model-state commitment | Individual I-D (-10) | **Active** — -10 (Jun 2026) |
+| **draft-stone-vcap-ap2-binding** | IETF | VCAP escrow settlement bound to Google's AP2 (commerce) | Individual I-D (-00) | **Early** — -00 (Mar 2026) |
+| **W3C AIVS Community Group** | W3C | Agent integrity verification, session-grained rather than action-grained | Early-stage Community Group (SwarmSync.AI) | **Active (early)** — spec PR converging |
 
 General supply-chain transparency work (IETF SCITT, COSE receipts) is the substrate some of these build on; several agent-audit efforts now profile SCITT directly.
 
