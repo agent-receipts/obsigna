@@ -14,7 +14,10 @@ README); this script only measures them.
 
 Usage:
     count.py                 # human-readable table
-    count.py --format md     # Markdown table (paste-ready for the page)
+    count.py --format md     # Markdown table (on-page sets only; the page splits
+                              # this output's "Consumers" column into separate
+                              # Go/Py/TS columns, so paste it in as a reference,
+                              # not a drop-in replacement)
     count.py --format json   # machine-readable counts
 
 Exit codes:
@@ -86,15 +89,23 @@ class VectorSet:
     consumers: str  # which SDKs consume/verify it
     spec_versions: str
     counter: Callable[[dict[str, Any]], int]
+    # Whether this set appears as a row in the published matrix on the page.
+    # Reference fixtures that no SDK suite consumes (currently only did:key
+    # resolution) are still counted here — so the corpus stays fully
+    # reproducible from source — but are kept off the results matrix rather
+    # than shown as an all-dashes row that invites the wrong question. The page
+    # reconciliation test binds the page's matrix to the on_page=True rows.
+    on_page: bool = True
 
     def count(self) -> int:
         doc = json.loads((_REPO_ROOT / self.path).read_text(encoding="utf-8"))
         return self.counter(doc)
 
 
-# The matrix, in the order it appears on the page. Consumer/spec-version columns
-# are authored here (they describe how the suites wire the file up, not
-# something derivable from the JSON); the count column is computed.
+# Every frozen vector set, in matrix order. Consumer/spec-version columns are
+# authored here (they describe how the suites wire the file up, not something
+# derivable from the JSON); the count column is computed. Sets with
+# on_page=False are counted but omitted from the published results matrix.
 VECTOR_SETS: list[VectorSet] = [
     VectorSet(
         name="canonicalization",
@@ -159,6 +170,7 @@ VECTOR_SETS: list[VectorSet] = [
         consumers="reference fixtures — not yet wired into a suite",
         spec_versions="did:key v0.7",
         counter=_sum_len("vectors"),
+        on_page=False,  # reference fixtures; no SDK suite consumes them yet
     ),
     VectorSet(
         name="disclosure envelope",
@@ -198,11 +210,14 @@ def _render_table(rows: list[tuple[VectorSet, int]]) -> str:
 
 
 def _render_md(rows: list[tuple[VectorSet, int]]) -> str:
+    # Paste-ready for the published matrix, which lists only the on-page sets.
     lines = [
         "| Vector set | Purpose | Consumers | Spec version(s) | Vectors |",
         "| --- | --- | --- | --- | ---: |",
     ]
     for vs, count in rows:
+        if not vs.on_page:
+            continue
         lines.append(
             f"| {vs.name} | {vs.purpose} | {vs.consumers} | {vs.spec_versions} | {count} |"
         )
@@ -219,6 +234,7 @@ def _render_json(rows: list[tuple[VectorSet, int]]) -> str:
                 "consumers": vs.consumers,
                 "specVersions": vs.spec_versions,
                 "count": count,
+                "onPage": vs.on_page,
             }
             for vs, count in rows
         ],

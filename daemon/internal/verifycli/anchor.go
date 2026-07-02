@@ -18,7 +18,8 @@ type anchorResult struct {
 }
 
 // verifyAgainstAnchor checks the receipt chain HEAD against the out-of-band
-// signed checkpoints in the anchor at anchorPath (ADR-0008 follow-through).
+// signed checkpoints in the anchor at anchorPath (the ADR-0008 §3 out-of-band
+// check over ADR-0015 Phase B checkpoints).
 //
 // It performs, in order:
 //   - read the anchor log and retrieve the latest verified checkpoint for

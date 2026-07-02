@@ -49,7 +49,7 @@
 
 ## Conformance
 
-Anyone can implement the protocol — so interoperability is the property that matters. The three SDKs (Go, Python, TypeScript) are independent implementations that **verify one another's receipts**: every conformance vector is signed once with a shared Ed25519 keypair, and each SDK re-verifies the signatures, canonical JSON, and hashes the other two produced — across a positive corpus, a MUST-reject corpus, and four pinned spec versions. This cross-language verification is enforced in CI.
+Anyone can implement the protocol — so interoperability is the property that matters. The three SDKs (Go, Python, TypeScript) are separate, no-shared-code implementations that **verify one another's receipts**: every conformance vector is signed once with a shared Ed25519 keypair, and each SDK re-verifies the signatures, canonical JSON, and hashes the other two produced — across a positive corpus, a MUST-reject corpus, and four pinned spec versions. This cross-language verification is enforced in CI (it catches serialisation drift between the languages, not spec-interpretation ambiguity — the SDKs share one author).
 
 The **[Conformance page](https://agentreceipts.ai/conformance/)** is the citeable summary: the interop claim, a results matrix with per-set vector counts, permanent links to every frozen vector set, and how to reproduce the checks. The shared corpus lives in [`cross-sdk-tests/`](cross-sdk-tests/).
 

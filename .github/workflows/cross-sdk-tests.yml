@@ -10,6 +10,11 @@ on:
       # The CLI<->WASM conformance gate compiles the web-verifier module, so a
       # change there must re-run the gate.
       - "web-verifier/**"
+      # The conformance page reconciliation test (conformance_page_test.go)
+      # binds the page's matrix and the count.py generator to each other, so
+      # either side changing must re-run the gate.
+      - "site/src/content/docs/conformance.mdx"
+      - "scripts/conformance_matrix/**"
   pull_request:
     branches: [main]
     paths:
@@ -17,6 +22,8 @@ on:
       - "sdk/go/**"
       - "spec/**"
       - "web-verifier/**"
+      - "site/src/content/docs/conformance.mdx"
+      - "scripts/conformance_matrix/**"
 
 permissions:
   contents: read

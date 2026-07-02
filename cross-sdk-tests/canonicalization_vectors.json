@@ -203,6 +203,13 @@
       "canonical": "\"\ud83c\udf89\""
     },
     {
+      "name": "string_no_unicode_normalization",
+      "rule": "rule4_strings",
+      "description": "RFC 8785 does NOT apply Unicode normalization (\u00a73, building on RFC 8259). Input is the NFD sequence U+0065 (LATIN SMALL LETTER E) + U+0301 (COMBINING ACUTE ACCENT), which is canonically equivalent to \u2014 but must NOT be folded to \u2014 the precomposed NFC form U+00E9 (LATIN SMALL LETTER E WITH ACUTE). A canonicaliser that silently normalises to NFC would emit \"\u00e9\" (2 UTF-8 bytes C3 A9) and fail this vector; the required output preserves both code points verbatim (3 UTF-8 bytes 65 CC 81). The input/canonical strings use \\u escapes so the source file's bytes stay ASCII and cannot themselves be NFC-folded by an editor.",
+      "input": "e\u0301",
+      "canonical": "\"e\u0301\""
+    },
+    {
       "name": "bool_and_null",
       "rule": "baseline",
       "description": "Literals.",
