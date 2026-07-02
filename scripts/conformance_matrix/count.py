@@ -14,7 +14,10 @@ README); this script only measures them.
 
 Usage:
     count.py                 # human-readable table
-    count.py --format md     # Markdown table (paste-ready for the page)
+    count.py --format md     # Markdown table (on-page sets only; the page splits
+                              # this output's "Consumers" column into separate
+                              # Go/Py/TS columns, so paste it in as a reference,
+                              # not a drop-in replacement)
     count.py --format json   # machine-readable counts
 
 Exit codes:

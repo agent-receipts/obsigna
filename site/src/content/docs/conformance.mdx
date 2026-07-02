@@ -23,7 +23,7 @@ The three SDKs share no code: each is a separate implementation of the same spec
 
 ## Results matrix
 
-Each row is a frozen vector set. The **Go / Py / TS** columns mark which implementations consume and verify that set in their test suites. Vector counts are generated from the committed JSON by [`scripts/conformance_matrix/count.py`](https://github.com/agent-receipts/obsigna/blob/main/scripts/conformance_matrix/count.py), and a CI [reconciliation test](https://github.com/agent-receipts/obsigna/blob/main/cross-sdk-tests/conformance_page_test.go) asserts every count in this table — and the figures in the callout below — equal that script's output. It re-runs whenever the vector corpus or the spec changes, so a corpus edit that outdates a number here turns the check red before merge.
+Each row is a frozen vector set. The **Go / Py / TS** columns mark which implementations consume and verify that set in their test suites. Vector counts are generated from the committed JSON by [`scripts/conformance_matrix/count.py`](https://github.com/agent-receipts/obsigna/blob/main/scripts/conformance_matrix/count.py), and a CI [reconciliation test](https://github.com/agent-receipts/obsigna/blob/main/cross-sdk-tests/conformance_page_test.go) asserts every count in this table — and the figures in the callout below — equal that script's output. It re-runs whenever the vector corpus, the spec, this page, or `count.py` changes, so an edit that outdates a number here turns the check red before merge.
 
 | Vector set | Purpose | Go | Py | TS | Spec version(s) | Vectors |
 | --- | --- | :-: | :-: | :-: | --- | ---: |

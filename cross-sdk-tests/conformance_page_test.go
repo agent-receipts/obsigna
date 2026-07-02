@@ -21,13 +21,10 @@ package crosssdk_test
 //     total and the MUST-reject case count) match count.py.
 //
 // It lives here, in cross-sdk-tests/, because cross-sdk-tests.yml re-runs on
-// every change to the vector corpora (cross-sdk-tests/** and spec/**) — the
-// changes that actually move these counts. That path filter does NOT cover
-// site/** or scripts/**, so a page-only edit (or a count.py-only edit) that is
-// not accompanied by a corpus change is outside this gate's CI trigger;
-// widening the trigger to those paths is a separate workflow change. count.py
-// is invoked as the single source of truth rather than re-deriving counts here,
-// so the two cannot drift.
+// every change to the vector corpora (cross-sdk-tests/** and spec/**), to this
+// page, and to count.py (scripts/conformance_matrix/**) — every input that can
+// move or desync these counts. count.py is invoked as the single source of
+// truth rather than re-deriving counts here, so the two cannot drift.
 
 import (
 	"bytes"

@@ -45,13 +45,14 @@ class TestCollect(unittest.TestCase):
         md = count._render_md(count.collect())
         lines = md.splitlines()
         on_page = [vs for vs in count.VECTOR_SETS if vs.on_page]
-        # header + separator + one row per on-page set (the md is paste-ready
-        # for the published matrix, which omits off-page reference fixtures).
+        # header + separator + one row per on-page set. The published matrix
+        # splits this output's combined "Consumers" column into separate
+        # Go/Py/TS columns, so this is a reference table, not a drop-in paste.
         self.assertEqual(len(lines), 2 + len(on_page))
 
     def test_md_output_excludes_off_page_sets(self) -> None:
         # Off-page reference fixtures (currently did:key) are counted but must
-        # not appear in the paste-ready matrix, matching the published page.
+        # not appear in the markdown output, matching the published page.
         md = count._render_md(count.collect())
         for vs in count.VECTOR_SETS:
             if not vs.on_page:
