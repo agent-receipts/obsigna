@@ -20,12 +20,13 @@ class TestCollect(unittest.TestCase):
         for vector_set, n in rows:
             self.assertGreater(n, 0, f"{vector_set.name} counted zero vectors")
 
-    def test_did_key_marked_not_yet_wired(self) -> None:
-        # Honesty guard: the did:key vectors are reference fixtures not consumed
-        # by any suite. If they get wired up, this row's consumer text must
-        # change on the page too — fail here to force that.
+    def test_did_key_marked_wired_into_all_three_sdks(self) -> None:
+        # Honesty guard, flipped by issue #956: the did:key vectors are now
+        # consumed by all three SDKs (sdk/go/did, sdk/py/src/obsigna/did.py,
+        # sdk/ts/src/did.ts). If a future change drops one, this row's
+        # consumer text must change on the page too — fail here to force that.
         row = next(vs for vs, _ in count.collect() if vs.name == "did:key resolution")
-        self.assertIn("not yet wired", row.consumers)
+        self.assertEqual(row.consumers, "Go, Py, TS")
 
     def test_top_level_vectors_excludes_metadata(self) -> None:
         doc = {"$comment": "x", "version": "0.9.0", "keys": {}, "a": {}, "b": {}}

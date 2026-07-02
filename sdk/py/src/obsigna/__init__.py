@@ -8,6 +8,10 @@ from obsigna.daemon_emitter import (
     EmitTransportError,
     default_socket_path,
 )
+from obsigna.did import Document as DIDDocument
+from obsigna.did import VerificationMethod as DIDVerificationMethod
+from obsigna.did import from_public_key as did_from_public_key
+from obsigna.did import resolve as resolve_did
 from obsigna.emitters import (
     ApiKeyAuth,
     BearerAuth,
@@ -133,6 +137,8 @@ decryptDisclosure = decrypt_disclosure
 encryptResponse = encrypt_response
 decryptResponse = decrypt_response
 verifyGroundedPrincipalTier = verify_grounded_principal_tier
+resolveDid = resolve_did
+didFromPublicKey = did_from_public_key
 
 # RECEIPT_VERSION is the receipt schema version (from types), not the package version
 from obsigna.receipt.types import VERSION as RECEIPT_VERSION  # noqa: E402
@@ -268,4 +274,11 @@ __all__ = [
     "loadTaxonomyConfig",
     "resolve_action_type",
     "resolveActionType",
+    # did:key (ADR-0007)
+    "DIDDocument",
+    "DIDVerificationMethod",
+    "did_from_public_key",
+    "didFromPublicKey",
+    "resolve_did",
+    "resolveDid",
 ]

@@ -156,7 +156,7 @@ VECTOR_SETS: list[VectorSet] = [
         name="did:key resolution",
         path="spec/test-vectors/did-key/vectors.json",
         purpose="did:key v0.7 resolution wire shape (ADR-0007)",
-        consumers="reference fixtures — not yet wired into a suite",
+        consumers="Go, Py, TS",
         spec_versions="did:key v0.7",
         counter=_sum_len("vectors"),
     ),
