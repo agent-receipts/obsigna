@@ -138,7 +138,7 @@ What has **not** landed and is in scope for Phase A:
 - `Rotate()` currently returns `ErrNotImplemented`. No rotation event schema, no `key_rotated` synthetic receipt emission path, no verifier-side rotation traversal.
 - The external anchor write contract for rotation events. Until the anchor sink exists, **the post-compromise integrity guarantee is not honoured** and any rotation work that lands before it is partial.
 
-Phase B (checkpoint anchoring) and Phase C (HSM/KMS adapters) are explicitly deferred and not on a schedule.
+Phase B (checkpoint anchoring) and Phase C (HSM/KMS adapters) are explicitly deferred and not on a schedule *at this snapshot* — see the updates below, where Phase B checkpoint anchoring has since landed end-to-end. Phase C remains deferred.
 
 ### Update (2026-06-10): rotation verification and offline rotation landed
 
