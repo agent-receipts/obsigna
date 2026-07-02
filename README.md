@@ -17,6 +17,7 @@
 | | |
 |---|---|
 | **Protocol site & spec** | [agentreceipts.ai](https://agentreceipts.ai) |
+| **Conformance** | [Cross-language interop suite](https://agentreceipts.ai/conformance/) |
 | **Tooling docs** | [obsigna.dev](https://obsigna.dev) |
 | **Daemon setup & migration guide** | [obsigna.dev/getting-started/daemon-setup/](https://obsigna.dev/getting-started/daemon-setup/) |
 | **API reference** | [Go](https://obsigna.dev/sdk-go/api-reference/) · [TypeScript](https://obsigna.dev/sdk-ts/api-reference/) · [Python](https://obsigna.dev/sdk-py/api-reference/) |
@@ -45,6 +46,12 @@
 <picture>
   <img alt="How it works: Authorize → Act → Sign → Link → Audit" src=".github/how-it-works.svg">
 </picture>
+
+## Conformance
+
+Anyone can implement the protocol — so interoperability is the property that matters. The three SDKs (Go, Python, TypeScript) are independent implementations that **verify one another's receipts**: every conformance vector is signed once with a shared Ed25519 keypair, and each SDK re-verifies the signatures, canonical JSON, and hashes the other two produced — across a positive corpus, a MUST-reject corpus, and four pinned spec versions. This cross-language verification is enforced in CI.
+
+The **[Conformance page](https://agentreceipts.ai/conformance/)** is the citeable summary: the interop claim, a results matrix with per-set vector counts, permanent links to every frozen vector set, and how to reproduce the checks. The shared corpus lives in [`cross-sdk-tests/`](cross-sdk-tests/).
 
 ## Start here
 

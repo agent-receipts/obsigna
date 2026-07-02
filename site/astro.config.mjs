@@ -127,6 +127,7 @@ export default defineConfig({
           label: "Ecosystem",
           items: [
             { label: "Overview", slug: "ecosystem" },
+            { label: "Conformance", slug: "conformance" },
             {
               label: "Landscape (living)",
               slug: "ecosystem/landscape",

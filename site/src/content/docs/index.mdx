@@ -4,6 +4,8 @@ description: A protocol for tamper-evident, cryptographically signed records of 
 ogImage: /og-home.png
 ---
 
+import { Aside } from "@astrojs/starlight/components";
+
 An agent runs overnight. By morning, a customer's production data is gone — the agent called a cleanup tool with the wrong scope and deleted records it was never meant to touch. The first question everyone asks is the simplest one: what exactly did it do, on whose authority, and with what inputs? You open the logs and find a single line — "maintenance task completed." Nothing about the destructive call. Nothing about who approved it. And no way to prove the log itself wasn't edited afterward.
 
 **Agent Receipts** closes that gap. A separate daemon records a tamper-evident receipt for every tool call your agent makes. The signing keys and the receipt store live outside the agent process, so the audit trail holds up even if the agent is compromised.
@@ -47,6 +49,10 @@ graph LR
   V["obsigna receipt verify"] -- "read-only" --> DB
 ```
 
+<Aside type="tip" title="Verified interop, not just a claim">
+Three independent SDKs — Go, Python, TypeScript — verify each other's receipts against a shared Ed25519 keypair, across a positive corpus and a MUST-reject corpus, on every push. See [Conformance](/conformance/) for the results matrix and commit-pinned vectors.
+</Aside>
+
 ## Design principles
 
 The protocol is privacy-preserving by default, built on existing standards (W3C VCs, Ed25519, SHA-256, RFC 3161), agent-agnostic, and minimal by default with room for domain-specific extensions. The EU AI Act mandates traceability for high-risk AI systems (Article 12); Agent Receipts is designed to produce records suited to that requirement.
@@ -62,6 +68,7 @@ See the [Specification Overview](/specification/overview/) for the full design.
 - [Receipt Chain Verification](/specification/receipt-chain-verification/) — tamper-evidence guarantees
 - [Parameter Disclosure](/specification/parameter-disclosure/) — privacy-preserving payload handling
 - [Spec (full text)](/spec/) — versioned canonical specification
+- [Conformance](/conformance/) — cross-language SDK interop verified against a shared corpus, CI-enforced
 
 ## Ecosystem
 
