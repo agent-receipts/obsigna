@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-05-12). Phase A implementation in progress (`KeySource` interface present in `daemon/internal/keysource/`, file-backed adapter partial, `Rotate()` not yet implemented; the rotation-event anchor sink that Phase A also requires is not yet implemented). Phase B (checkpoint anchoring for tail-truncation detection) and Phase C (HSM/KMS adapters) deferred — see *Implementation phasing* below.
+Accepted (2026-05-12); implemented, with the phasing and interface deviations recorded below. Key rotation ships as offline `agent-receipts-daemon --rotate` (`daemon.RotateKey`), with the rotation wire format and verifier traversal landed across the schema, the spec, and all three SDKs. The external-anchor write contract is implemented (`daemon/internal/anchor/`, with dependency-free file/git/syslog reference sinks): rotation events are anchored anchor-first, and **Phase B checkpoint anchoring for tail-truncation detection now ships end-to-end** (`--checkpoint-anchor` emission + `agent-receipts verify --against-anchor`), matching [`docs/threat-model.md`](../threat-model.md) and [ADR-0019](./0019-protocol-integrity-gaps-and-mitigations.md). Note `Rotate()` was **removed** from the `KeySource` interface rather than implemented on it — rotation is daemon-orchestrated (see *Interface deviation* under Implementation status below). Still deferred: production-grade anchor *adapters* (S3 object-lock, transparency log, SIEM) and Phase C (HSM/KMS adapters).
 
 ## Context
 
@@ -152,7 +152,9 @@ The status above is superseded for the rotation mechanism itself:
 
 - **Rotation-aware `agent-receipts verify`** landed. Pointed at the published key, the verify CLI rediscovers a rotated chain's genesis key from the archived `.rotated-*` keys, traverses the rotation, and pins the result to the published key (a chain that does not hand its rotation lineage off to the published key reports `BROKEN`, so a planted archive cannot forge a `VALID`).
 
-Still **not** landed: real anchor *adapters* that meet the append-only + sink-controlled-ordering bar (S3 object-lock, transparency log, SIEM ingest) — the file-log adapter is a reference that is only as tamper-evident as the storage beneath it. **Checkpoint anchoring (Phase B)** for tail-truncation detection is unstarted.
+**Checkpoint anchoring (Phase B)** for tail-truncation detection has since landed end-to-end (spike #600): the daemon emits additive, Ed25519-signed chain-HEAD checkpoints (`--checkpoint-anchor`, fanned out to `file:`/`git:`/`syslog:` sinks at `--checkpoint-cadence`), and `agent-receipts verify --against-anchor` fails when the store HEAD sits behind the latest anchored checkpoint. Checkpoint anchoring is scoped by this ADR's *External anchor write contract* (the `checkpoint` event type); it realises the out-of-band commitment ADR-0008 §3 names but leaves undesigned. The threat model is updated concurrently to assert the conditional tail-integrity guarantee.
+
+Still **not** landed: production-grade anchor *adapters* that meet the append-only + sink-controlled-ordering bar (S3 object-lock, transparency log, SIEM ingest) — the file/git/syslog adapters are references, only as tamper-evident as the storage beneath them — and Phase C (HSM/KMS adapters).
 
 ## Consequences
 

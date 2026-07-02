@@ -118,8 +118,8 @@ type Config struct {
 	ShutdownDeadline time.Duration
 
 	// CheckpointAnchors is the fan-out list of out-of-band sinks the daemon
-	// writes signed chain-HEAD checkpoints to (ADR-0008 follow-through, the
-	// truncation anchor). Each entry is a backend spec — "file:<path>",
+	// writes signed chain-HEAD checkpoints to (ADR-0015 Phase B checkpoint
+	// anchoring, the truncation anchor). Each entry is a backend spec — "file:<path>",
 	// "git:<dir>", or "syslog:<tag>" (a bare path means file). Empty disables
 	// checkpointing entirely: the daemon's behaviour is then byte-identical to
 	// a build without this feature, and `verify` without --against-anchor is
@@ -637,7 +637,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	pp.Redactor = pipeline.NewRedactor(customPatterns)
 
-	// Wire the out-of-band checkpoint anchor (ADR-0008 follow-through) when one
+	// Wire the out-of-band checkpoint anchor (ADR-0015 Phase B) when one
 	// or more sinks are configured. Empty CheckpointAnchors leaves pp.Checkpointer
 	// nil, so the commit path and shutdown are byte-identical to a build without
 	// the feature. A sink that fails to OPEN is fatal (the operator asked for an

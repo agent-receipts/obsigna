@@ -1,43 +1,46 @@
 ---
 title: Conformance
-description: Three independent Agent Receipt implementations — Go, Python, and TypeScript — verify one another's receipts against a shared keypair, across a positive corpus, a MUST-reject corpus, and four pinned spec versions.
+description: Three Agent Receipt implementations — Go, Python, and TypeScript, separate codebases sharing no code — verify one another's receipts against a shared keypair, across a positive corpus, a MUST-reject corpus, and four pinned spec versions.
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
 <Badge text="v0.5.0" variant="note" /> <Badge text="Interop: CI-enforced" variant="success" />
 
-Three independent implementations of the Agent Receipt Protocol — the [Go](https://github.com/agent-receipts/obsigna/tree/main/sdk/go), [Python](https://github.com/agent-receipts/obsigna/tree/main/sdk/py), and [TypeScript](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) SDKs — verify one another's receipts. Every conformance vector is signed once with a single shared Ed25519 keypair; each SDK then re-verifies the signatures, canonical JSON (RFC 8785), and receipt hashes the other two produced. Verification is exercised in both directions: a **positive corpus** every implementation must accept, and a **MUST-reject corpus** of tampered receipts and broken chains every implementation must refuse. The frozen vectors span four pinned spec versions (v0.2.0 through v0.5.0), so a receipt emitted by any SDK at any of those versions is provably readable by the other two.
+Three implementations of the Agent Receipt Protocol — the [Go](https://github.com/agent-receipts/obsigna/tree/main/sdk/go), [Python](https://github.com/agent-receipts/obsigna/tree/main/sdk/py), and [TypeScript](https://github.com/agent-receipts/obsigna/tree/main/sdk/ts) SDKs, separate codebases that share no code — verify one another's receipts. Every conformance vector is signed once with a single shared Ed25519 keypair; each SDK then re-verifies the signatures, canonical JSON (RFC 8785), and receipt hashes the other two produced. Verification is exercised in both directions: a **positive corpus** every implementation must accept, and a **MUST-reject corpus** of tampered receipts and broken chains every implementation must refuse. The frozen vectors span four pinned spec versions (v0.2.0 through v0.5.0), so a receipt emitted by any SDK at any of those versions is provably readable by the other two.
 
 <Aside type="note" title="Disclosed interest">
 This suite is maintained by the Agent Receipts project as part of its own repository. It is published here so a standards reviewer can inspect the interop claim directly — the numbers below are generated from the committed vector files, not asserted — and reproduce every check from source. We offer the conformance corpus as a contribution to the interoperability discussion, not as a competitive claim.
 </Aside>
 
-## What "three independent implementations" means
+## What this cross-language check does and does not prove
 
-The SDKs share no code. They are separate implementations of the same specification in three languages, and they must agree byte-for-byte on canonical JSON and hash output and agree on which signatures are valid. Interop is wired as a single shared keypair: the TypeScript SDK is the canonical source of the keypair (`sdk/py/tests/fixtures/ts_vectors.json`); the Go and Python SDKs generate their own vectors with that same keypair. Because the key is shared, any SDK can verify a receipt any other SDK signed — that is exactly the cross-language property the tests assert.
+The three SDKs share no code: each is a separate implementation of the same specification in a different language (Go, Python, TypeScript). They must agree byte-for-byte on canonical JSON (RFC 8785) and receipt-hash output, and agree on which signatures are valid. Interop is wired through a single shared Ed25519 keypair: the TypeScript SDK is the canonical source of the keypair (`sdk/py/tests/fixtures/ts_vectors.json`); the Go and Python SDKs generate their own vectors with that same key. Because the key is shared, any SDK can verify a receipt any other SDK signed — the cross-language property the tests assert.
+
+**What this proves.** The three language implementations do not diverge in *serialisation*. A canonicalization, number-formatting, string-escaping, or signature-encoding difference between Go, Python, and TypeScript would produce mismatched bytes or a failed signature and turn a test red. Cross-language byte-level drift is the bug class this suite is built to catch.
+
+**What it does not prove.** These SDKs are written and maintained by a single author, so they are **not** independent interpretations of the specification. A single misreading of an ambiguous spec requirement can be encoded identically into all three and still pass every check here — the vectors agree with each other, not with an independent reading of the spec. This suite is a serialisation-drift detector, not a spec-ambiguity detector; catching spec-interpretation ambiguity would require implementations from independent parties, which do not exist yet.
 
 ## Results matrix
 
-Each row is a frozen vector set. The **Go / Py / TS** columns mark which implementations consume and verify that set in their test suites. Vector counts are pulled directly from the committed JSON by [`scripts/conformance_matrix/count.py`](https://github.com/agent-receipts/obsigna/blob/main/scripts/conformance_matrix/count.py) — they are not hand-typed.
+Each row is a frozen vector set. The **Go / Py / TS** columns mark which implementations consume and verify that set in their test suites. Vector counts are generated from the committed JSON by [`scripts/conformance_matrix/count.py`](https://github.com/agent-receipts/obsigna/blob/main/scripts/conformance_matrix/count.py), and a CI [reconciliation test](https://github.com/agent-receipts/obsigna/blob/main/cross-sdk-tests/conformance_page_test.go) asserts every count in this table equals that script's output — so a number here cannot silently drift from the corpus.
 
 | Vector set | Purpose | Go | Py | TS | Spec version(s) | Vectors |
 | --- | --- | :-: | :-: | :-: | --- | ---: |
-| [canonicalization](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/canonicalization_vectors.json) | RFC 8785 canonical JSON + receipt-hash agreement | ✓ | ✓ | ✓ | version-independent | 43 |
+| [canonicalization](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/canonicalization_vectors.json) | RFC 8785 canonical JSON + receipt-hash agreement | ✓ | ✓ | ✓ | version-independent | 44 |
 | [emit-failure](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/emit_failure_vectors.json) | emit-failure outcome contract (ADR-0025) | ✓ | ✓ | ✓ | version-independent | 2 |
 | [malformed (MUST-reject)](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/malformed_vectors.json) | negative corpus every verifier MUST reject | ✓ | ✓ | ✓ | version-independent | 7 |
 | [v0.2.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v020_vectors.json) | frozen v0.2.0 receipts + chains | ✓ | ✓ | ✓ | 0.2.0 | 3 |
 | [v0.3.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v030_vectors.json) | frozen v0.3.0 receipts + chains | ✓ | ✓ | ✓ | 0.3.0 | 3 |
 | [v0.4.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v040_vectors.json) | frozen v0.4.0 receipts + chains | ✓ | ✓ | ✓ | 0.4.0 | 2 |
 | [v0.5.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v050_vectors.json) | frozen v0.5.0 receipts + chains | ✓ | ✓ | ✓ | 0.5.0 | 3 |
-| [did:key resolution](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/spec/test-vectors/did-key/vectors.json) | did:key v0.7 resolution wire shape (ADR-0007) | — | — | — | did:key v0.7 | 3 |
 | [disclosure envelope](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/spec/test-vectors/disclosure-envelope/vectors.json) | parameter-disclosure envelope: pinned ciphertext | ✓ | ✓ | ✓ | envelope v1 | 2 |
 | [rotation event](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/spec/test-vectors/rotation-event/example.json) | key-rotation event verifies under the outgoing key | ✓ | ✓ | ✓ | 0.2.1 | 1 |
 
 Each linked vector set above is pinned to an immutable commit, so a citation stays valid as the corpus grows.
 
 <Aside type="caution" title="Honest coverage — these are seed-level counts">
-The counts are the real sizes of the frozen corpora today, not a coverage claim. They are seed-level and growing: 43 canonicalization/receipt-hash vectors, a 7-case MUST-reject corpus, and 2–3 pinned receipt/chain vectors per spec version. They are **not** exhaustive — they pin the shapes that mattered enough to freeze, and the corpus is extended as the specification evolves. The **did:key resolution** vectors are reference fixtures that fix the `did:key` v0.7 wire shape (ADR-0007); they are not yet wired into any SDK test suite, so their row is marked `—` for all three implementations rather than claiming verification that does not yet run.
+The counts are the real sizes of the frozen corpora today, not a coverage claim. They are seed-level and growing: 44 canonicalization/receipt-hash vectors, a 7-case MUST-reject corpus, and 2–3 pinned receipt/chain vectors per spec version. They are **not** exhaustive — they pin the shapes that mattered enough to freeze, and the corpus is extended as the specification evolves. Separately, the `did:key` resolution vectors ([`spec/test-vectors/did-key/`](https://github.com/agent-receipts/obsigna/tree/main/spec/test-vectors/did-key)) fix the `did:key` v0.7 wire shape (ADR-0007) as reference fixtures, but **no SDK implements `did:key` resolution yet**, so no suite consumes them. Rather than show an all-dashes row, that set is out-of-scope-for-now and omitted from the matrix above; wiring it into a cross-language suite is tracked in [#956](https://github.com/agent-receipts/obsigna/issues/956).
 </Aside>
 
 ## CI enforcement
@@ -47,7 +50,7 @@ Cross-language verification is enforced in continuous integration, not run by ha
 - [`sdk-go.yml`](https://github.com/agent-receipts/obsigna/blob/main/.github/workflows/sdk-go.yml) — runs the Go `CrossLanguage` integration tests, which verify TypeScript- and Python-signed receipts in Go and reject the malformed corpus.
 - [`sdk-py.yml`](https://github.com/agent-receipts/obsigna/blob/main/.github/workflows/sdk-py.yml) — runs `tests/test_cross_language_go.py` and `tests/test_cross_language_ts.py`, verifying Go- and TS-signed receipts in Python.
 - [`sdk-ts.yml`](https://github.com/agent-receipts/obsigna/blob/main/.github/workflows/sdk-ts.yml) — runs the TypeScript cross-language suite, verifying Go- and Python-signed receipts in TypeScript.
-- [`cross-sdk-tests.yml`](https://github.com/agent-receipts/obsigna/blob/main/.github/workflows/cross-sdk-tests.yml) — runs the shared spec-example and version-pinned vector checks, plus the CLI↔WASM verifier gate.
+- [`cross-sdk-tests.yml`](https://github.com/agent-receipts/obsigna/blob/main/.github/workflows/cross-sdk-tests.yml) — runs the shared spec-example and version-pinned vector checks, the CLI↔WASM verifier gate, and the reconciliation test that pins this page's vector counts to `count.py`.
 
 Path filtering scopes each run to the changed surface: a change to the shared vectors or the spec re-runs all three SDK suites; a change confined to one SDK re-runs at least that SDK's cross-language verification. A regression that breaks interop — a canonicalization drift, a signature-encoding change, a verifier that stops rejecting a malformed receipt — turns a required check red before merge.
 

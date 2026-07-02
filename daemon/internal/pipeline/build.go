@@ -229,7 +229,7 @@ type Pipeline struct {
 
 	// Checkpointer, when set, receives the chain HEAD after every committed
 	// receipt and emits an out-of-band signed checkpoint per its cadence
-	// (ADR-0008 follow-through, truncation anchor). Nil = checkpointing
+	// (ADR-0015 Phase B checkpoint anchoring, truncation anchor). Nil = checkpointing
 	// disabled, which is the default and keeps the commit path byte-identical
 	// to a build without the feature.
 	//
