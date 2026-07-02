@@ -88,7 +88,7 @@ class VectorSet:
     counter: Callable[[dict[str, Any]], int]
 
     def count(self) -> int:
-        doc = json.loads((_REPO_ROOT / self.path).read_text())
+        doc = json.loads((_REPO_ROOT / self.path).read_text(encoding="utf-8"))
         return self.counter(doc)
 
 
@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         rows = collect()
-    except (OSError, json.JSONDecodeError, KeyError) as err:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError) as err:
         print(f"error: could not count vectors: {err}", file=sys.stderr)
         return 1
 

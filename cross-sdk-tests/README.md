@@ -31,11 +31,11 @@ All vector files use the same Ed25519 keypair so any SDK can verify receipts sig
 
 ## Vector counts
 
-The per-set vector counts published on the Conformance page are generated from these files by [`scripts/conformance_matrix/count.py`](../scripts/conformance_matrix/count.py), so the numbers stay reproducible:
+The per-set vector counts published on the Conformance page are generated from these files by [`scripts/conformance_matrix/count.py`](../scripts/conformance_matrix/count.py), so the numbers stay reproducible. Run from this directory (the script resolves the repository root itself, so the output is the same from anywhere):
 
 ```sh
-python3 scripts/conformance_matrix/count.py             # human-readable table
-python3 scripts/conformance_matrix/count.py --format md  # Markdown for the page
+python3 ../scripts/conformance_matrix/count.py             # human-readable table
+python3 ../scripts/conformance_matrix/count.py --format md  # Markdown for the page
 ```
 
 ## Running

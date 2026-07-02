@@ -53,20 +53,20 @@ Path filtering scopes each run to the changed surface: a change to the shared ve
 
 ## Run it yourself
 
-The frozen vectors and the suites that consume them live in the repository. From a clone:
+The frozen vectors and the suites that consume them live in the repository. Run each line from the repository root; the per-suite commands use a subshell so the directory change does not leak into the next line:
 
 ```sh
 # Go: verify TS- and Python-signed receipts, reject the malformed corpus
-cd sdk/go && go test -tags=integration -v -run CrossLanguage
+(cd sdk/go && go test -tags=integration -v -run CrossLanguage)
 
 # Python: verify Go- and TS-signed receipts
-cd sdk/py && uv run pytest tests/test_cross_language_go.py tests/test_cross_language_ts.py -v
+(cd sdk/py && uv run pytest tests/test_cross_language_go.py tests/test_cross_language_ts.py -v)
 
 # TypeScript: verify Go- and Python-signed receipts
-cd sdk/ts && pnpm test -- cross-language
+(cd sdk/ts && pnpm test -- cross-language)
 
 # Shared spec-example and version-pinned vector checks
-cd cross-sdk-tests && go test -tags=integration -v
+(cd cross-sdk-tests && go test -tags=integration -v)
 
 # Regenerate the vector counts in the matrix above
 python3 scripts/conformance_matrix/count.py --format md
