@@ -124,13 +124,10 @@ export default defineConfig({
           link: "/spec/",
         },
         {
-          label: "Conformance",
-          slug: "conformance",
-        },
-        {
           label: "Ecosystem",
           items: [
             { label: "Overview", slug: "ecosystem" },
+            { label: "Conformance", slug: "conformance" },
             {
               label: "Landscape (living)",
               slug: "ecosystem/landscape",
