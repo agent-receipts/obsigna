@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Emit the conformance-vector counts for the published conformance page.
 
-The conformance page on agentreceipts.ai (``site/src/content/docs/specification/
-conformance.mdx``) carries a results matrix whose vector counts must not be
-hand-typed — a stale number on a citeable page is worse than no number. This
+The conformance page on agentreceipts.ai (``site/src/content/docs/conformance.mdx``)
+carries a results matrix whose vector counts must not be hand-typed — a stale
+number on a citeable page is worse than no number. This
 script reads the frozen vector files directly and emits the counts, so the page
 can be regenerated and reviewers can reproduce every figure from source.
 
@@ -37,11 +37,13 @@ if TYPE_CHECKING:
 # Repo root is three levels up from this file (scripts/conformance_matrix/).
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Top-level keys in the version-pinned vector files that carry metadata rather
-# than a receipt/chain vector. Everything else at the top level is a vector.
-_VERSION_METADATA_KEYS = frozenset(
-    {"$comment", "version", "keys", "schemaVersion", "adr", "description"}
-)
+# Object-valued top-level keys in the version-pinned vector files that are NOT a
+# receipt/chain vector. Scalar metadata ($comment, version, adr, …) is excluded
+# by type below, so this list only needs the non-vector *objects* — currently
+# just `keys` (the shared keypair). Keeping this a denylist of objects rather
+# than an allowlist of vectors avoids hand-maintaining vector names, while the
+# type check stops a future scalar metadata field from inflating the count.
+_VERSION_METADATA_OBJECTS = frozenset({"keys"})
 
 
 def _sum_len(*fields: str) -> Callable[[dict[str, Any]], int]:
@@ -54,8 +56,19 @@ def _sum_len(*fields: str) -> Callable[[dict[str, Any]], int]:
 
 
 def _top_level_vectors(doc: dict[str, Any]) -> int:
-    """Count top-level entries that are vectors, not file metadata."""
-    return sum(1 for key in doc if key not in _VERSION_METADATA_KEYS)
+    """Count top-level receipt/chain vectors in a version-pinned file.
+
+    A vector is a JSON object; scalar metadata (``$comment``, ``version``,
+    ``adr``, …) is excluded by type, and the one non-vector object (``keys``,
+    the shared keypair) by name. Counting objects rather than "everything not on
+    a denylist" means a newly added scalar metadata field cannot silently
+    inflate the published count.
+    """
+    return sum(
+        1
+        for key, value in doc.items()
+        if isinstance(value, dict) and key not in _VERSION_METADATA_OBJECTS
+    )
 
 
 def _single(_doc: dict[str, Any]) -> int:

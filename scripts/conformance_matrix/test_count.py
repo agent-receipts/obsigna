@@ -31,6 +31,12 @@ class TestCollect(unittest.TestCase):
         doc = {"$comment": "x", "version": "0.9.0", "keys": {}, "a": {}, "b": {}}
         self.assertEqual(count._top_level_vectors(doc), 2)
 
+    def test_top_level_vectors_ignores_unknown_scalar_metadata(self) -> None:
+        # A future scalar metadata field must not be counted as a vector — the
+        # type check excludes it without needing to be added to a denylist.
+        doc = {"version": "0.9.0", "keys": {}, "notes": "freeform", "a": {}}
+        self.assertEqual(count._top_level_vectors(doc), 1)
+
     def test_json_output_is_valid_and_totals(self) -> None:
         payload = json.loads(count._render_json(count.collect()))
         self.assertEqual(payload["total"], sum(s["count"] for s in payload["sets"]))
