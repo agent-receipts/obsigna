@@ -195,9 +195,38 @@ def collect() -> list[tuple[VectorSet, int]]:
     return [(vs, vs.count()) for vs in VECTOR_SETS]
 
 
+def _malformed_set() -> VectorSet:
+    """The MUST-reject corpus set, located by path so its file is a single source."""
+    for vs in VECTOR_SETS:
+        if vs.path.endswith("malformed_vectors.json"):
+            return vs
+    raise KeyError("malformed vector set not found in VECTOR_SETS")
+
+
+def malformed_corpus() -> list[dict[str, str]]:
+    """Clause traceability for every vector in the MUST-reject corpus.
+
+    Reads the same file the ``malformed (MUST-reject)`` set counts and returns
+    one ``{name, kind, clause}`` entry per vector — receipt-level cases from
+    ``receipts[]`` and chain-level cases from ``chains[]``. The ``clause`` names
+    the normative spec section the vector enforces; it feeds the "Enforces"
+    column on the conformance page. A vector missing its ``clause`` raises
+    ``KeyError`` here, so an unannotated vector fails the count rather than
+    silently shipping a blank cell.
+    """
+    doc = json.loads((_REPO_ROOT / _malformed_set().path).read_text(encoding="utf-8"))
+    out: list[dict[str, str]] = []
+    for kind, key in (("receipt", "receipts"), ("chain", "chains")):
+        for case in doc[key]:
+            out.append({"name": case["name"], "kind": kind, "clause": case["clause"]})
+    return out
+
+
 def _render_table(rows: list[tuple[VectorSet, int]]) -> str:
     header = ("Vector set", "Purpose", "Consumers", "Spec", "Count")
-    lines = [f"{header[0]:<24} {header[1]:<48} {header[2]:<44} {header[3]:<16} {header[4]}"]
+    lines = [
+        f"{header[0]:<24} {header[1]:<48} {header[2]:<44} {header[3]:<16} {header[4]}"
+    ]
     for vs, count in rows:
         lines.append(
             f"{vs.name:<24} {vs.purpose:<48} {vs.consumers:<44} {vs.spec_versions:<16} {count}"
@@ -220,6 +249,13 @@ def _render_md(rows: list[tuple[VectorSet, int]]) -> str:
         lines.append(
             f"| {vs.name} | {vs.purpose} | {vs.consumers} | {vs.spec_versions} | {count} |"
         )
+    # Second table: per-vector clause traceability for the MUST-reject corpus.
+    # Paste-ready for the "Enforces" table on the conformance page.
+    lines.append("")
+    lines.append("| Vector | Layer | Enforces |")
+    lines.append("| --- | --- | --- |")
+    for case in malformed_corpus():
+        lines.append(f"| {case['name']} | {case['kind']} | {case['clause']} |")
     return "\n".join(lines)
 
 
@@ -238,6 +274,7 @@ def _render_json(rows: list[tuple[VectorSet, int]]) -> str:
             for vs, count in rows
         ],
         "total": sum(count for _, count in rows),
+        "malformedCorpus": malformed_corpus(),
     }
     return json.dumps(payload, indent=2)
 
@@ -252,14 +289,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    renderer = {"table": _render_table, "md": _render_md, "json": _render_json}[
+        args.format
+    ]
     try:
         rows = collect()
+        # Render inside the try so a vector missing its `clause` (raised by
+        # malformed_corpus during md/json rendering) is reported as a count
+        # error, not an uncaught traceback.
+        output = renderer(rows)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError) as err:
         print(f"error: could not count vectors: {err}", file=sys.stderr)
         return 1
 
-    renderer = {"table": _render_table, "md": _render_md, "json": _render_json}[args.format]
-    print(renderer(rows))
+    print(output)
     return 0
 
 

@@ -7,6 +7,7 @@
   "receipts": [
     {
       "name": "wrong_proof_type",
+      "clause": "§4.3.3 proof — type MUST be Ed25519Signature2020",
       "description": "proof.type changed from Ed25519Signature2020 to RsaSignature2018; verifiers MUST reject any other proof type (the field lives outside the signed bytes, so the Ed25519 signature still checks — this case guards the explicit type check in verify)",
       "receipt": {
         "@context": [
@@ -53,6 +54,7 @@
     },
     {
       "name": "mutated_action_type",
+      "clause": "§7.8 End-to-end receipt verification — signature over canonical bytes",
       "description": "action.type changed after signing — canonical bytes no longer match the signature",
       "receipt": {
         "@context": [
@@ -99,6 +101,7 @@
     },
     {
       "name": "mutated_principal_id",
+      "clause": "§7.8 End-to-end receipt verification — signature over canonical bytes",
       "description": "principal.id changed after signing — payload tampering",
       "receipt": {
         "@context": [
@@ -145,6 +148,7 @@
     },
     {
       "name": "truncated_proof_value",
+      "clause": "§7.8 End-to-end receipt verification — signature over canonical bytes",
       "description": "signature truncated to its multibase prefix only — empty signature bytes",
       "receipt": {
         "@context": [
@@ -191,6 +195,7 @@
     },
     {
       "name": "wrong_multibase_prefix",
+      "clause": "§4.3.3 proof — proofValue is u-prefixed base64url",
       "description": "proof.proofValue uses 'z' (base58) instead of 'u' (base64url) — Ed25519Signature2020 mandates base64url",
       "receipt": {
         "@context": [
@@ -237,6 +242,7 @@
     },
     {
       "name": "flipped_proof_byte",
+      "clause": "§7.8 End-to-end receipt verification — signature over canonical bytes",
       "description": "single byte of proofValue replaced — Ed25519 verification MUST fail on any single-bit mutation",
       "receipt": {
         "@context": [
@@ -280,11 +286,58 @@
           "proofValue": "uRO9fTNL12Fwdz4M5pDcRP3P6msLELGTTt4EmVZfmWvA1zjemjZ-VA_4Hk6F6944UPW5aMLGZvonhiGt3SpS-BA"
         }
       }
+    },
+    {
+      "name": "schema_missing_required_field",
+      "clause": "§4.3.2 credentialSubject — chain.chain_id is required",
+      "description": "chain.chain_id (a schema-required field) removed from an otherwise-valid signed receipt — a schema-invalid receipt every verifier MUST reject. Verifiers that schema-validate reject it at parse time, before the signature check; removing a signed field also breaks the Ed25519 signature, so a verify-only path rejects it too",
+      "receipt": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://agentreceipts.ai/context/v1"
+        ],
+        "credentialSubject": {
+          "action": {
+            "id": "act_malformed_1",
+            "risk_level": "low",
+            "timestamp": "2026-04-22T00:00:00Z",
+            "type": "filesystem.file.read"
+          },
+          "chain": {
+            "previous_receipt_hash": null,
+            "sequence": 1
+          },
+          "outcome": {
+            "status": "success"
+          },
+          "principal": {
+            "id": "did:user:alice"
+          }
+        },
+        "id": "urn:receipt:00000000-0000-4000-8000-000000000001",
+        "issuanceDate": "2026-04-22T00:00:00Z",
+        "issuer": {
+          "id": "did:agent:malformed-test"
+        },
+        "proof": {
+          "created": "2026-04-22T00:00:00Z",
+          "proofPurpose": "assertionMethod",
+          "proofValue": "uRO9fTNL12Fwdz4M5pDcRP3P6msLELGTTt4EmVZfmWvq1zjemjZ-VA_4Hk6F6944UPW5aMLGZvonhiGt3SpS-BA",
+          "type": "Ed25519Signature2020",
+          "verificationMethod": "did:agent:malformed-test#key-1"
+        },
+        "type": [
+          "VerifiableCredential",
+          "AgentReceipt"
+        ],
+        "version": "0.2.0"
+      }
     }
   ],
   "chains": [
     {
       "name": "missing_previous_receipt_hash_mid_chain",
+      "clause": "§7.3 Chain integrity verification — hash linkage (previous_receipt_hash)",
       "description": "middle receipt is missing chain.previous_receipt_hash, breaking the hash linkage",
       "receipts": [
         {
@@ -411,6 +464,405 @@
             "verificationMethod": "did:agent:malformed-test#key-1",
             "proofPurpose": "assertionMethod",
             "proofValue": "uzbD61QfQxeEN9nd-LJZ6SCtrfCE4tg6Cq1e49mKCBq5wUKa85CnXd1U49mDLL-spdUEPWLouzdO8l_borMqqDA"
+          }
+        }
+      ]
+    },
+    {
+      "name": "chain_wrong_previous_receipt_hash",
+      "clause": "§7.3 Chain integrity verification — hash linkage (previous_receipt_hash)",
+      "description": "last receipt's chain.previous_receipt_hash is the valid hash of the genesis receipt (a different receipt in the set) instead of its immediate predecessor — well-formed linkage pointing at the wrong predecessor. Distinct from the missing case; each receipt is individually signed and verifiable, so only the chain hash-linkage check fails",
+      "receipts": [
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000011",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_wrong_prev_1",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 1,
+              "previous_receipt_hash": null,
+              "chain_id": "chain_malformed_wrong_prev"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "uQVvQARf-31EgkLBu3Y0uvZ7hbeLyZS7k4bLT-uOFBsH7jTqRoB59r67MNMT59H0yTn69o6nF0s9Lfy3C7zFeCg"
+          }
+        },
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000012",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_wrong_prev_2",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 2,
+              "previous_receipt_hash": "sha256:8ea793027b9046ff25d85797ef2a3fcd10fed3aa670b06dd8caca72adecda20a",
+              "chain_id": "chain_malformed_wrong_prev"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "u4s4PU3QqTl5AV23_hRRMYL3EXUsLzweKgZcDcXQp1GS-M2EY0zNOY4wUjnlZ_FLIkHRGRjhM_yripZuZenX4DQ"
+          }
+        },
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000013",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_wrong_prev_3",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 3,
+              "previous_receipt_hash": "sha256:8ea793027b9046ff25d85797ef2a3fcd10fed3aa670b06dd8caca72adecda20a",
+              "chain_id": "chain_malformed_wrong_prev"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "un231nmR3zG_wWyQUAkEUZ4XURNnfSRpO-qHwLl1_XswzuotnHb88eEf0BHE9iavCdvarPGCQxXTw-3pDgA9UBQ"
+          }
+        }
+      ]
+    },
+    {
+      "name": "chain_duplicate_sequence",
+      "clause": "§7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1",
+      "description": "two receipts under one chain_id share sequence 2 (fork / equivocation); each receipt is individually signed and hash-linked, so only the strict-contiguity check fails",
+      "receipts": [
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000021",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_dup_seq_1",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 1,
+              "previous_receipt_hash": null,
+              "chain_id": "chain_malformed_dup_seq"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "u3PtS4aYQv0-u1oWE35Jmw0U7DUnPFLL9TOeOfpOUA3kkz9gOBTA6UGJ4VqcLlFqODnwcb4FVsR-EZT0PlFPXDw"
+          }
+        },
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000022",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_dup_seq_2",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 2,
+              "previous_receipt_hash": "sha256:a06b5c730d6e3d667dc8471566c13bd1551c548c4c73a3d65365120f3d5d8231",
+              "chain_id": "chain_malformed_dup_seq"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "uPUPqUr4jXNvHk-hUCnJB10wf1H7bFCC63_2syJoSCN9q3jxrQVhT-nhLifn9xBzKfQhaNDqXzjvQQZ5KCjAZCA"
+          }
+        },
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000023",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_dup_seq_3",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 2,
+              "previous_receipt_hash": "sha256:d6d706e38bd35df81a4276a244f95e5273412fed1bd6176e0452669cd351d1d1",
+              "chain_id": "chain_malformed_dup_seq"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "uoDEQiGHnCEUKqilicI8hNroW0Wj-lLZgoSOQ1v-lEPOqhoPbgJrVnBDBwfO3lx3MfcwrNUqob2eb_X-aYSz5CA"
+          }
+        }
+      ]
+    },
+    {
+      "name": "chain_sequence_gap",
+      "clause": "§7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1",
+      "description": "sequences run 1, 2, 4 with a gap at 3; each receipt is individually signed and hash-linked, so only the strict-contiguity check fails (spec §7.3.5 mandates contiguity, not merely strictly-increasing)",
+      "receipts": [
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000021",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_seq_gap_1",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 1,
+              "previous_receipt_hash": null,
+              "chain_id": "chain_malformed_seq_gap"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "uXOo_uK2HoZyH0ASTj9ptSrJF1RfGFX2MRM2XefUnRvqN5MUTQJ9w53sSAPYdE9sLe7bQnZYQPdHVK8ePYoG4CA"
+          }
+        },
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000022",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_seq_gap_2",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 2,
+              "previous_receipt_hash": "sha256:89f93b3eb26d561e49c41d20f0f4565b22ff76127cff8da4e6376c749f5adeb8",
+              "chain_id": "chain_malformed_seq_gap"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "usrsUze49abKMi0qPJsQX17trEeWQrfvY_-YdwO3GjY66EcIGRMqNUtZzxCYtVnN5n4AGwcfUkBgDB36ci7vbCA"
+          }
+        },
+        {
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://agentreceipts.ai/context/v1"
+          ],
+          "id": "urn:receipt:00000000-0000-4000-8000-000000000023",
+          "type": [
+            "VerifiableCredential",
+            "AgentReceipt"
+          ],
+          "version": "0.2.0",
+          "issuer": {
+            "id": "did:agent:malformed-test"
+          },
+          "issuanceDate": "2026-04-22T00:00:00Z",
+          "credentialSubject": {
+            "principal": {
+              "id": "did:user:alice"
+            },
+            "action": {
+              "id": "act_seq_gap_3",
+              "type": "filesystem.file.read",
+              "risk_level": "low",
+              "timestamp": "2026-04-22T00:00:00Z"
+            },
+            "outcome": {
+              "status": "success"
+            },
+            "chain": {
+              "sequence": 4,
+              "previous_receipt_hash": "sha256:9db9d821e093b2639e9699182f80072b3789f839357e0f87b23a7e3cf123e38d",
+              "chain_id": "chain_malformed_seq_gap"
+            }
+          },
+          "proof": {
+            "type": "Ed25519Signature2020",
+            "created": "2026-04-22T00:00:00Z",
+            "verificationMethod": "did:agent:malformed-test#key-1",
+            "proofPurpose": "assertionMethod",
+            "proofValue": "uNJIceOLwoeenLgsnHA-2dxA0kZ9lJpYeq2V-hBuA4VZM4lzLca6ppYao4bU1H7zgu3bL5v-12RoLpG0sOxhhBA"
           }
         }
       ]

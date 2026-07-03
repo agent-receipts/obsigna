@@ -29,7 +29,7 @@ Each row is a frozen vector set. The **Go / Py / TS** columns mark which impleme
 | --- | --- | :-: | :-: | :-: | --- | ---: |
 | [canonicalization](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/canonicalization_vectors.json) | RFC 8785 canonical JSON + receipt-hash agreement | ✓ | ✓ | ✓ | version-independent | 44 |
 | [emit-failure](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/emit_failure_vectors.json) | emit-failure outcome contract (ADR-0025) | ✓ | ✓ | ✓ | version-independent | 2 |
-| [malformed (MUST-reject)](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/malformed_vectors.json) | negative corpus every verifier MUST reject | ✓ | ✓ | ✓ | version-independent | 7 |
+| [malformed (MUST-reject)](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/malformed_vectors.json) | negative corpus every verifier MUST reject | ✓ | ✓ | ✓ | version-independent | 11 |
 | [v0.2.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v020_vectors.json) | frozen v0.2.0 receipts + chains | ✓ | ✓ | ✓ | 0.2.0 | 3 |
 | [v0.3.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v030_vectors.json) | frozen v0.3.0 receipts + chains | ✓ | ✓ | ✓ | 0.3.0 | 3 |
 | [v0.4.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v040_vectors.json) | frozen v0.4.0 receipts + chains | ✓ | ✓ | ✓ | 0.4.0 | 2 |
@@ -40,9 +40,33 @@ Each row is a frozen vector set. The **Go / Py / TS** columns mark which impleme
 
 Each linked vector set above is pinned to an immutable commit, so a citation stays valid as the corpus grows.
 
+The **rotation event** row is pinned at spec v0.2.1 rather than 0.2.0 because, per its [vector README](https://github.com/agent-receipts/obsigna/blob/main/spec/test-vectors/rotation-event/README.md), every field is exactly what a 0.2.1 receipt already requires with ADR-0015's `keyRotation` field layered on and nothing else changed — so its wire shape tracks the 0.2.1 schema baseline it extends.
+
 <Aside type="caution" title="Honest coverage — these are seed-level counts">
-The counts are the real sizes of the frozen corpora today, not a coverage claim. They are seed-level and growing: 44 canonicalization/receipt-hash vectors, a 7-case MUST-reject corpus, and the per-version receipt/chain counts shown in the matrix above. They are **not** exhaustive — they pin the shapes that mattered enough to freeze, and the corpus is extended as the specification evolves.
+The counts are the real sizes of the frozen corpora today, not a coverage claim. They are seed-level and growing: 44 canonicalization/receipt-hash vectors, an 11-case MUST-reject corpus, and the per-version receipt/chain counts shown in the matrix above. They are **not** exhaustive — they pin the shapes that mattered enough to freeze, and the corpus is extended as the specification evolves.
 </Aside>
+
+<Aside type="note" title="What a green run does and does not prove">
+A green run proves the three implementations agree on canonical form (RFC 8785), receipt hashing, signature verification, and chain linkage. It does not prove a receipt describes an action that occurred — a correctly signed receipt for a fabricated action is MUST-accept here by construction. Provenance (out-of-process signing, external anchoring) is a separate layer; see the [Trust Model](/specification/trust-model/).
+</Aside>
+
+## Clause traceability
+
+Every vector in the MUST-reject corpus names the normative spec clause it enforces, so a reviewer can trace each negative case to the requirement it guards. The **Enforces** column is generated from each vector's `clause` field by [`count.py`](https://github.com/agent-receipts/obsigna/blob/main/scripts/conformance_matrix/count.py) — the same generator that emits the counts — and pinned to this page by the [reconciliation test](https://github.com/agent-receipts/obsigna/blob/main/cross-sdk-tests/conformance_page_test.go); it is never hand-typed. Section references point into the [receipt-chain-verification](/specification/receipt-chain-verification/) and [agent-receipt-schema](/specification/agent-receipt-schema/) spec pages.
+
+| Vector | Layer | Enforces |
+| --- | --- | --- |
+| wrong_proof_type | receipt | §4.3.3 proof — type MUST be Ed25519Signature2020 |
+| mutated_action_type | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
+| mutated_principal_id | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
+| truncated_proof_value | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
+| wrong_multibase_prefix | receipt | §4.3.3 proof — proofValue is u-prefixed base64url |
+| flipped_proof_byte | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
+| schema_missing_required_field | receipt | §4.3.2 credentialSubject — chain.chain_id is required |
+| missing_previous_receipt_hash_mid_chain | chain | §7.3 Chain integrity verification — hash linkage (previous_receipt_hash) |
+| chain_wrong_previous_receipt_hash | chain | §7.3 Chain integrity verification — hash linkage (previous_receipt_hash) |
+| chain_duplicate_sequence | chain | §7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1 |
+| chain_sequence_gap | chain | §7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1 |
 
 ## CI enforcement
 
