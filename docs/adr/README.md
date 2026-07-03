@@ -28,7 +28,7 @@ Use `0000-template.md` as the starting point for new ADRs. Name each new ADR fil
 | [ADR-0012](0012-payload-disclosure-policy.md) | Payload Disclosure Policy (`parameterDisclosure`) | Accepted (partial impl; plaintext opt-in shipped, envelope pending) |
 | [ADR-0013](0013-claude-code-hook-channel.md) | claude_code_hook Emission Channel | Accepted (Phase A shipped in `hook/` v0.10.0) |
 | [ADR-0014](0014-codex-hook-channel.md) | codex_hook Emission Channel | Proposed (substrate shipped, Codex reader pending) |
-| [ADR-0015](0015-key-rotation-byok-anchoring.md) | Key Rotation, BYOK Abstraction, and External Anchoring | Accepted (Phase A in progress) |
+| [ADR-0015](0015-key-rotation-byok-anchoring.md) | Key Rotation, BYOK Abstraction, and External Anchoring | Accepted (rotation + anchoring incl. Phase B checkpoints shipped; Phase C HSM/KMS deferred) |
 | [ADR-0016](0016-mcp-proxy-audit-encryption.md) | Audit Store Encryption at Rest (mcp-proxy) | Accepted |
 | [ADR-0017](0017-central-receipt-hub.md) | Central Receipt Hub and External Anchoring | Accepted |
 | [ADR-0018](0018-signer-abstraction-and-cloud-agnostic-keyprovider-design.md) | Signer Abstraction and Cloud-Agnostic KeyProvider Design | Accepted |

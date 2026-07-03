@@ -18,7 +18,8 @@ import (
 
 // Portable checkpoint types, re-exported from the SDK so the daemon's emitter,
 // reader, and callers keep one `checkpoint.*` surface. See
-// obsigna.dev/sdk/go/checkpoint for the design constraints (ADR-0008).
+// obsigna.dev/sdk/go/checkpoint for the design constraints (ADR-0015 External
+// anchor write contract; ADR-0008 anchoring freeze).
 type (
 	Checkpoint = sdk.Checkpoint
 	Signed     = sdk.Signed

@@ -26,8 +26,8 @@ import (
 const EventTypeRotation = "rotation"
 
 // EventTypeCheckpoint is the event type for signed chain-HEAD checkpoint
-// records (the truncation anchor; ADR-0008 follow-through). A sink carries
-// both rotation and checkpoint events; readers filter on EventType.
+// records (the truncation anchor; ADR-0015 Phase B checkpoint anchoring). A
+// sink carries both rotation and checkpoint events; readers filter on EventType.
 const EventTypeCheckpoint = "checkpoint"
 
 // Sink is an append-only external witness for daemon events.
