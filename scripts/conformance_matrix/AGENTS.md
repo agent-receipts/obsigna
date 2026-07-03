@@ -14,12 +14,12 @@ The page's numbers are pinned to this script by a CI reconciliation test —
 json` and fails if any matrix cell or prose figure on the page disagrees with
 the computed counts, so a stale number cannot reach `main`.
 
-A `VectorSet` carries an `on_page` flag. Reference fixtures that no SDK suite
-consumes yet (currently `did:key resolution`) are still counted — the corpus
-stays reproducible — but `on_page=False` keeps them off the published matrix
-(and out of `--format md`) rather than showing an all-dashes row. The
-reconciliation test binds the page to the `on_page=True` sets and asserts
-off-page sets never appear as a matrix row.
+A `VectorSet` carries an `on_page` flag. A reference-fixture set that no SDK
+suite consumes yet is still counted — the corpus stays reproducible — but
+`on_page=False` keeps it off the published matrix (and out of `--format md`)
+rather than showing an all-dashes row. The reconciliation test binds the page
+to the `on_page=True` sets and asserts off-page sets never appear as a matrix
+row.
 
 ## Layout
 

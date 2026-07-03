@@ -13,6 +13,12 @@ export {
 	SUPPORTED_FRAME_VERSION,
 } from "./daemon-emitter.js";
 export {
+	type Document as DIDDocument,
+	didFromPublicKey,
+	resolveDid,
+	type VerificationMethod as DIDVerificationMethod,
+} from "./did.js";
+export {
 	BufferingEmitter,
 	type BufferingEmitterConfig,
 	CompositeEmitter,

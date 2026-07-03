@@ -34,13 +34,14 @@ Each row is a frozen vector set. The **Go / Py / TS** columns mark which impleme
 | [v0.3.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v030_vectors.json) | frozen v0.3.0 receipts + chains | ✓ | ✓ | ✓ | 0.3.0 | 3 |
 | [v0.4.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v040_vectors.json) | frozen v0.4.0 receipts + chains | ✓ | ✓ | ✓ | 0.4.0 | 2 |
 | [v0.5.0](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/cross-sdk-tests/v050_vectors.json) | frozen v0.5.0 receipts + chains | ✓ | ✓ | ✓ | 0.5.0 | 3 |
+| [did:key resolution](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/spec/test-vectors/did-key/vectors.json) | did:key v0.7 resolution wire shape (ADR-0007) | ✓ | ✓ | ✓ | did:key v0.7 | 3 |
 | [disclosure envelope](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/spec/test-vectors/disclosure-envelope/vectors.json) | parameter-disclosure envelope: pinned ciphertext | ✓ | ✓ | ✓ | envelope v1 | 2 |
 | [rotation event](https://github.com/agent-receipts/obsigna/blob/cbbfa6b9ce55b4d0dbc9ef7cc7f3a025a2edd877/spec/test-vectors/rotation-event/example.json) | key-rotation event verifies under the outgoing key | ✓ | ✓ | ✓ | 0.2.1 | 1 |
 
 Each linked vector set above is pinned to an immutable commit, so a citation stays valid as the corpus grows.
 
 <Aside type="caution" title="Honest coverage — these are seed-level counts">
-The counts are the real sizes of the frozen corpora today, not a coverage claim. They are seed-level and growing: 44 canonicalization/receipt-hash vectors, a 7-case MUST-reject corpus, and the per-version receipt/chain counts shown in the matrix above. They are **not** exhaustive — they pin the shapes that mattered enough to freeze, and the corpus is extended as the specification evolves. Separately, the `did:key` resolution vectors ([`spec/test-vectors/did-key/`](https://github.com/agent-receipts/obsigna/tree/main/spec/test-vectors/did-key)) fix the `did:key` v0.7 wire shape (ADR-0007) as reference fixtures, but **no SDK implements `did:key` resolution yet**, so no suite consumes them. Rather than show an all-dashes row, that set is out-of-scope-for-now and omitted from the matrix above; wiring it into a cross-language suite is tracked in [#956](https://github.com/agent-receipts/obsigna/issues/956).
+The counts are the real sizes of the frozen corpora today, not a coverage claim. They are seed-level and growing: 44 canonicalization/receipt-hash vectors, a 7-case MUST-reject corpus, and the per-version receipt/chain counts shown in the matrix above. They are **not** exhaustive — they pin the shapes that mattered enough to freeze, and the corpus is extended as the specification evolves.
 </Aside>
 
 ## CI enforcement
@@ -70,6 +71,11 @@ The frozen vectors and the suites that consume them live in the repository. Run 
 
 # Shared spec-example and version-pinned vector checks
 (cd cross-sdk-tests && go test -tags=integration -v)
+
+# did:key resolution vectors (ADR-0007) — one command per SDK
+(cd sdk/go && go test -tags=integration -v -run TestDIDKeyVectors ./did/...)
+(cd sdk/py && uv run pytest tests/test_did_key_vectors.py -v)
+(cd sdk/ts && pnpm exec vitest run did-key-vectors)
 
 # Regenerate the vector counts in the matrix above
 python3 scripts/conformance_matrix/count.py --format md
