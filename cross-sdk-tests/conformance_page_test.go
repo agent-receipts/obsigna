@@ -49,11 +49,13 @@ type countSet struct {
 }
 
 // malformedClause is one MUST-reject vector's clause traceability, as emitted by
-// count.py under "malformedCorpus". It backs the page's "Enforces" column.
+// count.py under "malformedCorpus". It backs the page's "Enforces" column: the
+// clause text is the link label and the anchor is its href.
 type malformedClause struct {
 	Name   string `json:"name"`
 	Kind   string `json:"kind"`
 	Clause string `json:"clause"`
+	Anchor string `json:"anchor"`
 }
 
 type countPayload struct {
@@ -173,17 +175,23 @@ var (
 )
 
 // enforcesRowRe matches a clause-traceability row: `| vector_name | receipt |
-// §… clause text |`. The first cell is the snake_case vector name, the second is
-// the layer (receipt|chain), the third is the clause. The header row ("| Vector
-// | Layer | Enforces |") and the separator ("| --- | --- | --- |") do not match,
-// so only data rows are parsed.
-var enforcesRowRe = regexp.MustCompile(`^\|\s*([a-z0-9_]+)\s*\|\s*(receipt|chain)\s*\|\s*(.+?)\s*\|\s*$`)
+// [§… clause text](/anchor) |`. The first cell is the snake_case vector name, the
+// second is the layer (receipt|chain), the third is a markdown link whose label
+// is the clause and whose href is the anchor. The header row ("| Vector | Layer |
+// Enforces |") and the separator ("| --- | --- | --- |") do not match, so only
+// data rows are parsed.
+var enforcesRowRe = regexp.MustCompile(`^\|\s*([a-z0-9_]+)\s*\|\s*(receipt|chain)\s*\|\s*\[(.+?)\]\((.+?)\)\s*\|\s*$`)
 
-// parseEnforces extracts {name: clause} for every clause-traceability row in the
-// given section.
-func parseEnforces(t *testing.T, src string) map[string]string {
+type enforcesCell struct {
+	clause string
+	anchor string
+}
+
+// parseEnforces extracts {name: {clause, anchor}} for every clause-traceability
+// row in the given section.
+func parseEnforces(t *testing.T, src string) map[string]enforcesCell {
 	t.Helper()
-	rows := map[string]string{}
+	rows := map[string]enforcesCell{}
 	for _, line := range strings.Split(src, "\n") {
 		m := enforcesRowRe.FindStringSubmatch(line)
 		if m == nil {
@@ -192,7 +200,7 @@ func parseEnforces(t *testing.T, src string) map[string]string {
 		if _, dup := rows[m[1]]; dup {
 			t.Fatalf("duplicate Enforces row for %q", m[1])
 		}
-		rows[m[1]] = m[3]
+		rows[m[1]] = enforcesCell{clause: m[3], anchor: m[4]}
 	}
 	if len(rows) == 0 {
 		t.Fatal("no Enforces rows parsed from the clause-traceability section")
@@ -256,8 +264,11 @@ func TestConformancePageReconciles(t *testing.T) {
 				t.Errorf("malformed vector %q is missing from the page Enforces table", c.Name)
 				continue
 			}
-			if got != c.Clause {
-				t.Errorf("clause mismatch for %q:\n  page=%q\n  count.py=%q", c.Name, got, c.Clause)
+			if got.clause != c.Clause {
+				t.Errorf("clause mismatch for %q:\n  page=%q\n  count.py=%q", c.Name, got.clause, c.Clause)
+			}
+			if got.anchor != c.Anchor {
+				t.Errorf("anchor mismatch for %q:\n  page=%q\n  count.py=%q", c.Name, got.anchor, c.Anchor)
 			}
 		}
 		for name := range pageRows {

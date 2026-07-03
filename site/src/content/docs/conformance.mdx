@@ -52,21 +52,21 @@ A green run proves the three implementations agree on canonical form (RFC 8785),
 
 ## Clause traceability
 
-Every vector in the MUST-reject corpus names the normative spec clause it enforces, so a reviewer can trace each negative case to the requirement it guards. The **Enforces** column is generated from each vector's `clause` field by [`count.py`](https://github.com/agent-receipts/obsigna/blob/main/scripts/conformance_matrix/count.py) — the same generator that emits the counts — and pinned to this page by the [reconciliation test](https://github.com/agent-receipts/obsigna/blob/main/cross-sdk-tests/conformance_page_test.go); it is never hand-typed. Section references point into the [receipt-chain-verification](/specification/receipt-chain-verification/) and [agent-receipt-schema](/specification/agent-receipt-schema/) spec pages.
+Every vector in the MUST-reject corpus names the normative spec clause it enforces, so a reviewer can trace each negative case to the requirement it guards. The **Enforces** column is generated from each vector's `clause` field by [`count.py`](https://github.com/agent-receipts/obsigna/blob/main/scripts/conformance_matrix/count.py) — the same generator that emits the counts — and pinned to this page by the [reconciliation test](https://github.com/agent-receipts/obsigna/blob/main/cross-sdk-tests/conformance_page_test.go); it is never hand-typed. Each entry links to the published spec section it enforces. (The source spec's `§7.3.5` and `§7.8` fold into the published [chain-integrity-verification](/specification/receipt-chain-verification/#chain-integrity-verification) section, which has no finer on-page anchor.)
 
 | Vector | Layer | Enforces |
 | --- | --- | --- |
-| wrong_proof_type | receipt | §4.3.3 proof — type MUST be Ed25519Signature2020 |
-| mutated_action_type | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
-| mutated_principal_id | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
-| truncated_proof_value | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
-| wrong_multibase_prefix | receipt | §4.3.3 proof — proofValue is u-prefixed base64url |
-| flipped_proof_byte | receipt | §7.8 End-to-end receipt verification — signature over canonical bytes |
-| schema_missing_required_field | receipt | §4.3.2 credentialSubject — chain.chain_id is required |
-| missing_previous_receipt_hash_mid_chain | chain | §7.3 Chain integrity verification — hash linkage (previous_receipt_hash) |
-| chain_wrong_previous_receipt_hash | chain | §7.3 Chain integrity verification — hash linkage (previous_receipt_hash) |
-| chain_duplicate_sequence | chain | §7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1 |
-| chain_sequence_gap | chain | §7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1 |
+| wrong_proof_type | receipt | [§4.3.3 proof — type MUST be Ed25519Signature2020](/specification/agent-receipt-schema/#proof) |
+| mutated_action_type | receipt | [§7.8 End-to-end receipt verification — signature over canonical bytes](/specification/receipt-chain-verification/#chain-integrity-verification) |
+| mutated_principal_id | receipt | [§7.8 End-to-end receipt verification — signature over canonical bytes](/specification/receipt-chain-verification/#chain-integrity-verification) |
+| truncated_proof_value | receipt | [§7.8 End-to-end receipt verification — signature over canonical bytes](/specification/receipt-chain-verification/#chain-integrity-verification) |
+| wrong_multibase_prefix | receipt | [§4.3.3 proof — proofValue is u-prefixed base64url](/specification/agent-receipt-schema/#proof) |
+| flipped_proof_byte | receipt | [§7.8 End-to-end receipt verification — signature over canonical bytes](/specification/receipt-chain-verification/#chain-integrity-verification) |
+| schema_missing_required_field | receipt | [§4.3.2 credentialSubject — chain.chain_id is required](/specification/agent-receipt-schema/#chain) |
+| missing_previous_receipt_hash_mid_chain | chain | [§7.3 Chain integrity verification — hash linkage (previous_receipt_hash)](/specification/receipt-chain-verification/#chain-integrity-verification) |
+| chain_wrong_previous_receipt_hash | chain | [§7.3 Chain integrity verification — hash linkage (previous_receipt_hash)](/specification/receipt-chain-verification/#chain-integrity-verification) |
+| chain_duplicate_sequence | chain | [§7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1](/specification/receipt-chain-verification/#chain-integrity-verification) |
+| chain_sequence_gap | chain | [§7.3.5 Sequence number contiguity and store trust — sequence MUST equal predecessor + 1](/specification/receipt-chain-verification/#chain-integrity-verification) |
 
 ## CI enforcement
 
@@ -103,6 +103,9 @@ The frozen vectors and the suites that consume them live in the repository. Run 
 
 # Regenerate the vector counts in the matrix above
 python3 scripts/conformance_matrix/count.py --format md
+
+# Regenerate the "Enforces" clause-traceability table
+python3 scripts/conformance_matrix/count.py --format enforces
 ```
 
 See [`cross-sdk-tests/README.md`](https://github.com/agent-receipts/obsigna/blob/main/cross-sdk-tests/README.md) for how the shared vectors are generated and consumed.

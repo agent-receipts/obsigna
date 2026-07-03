@@ -18,7 +18,9 @@ Usage:
                               # this output's "Consumers" column into separate
                               # Go/Py/TS columns, so paste it in as a reference,
                               # not a drop-in replacement)
-    count.py --format json   # machine-readable counts
+    count.py --format enforces  # Markdown "Enforces" table: per-vector clause
+                              # traceability for the MUST-reject corpus
+    count.py --format json   # machine-readable counts (+ malformedCorpus clauses)
 
 Exit codes:
     0  all vector files read and counted
@@ -203,13 +205,50 @@ def _malformed_set() -> VectorSet:
     raise KeyError("malformed vector set not found in VECTOR_SETS")
 
 
+# Published spec pages the clause sections live on (Starlight slugs). The site's
+# spec is reorganised from the source spec.md, so not every source subsection
+# (e.g. §7.3.5, §7.8) has its own on-page anchor; those map to the nearest
+# containing section that does. The `clause` field stays a plain source-section
+# reference (it is shared across the three SDKs in the vector JSON and must not
+# carry site URLs); the anchor is resolved here, at render time, so the page's
+# "Enforces" links stay generated rather than hand-typed.
+_SPEC_CHAIN = "/specification/receipt-chain-verification/"
+_SPEC_SCHEMA = "/specification/agent-receipt-schema/"
+
+# Map the leading section token of a clause (e.g. "§7.3.5") to its published
+# anchor. A clause whose section token is absent here raises KeyError, so a new
+# vector referencing an unmapped section fails the count rather than shipping an
+# unlinked or dead-linked cell.
+_CLAUSE_ANCHOR: dict[str, str] = {
+    "§4.3.2": _SPEC_SCHEMA + "#chain",  # chain.chain_id is a required chain field
+    "§4.3.3": _SPEC_SCHEMA + "#proof",
+    "§7.3": _SPEC_CHAIN + "#chain-integrity-verification",
+    "§7.3.5": _SPEC_CHAIN + "#chain-integrity-verification",
+    "§7.8": _SPEC_CHAIN + "#chain-integrity-verification",
+}
+
+
+def _clause_anchor(clause: str) -> str:
+    """Resolve a clause string to its published spec anchor via its leading
+    section token (the first whitespace-delimited word, e.g. ``§7.3.5``)."""
+    section = clause.split(None, 1)[0]
+    try:
+        return _CLAUSE_ANCHOR[section]
+    except KeyError:
+        raise KeyError(
+            f"no published anchor mapped for clause section {section!r} "
+            f"(clause: {clause!r}); add it to _CLAUSE_ANCHOR"
+        ) from None
+
+
 def malformed_corpus() -> list[dict[str, str]]:
     """Clause traceability for every vector in the MUST-reject corpus.
 
     Reads the same file the ``malformed (MUST-reject)`` set counts and returns
-    one ``{name, kind, clause}`` entry per vector — receipt-level cases from
-    ``receipts[]`` and chain-level cases from ``chains[]``. The ``clause`` names
-    the normative spec section the vector enforces; it feeds the "Enforces"
+    one ``{name, kind, clause, anchor}`` entry per vector — receipt-level cases
+    from ``receipts[]`` and chain-level cases from ``chains[]``. The ``clause``
+    names the normative spec section the vector enforces and ``anchor`` is the
+    published spec-page anchor it resolves to; together they feed the "Enforces"
     column on the conformance page. A vector missing its ``clause`` raises
     ``KeyError`` here, so an unannotated vector fails the count rather than
     silently shipping a blank cell.
@@ -218,7 +257,15 @@ def malformed_corpus() -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for kind, key in (("receipt", "receipts"), ("chain", "chains")):
         for case in doc[key]:
-            out.append({"name": case["name"], "kind": kind, "clause": case["clause"]})
+            clause = case["clause"]
+            out.append(
+                {
+                    "name": case["name"],
+                    "kind": kind,
+                    "clause": clause,
+                    "anchor": _clause_anchor(clause),
+                }
+            )
     return out
 
 
@@ -249,13 +296,20 @@ def _render_md(rows: list[tuple[VectorSet, int]]) -> str:
         lines.append(
             f"| {vs.name} | {vs.purpose} | {vs.consumers} | {vs.spec_versions} | {count} |"
         )
-    # Second table: per-vector clause traceability for the MUST-reject corpus.
-    # Paste-ready for the "Enforces" table on the conformance page.
-    lines.append("")
-    lines.append("| Vector | Layer | Enforces |")
-    lines.append("| --- | --- | --- |")
+    return "\n".join(lines)
+
+
+def _render_enforces(_rows: list[tuple[VectorSet, int]]) -> str:
+    """Markdown "Enforces" table: per-vector clause traceability for the
+    MUST-reject corpus. Paste-ready for the clause-traceability table on the
+    conformance page; the reconciliation test pins that table to this data."""
+    lines = [
+        "| Vector | Layer | Enforces |",
+        "| --- | --- | --- |",
+    ]
     for case in malformed_corpus():
-        lines.append(f"| {case['name']} | {case['kind']} | {case['clause']} |")
+        enforces = f"[{case['clause']}]({case['anchor']})"
+        lines.append(f"| {case['name']} | {case['kind']} | {enforces} |")
     return "\n".join(lines)
 
 
@@ -283,15 +337,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--format",
-        choices=("table", "md", "json"),
+        choices=("table", "md", "enforces", "json"),
         default="table",
         help="output format (default: table)",
     )
     args = parser.parse_args(argv)
 
-    renderer = {"table": _render_table, "md": _render_md, "json": _render_json}[
-        args.format
-    ]
+    renderer = {
+        "table": _render_table,
+        "md": _render_md,
+        "enforces": _render_enforces,
+        "json": _render_json,
+    }[args.format]
     try:
         rows = collect()
         # Render inside the try so a vector missing its `clause` (raised by
