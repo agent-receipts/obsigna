@@ -51,6 +51,22 @@ class TestCollect(unittest.TestCase):
         # Go/Py/TS columns, so this is a reference table, not a drop-in paste.
         self.assertEqual(len(lines), 2 + len(on_page))
 
+    def test_enforces_output_has_one_row_per_malformed_vector(self) -> None:
+        enforces = count._render_enforces(count.collect())
+        lines = enforces.splitlines()
+        corpus = count.malformed_corpus()
+        # header + separator + one row per MUST-reject vector.
+        self.assertEqual(len(lines), 2 + len(corpus))
+        for case in corpus:
+            self.assertIn(case["name"], enforces)
+            self.assertIn(case["clause"], enforces)
+
+    def test_every_malformed_vector_has_a_clause(self) -> None:
+        # A vector missing its `clause` must fail the count, not ship a blank
+        # "Enforces" cell — malformed_corpus raises KeyError in that case.
+        for case in count.malformed_corpus():
+            self.assertTrue(case["clause"], f"{case['name']} has an empty clause")
+
     def test_md_output_excludes_off_page_sets(self) -> None:
         # Off-page reference fixtures (currently did:key) are counted but must
         # not appear in the markdown output, matching the published page.

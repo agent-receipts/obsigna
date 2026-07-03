@@ -48,9 +48,20 @@ type countSet struct {
 	OnPage bool   `json:"onPage"`
 }
 
+// malformedClause is one MUST-reject vector's clause traceability, as emitted by
+// count.py under "malformedCorpus". It backs the page's "Enforces" column: the
+// clause text is the link label and the anchor is its href.
+type malformedClause struct {
+	Name   string `json:"name"`
+	Kind   string `json:"kind"`
+	Clause string `json:"clause"`
+	Anchor string `json:"anchor"`
+}
+
 type countPayload struct {
-	Sets  []countSet `json:"sets"`
-	Total int        `json:"total"`
+	Sets            []countSet        `json:"sets"`
+	Total           int               `json:"total"`
+	MalformedCorpus []malformedClause `json:"malformedCorpus"`
 }
 
 // reconcileInputs bundles the once-loaded count.py output and page text so the
@@ -163,6 +174,40 @@ var (
 	proseMalformedRe = regexp.MustCompile(`(\d+)-case MUST-reject corpus`)
 )
 
+// enforcesRowRe matches a clause-traceability row: `| vector_name | receipt |
+// [§… clause text](/anchor) |`. The first cell is the snake_case vector name, the
+// second is the layer (receipt|chain), the third is a markdown link whose label
+// is the clause and whose href is the anchor. The header row ("| Vector | Layer |
+// Enforces |") and the separator ("| --- | --- | --- |") do not match, so only
+// data rows are parsed.
+var enforcesRowRe = regexp.MustCompile(`^\|\s*([a-z0-9_]+)\s*\|\s*(receipt|chain)\s*\|\s*\[(.+?)\]\((.+?)\)\s*\|\s*$`)
+
+type enforcesCell struct {
+	clause string
+	anchor string
+}
+
+// parseEnforces extracts {name: {clause, anchor}} for every clause-traceability
+// row in the given section.
+func parseEnforces(t *testing.T, src string) map[string]enforcesCell {
+	t.Helper()
+	rows := map[string]enforcesCell{}
+	for _, line := range strings.Split(src, "\n") {
+		m := enforcesRowRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		if _, dup := rows[m[1]]; dup {
+			t.Fatalf("duplicate Enforces row for %q", m[1])
+		}
+		rows[m[1]] = enforcesCell{clause: m[3], anchor: m[4]}
+	}
+	if len(rows) == 0 {
+		t.Fatal("no Enforces rows parsed from the clause-traceability section")
+	}
+	return rows
+}
+
 func TestConformancePageReconciles(t *testing.T) {
 	in := loadReconcileInputs(t)
 
@@ -195,6 +240,40 @@ func TestConformancePageReconciles(t *testing.T) {
 		for name := range pageRows {
 			if _, ok := expected[name]; !ok {
 				t.Errorf("page matrix row %q has no corresponding on-page set in count.py", name)
+			}
+		}
+	})
+
+	// The page's "Enforces" column (clause traceability for the MUST-reject
+	// corpus) is pinned to count.py's malformedCorpus: every vector appears with
+	// the exact clause count.py reads from the vector file, and no row exists
+	// that count.py does not know about. This is what stops the column from
+	// being hand-typed and drifting from the committed `clause` fields.
+	t.Run("enforces", func(t *testing.T) {
+		if len(in.payload.MalformedCorpus) == 0 {
+			t.Fatal("count.py returned no malformedCorpus entries")
+		}
+		src := section(t, in.page, "## Clause traceability", "## CI enforcement")
+		pageRows := parseEnforces(t, src)
+
+		expected := map[string]bool{}
+		for _, c := range in.payload.MalformedCorpus {
+			expected[c.Name] = true
+			got, present := pageRows[c.Name]
+			if !present {
+				t.Errorf("malformed vector %q is missing from the page Enforces table", c.Name)
+				continue
+			}
+			if got.clause != c.Clause {
+				t.Errorf("clause mismatch for %q:\n  page=%q\n  count.py=%q", c.Name, got.clause, c.Clause)
+			}
+			if got.anchor != c.Anchor {
+				t.Errorf("anchor mismatch for %q:\n  page=%q\n  count.py=%q", c.Name, got.anchor, c.Anchor)
+			}
+		}
+		for name := range pageRows {
+			if !expected[name] {
+				t.Errorf("page Enforces row %q has no corresponding vector in count.py", name)
 			}
 		}
 	})
