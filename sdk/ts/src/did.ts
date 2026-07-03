@@ -13,6 +13,14 @@ const MULTICODEC_ED25519 = new Uint8Array([0xed, 0x01]);
 const PAYLOAD_LEN = 34; // 2-byte multicodec prefix + 32-byte Ed25519 public key
 const PUBLIC_KEY_LEN = 32;
 
+// Bounds the base58btc-encoded payload length resolveDid accepts, checked
+// before decoding. A 34-byte payload always encodes to at most 47 base58btc
+// characters (ceil(34*8 / log2(58))); 64 leaves a generous margin while
+// rejecting oversized input before it reaches the decoder, whose
+// big-integer multiply-accumulate loop costs O(n^2) in the input length.
+// Exported for reuse by did.test.ts's oversized-input regression test.
+export const MAX_ENCODED_LEN = 64;
+
 // Bitcoin base58 alphabet: 0, O, I, and l are excluded to avoid visual
 // ambiguity, per ADR-0007's resolution algorithm.
 const BASE58BTC_ALPHABET =
@@ -36,7 +44,10 @@ export interface Document {
 	assertionMethod: string[];
 }
 
-function base58btcEncode(data: Uint8Array): string {
+// Exported for reuse by did.test.ts, which needs to encode malformed
+// payloads (wrong length, wrong multicodec) that didFromPublicKey's 32-byte
+// public-key validation would reject.
+export function base58btcEncode(data: Uint8Array): string {
 	let zeros = 0;
 	while (zeros < data.length && data[zeros] === 0) zeros++;
 
@@ -124,9 +135,16 @@ export function resolveDid(did: string): Document {
 	// Document shape.
 	const zAndPayload = did.slice("did:key:".length);
 
+	const encoded = zAndPayload.slice(1);
+	if (encoded.length > MAX_ENCODED_LEN) {
+		throw new Error(
+			`did: encoded payload is ${encoded.length} characters, exceeds maximum of ${MAX_ENCODED_LEN}`,
+		);
+	}
+
 	let payload: Uint8Array;
 	try {
-		payload = base58btcDecode(zAndPayload.slice(1));
+		payload = base58btcDecode(encoded);
 	} catch (err) {
 		throw new Error(
 			`did: invalid base58btc encoding: ${err instanceof Error ? err.message : String(err)}`,

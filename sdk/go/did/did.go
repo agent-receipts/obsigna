@@ -25,6 +25,13 @@ var multicodecEd25519 = [2]byte{0xed, 0x01}
 // the 32-byte raw Ed25519 public key (RFC 8032 §5.1.5).
 const payloadLen = 2 + ed25519.PublicKeySize
 
+// maxEncodedLen bounds the base58btc-encoded payload length Resolve accepts,
+// checked before decoding. A 34-byte payload always encodes to at most 47
+// base58btc characters (ceil(34*8 / log2(58))); 64 leaves a generous margin
+// while rejecting oversized input before it reaches the decoder, whose
+// big-integer multiply-accumulate loop costs O(n^2) in the input length.
+const maxEncodedLen = 64
+
 // VerificationMethod is a single entry in a DID Document's
 // verificationMethod array.
 type VerificationMethod struct {
@@ -79,7 +86,12 @@ func Resolve(id string) (Document, error) {
 	// Document shape.
 	zAndPayload := id[len("did:key:"):]
 
-	payload, err := base58btcDecode(zAndPayload[1:])
+	encoded := zAndPayload[1:]
+	if len(encoded) > maxEncodedLen {
+		return Document{}, fmt.Errorf("did: encoded payload is %d characters, exceeds maximum of %d", len(encoded), maxEncodedLen)
+	}
+
+	payload, err := base58btcDecode(encoded)
 	if err != nil {
 		return Document{}, fmt.Errorf("did: invalid base58btc encoding: %w", err)
 	}

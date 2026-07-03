@@ -17,6 +17,13 @@ _MULTICODEC_ED25519 = b"\xed\x01"
 _PAYLOAD_LEN = 34  # 2-byte multicodec prefix + 32-byte Ed25519 public key
 _PUBLIC_KEY_LEN = 32
 
+# Bounds the base58btc-encoded payload length resolve() accepts, checked
+# before decoding. A 34-byte payload always encodes to at most 47 base58btc
+# characters (ceil(34*8 / log2(58))); 64 leaves a generous margin while
+# rejecting oversized input before it reaches the decoder, whose
+# big-integer multiply-accumulate loop costs O(n^2) in the input length.
+_MAX_ENCODED_LEN = 64
+
 # Bitcoin base58 alphabet: 0, O, I, and l are excluded to avoid visual
 # ambiguity, per ADR-0007's resolution algorithm.
 _BASE58BTC_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -134,8 +141,16 @@ def resolve(did: str) -> Document:
     # Document shape.
     z_and_payload = did[len("did:key:") :]
 
+    encoded = z_and_payload[1:]
+    if len(encoded) > _MAX_ENCODED_LEN:
+        msg = (
+            f"did: encoded payload is {len(encoded)} characters, "
+            f"exceeds maximum of {_MAX_ENCODED_LEN}"
+        )
+        raise ValueError(msg)
+
     try:
-        payload = _base58btc_decode(z_and_payload[1:])
+        payload = _base58btc_decode(encoded)
     except ValueError as exc:
         msg = f"did: invalid base58btc encoding: {exc}"
         raise ValueError(msg) from exc

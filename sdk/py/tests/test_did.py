@@ -102,6 +102,17 @@ def test_resolve_rejects_wrong_payload_length() -> None:
         resolve(f"did:key:z{long_}")
 
 
+def test_resolve_rejects_oversized_input() -> None:
+    # Guards the DoS fix: resolve() must reject an oversized encoded payload
+    # before running the O(n**2) base58btc decode on it, not just after
+    # decoding completes.
+    from obsigna.did import _MAX_ENCODED_LEN  # noqa: PLC0415
+
+    oversized = "z" * (_MAX_ENCODED_LEN + 1)
+    with pytest.raises(ValueError, match="exceeds maximum"):
+        resolve(f"did:key:z{oversized}")
+
+
 def test_resolve_rejects_wrong_multicodec() -> None:
     from obsigna.did import _base58btc_encode  # noqa: PLC0415
 

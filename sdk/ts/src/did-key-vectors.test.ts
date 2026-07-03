@@ -28,14 +28,6 @@ const vectors: DIDKeyVectorFile = JSON.parse(
 	readFileSync(vectorsPath, "utf-8"),
 );
 
-function fromHex(hex: string): Uint8Array {
-	const bytes = new Uint8Array(hex.length / 2);
-	for (let i = 0; i < bytes.length; i++) {
-		bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-	}
-	return bytes;
-}
-
 describe("did:key vectors", () => {
 	it("has vectors to test", () => {
 		expect(vectors.vectors.length).toBeGreaterThan(0);
@@ -43,7 +35,7 @@ describe("did:key vectors", () => {
 
 	for (const vector of vectors.vectors) {
 		it(vector.name, () => {
-			const pub = fromHex(vector.public_key_hex);
+			const pub = Buffer.from(vector.public_key_hex, "hex");
 
 			expect(didFromPublicKey(pub)).toBe(vector.did);
 			expect(resolveDid(vector.did)).toEqual(vector.did_document);

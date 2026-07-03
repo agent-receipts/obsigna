@@ -131,6 +131,16 @@ func TestResolveRejectsWrongPayloadLength(t *testing.T) {
 	}
 }
 
+// TestResolveRejectsOversizedInput guards the DoS fix: Resolve must reject an
+// encoded payload longer than maxEncodedLen before running the O(n^2)
+// base58btc decode on it, not just after decoding completes.
+func TestResolveRejectsOversizedInput(t *testing.T) {
+	oversized := strings.Repeat("z", maxEncodedLen+1)
+	if _, err := Resolve(prefix + oversized); err == nil {
+		t.Error("Resolve: expected error for oversized encoded payload, got nil")
+	}
+}
+
 func TestResolveRejectsWrongMulticodec(t *testing.T) {
 	// 0xed02 is not a registered Ed25519 multicodec.
 	payload := append([]byte{0xed, 0x02}, make([]byte, 32)...)
@@ -150,16 +160,12 @@ func TestResolveRejectsWrongMulticodec(t *testing.T) {
 func TestBase58EncodeDecodeRoundTrip(t *testing.T) {
 	cases := [][]byte{
 		{},
-		{0x00},
-		{0x00, 0x00, 0x01},
+		{0x00},             // single leading zero byte
+		{0x00, 0x00, 0x01}, // multiple leading zeros, non-zero tail
 		{0xff},
 		{0xed, 0x01},
-		make([]byte, 34),
-	}
-	for i := range cases {
-		for j := range cases[i] {
-			cases[i][j] = byte(i*7 + j*13)
-		}
+		make([]byte, 34), // all leading zeros (worst case for the zeros count)
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
 	}
 	for _, data := range cases {
 		encoded := base58btcEncode(data)
