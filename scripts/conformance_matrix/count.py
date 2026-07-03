@@ -90,11 +90,11 @@ class VectorSet:
     spec_versions: str
     counter: Callable[[dict[str, Any]], int]
     # Whether this set appears as a row in the published matrix on the page.
-    # Reference fixtures that no SDK suite consumes (currently only did:key
-    # resolution) are still counted here — so the corpus stays fully
-    # reproducible from source — but are kept off the results matrix rather
-    # than shown as an all-dashes row that invites the wrong question. The page
-    # reconciliation test binds the page's matrix to the on_page=True rows.
+    # A reference-fixture set that no SDK suite consumes yet is still counted
+    # here — so the corpus stays fully reproducible from source — but should
+    # be kept off the results matrix rather than shown as an all-dashes row
+    # that invites the wrong question. The page reconciliation test binds the
+    # page's matrix to the on_page=True rows.
     on_page: bool = True
 
     def count(self) -> int:
