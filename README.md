@@ -53,6 +53,12 @@ Anyone can implement the protocol — so interoperability is the property that m
 
 The **[Conformance page](https://agentreceipts.ai/conformance/)** is the citeable summary: the interop claim, a results matrix with per-set vector counts, permanent links to every frozen vector set, and how to reproduce the checks. The shared corpus lives in [`cross-sdk-tests/`](cross-sdk-tests/).
 
+## Formal verification
+
+Where conformance shows the implementations agree, formal verification shows the **protocol logic itself is sound**. The receipt chain's tamper-evidence property (spec §7) is machine-checked with a bounded [Alloy](https://alloytools.org/) model in [`formal/chain-invariants/`](formal/chain-invariants/): over all instances up to the checked scopes, any receipt sequence that passes §7.3 verification is a genuine chain the issuer signed, in issuer order — so no modification, insertion, interior deletion, reorder, or cross-chain splice by a party **without the issuer's key** can produce a different sequence that still verifies. The one residual, tail truncation of an open chain, is the documented floor of §7.3.1, reproduced as an explicit fact rather than hidden.
+
+This is bounded model checking **relative to the cryptographic assumptions** (collision-resistant hashing, unforgeable signatures) — it does not prove the primitives, and the Byzantine key-holder case is named as the boundary, not covered. Run it yourself with [`formal/chain-invariants/run.sh`](formal/chain-invariants/run.sh); the decision, threat model, scope, and honest statement of guarantee are in [ADR-0039](docs/adr/0039-formal-verification-chain-invariants.md).
+
 ## Start here
 
 Both paths below require the daemon — it holds the signing key and owns the audit chain. Install it first:
@@ -98,6 +104,7 @@ obsigna verify
 | [`mcp-proxy/`](mcp-proxy/) | MCP proxy with receipt signing, policy engine, intent tracking |
 | [`hook/`](hook/) | PostToolUse hook binary for Claude Code and other runtimes |
 | [`cross-sdk-tests/`](cross-sdk-tests/) | Cross-language verification tests |
+| [`formal/`](formal/) | Formal models (Alloy) machine-checking protocol properties |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records |
 | [dashboard](https://github.com/agent-receipts/dashboard) | Local web UI for browsing and verifying receipt databases |
 | [openclaw](https://github.com/agent-receipts/openclaw) | Agent Receipts plugin for OpenClaw |
