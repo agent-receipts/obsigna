@@ -34,13 +34,14 @@ in that layer worth proving.*
 
 ## Roadmap
 
-### Now — CI-gate the Alloy model
+### Now — CI-gated
 
-The tamper-evidence model is a shipped, asserted property, so it belongs behind a
-CI gate per **[ADR-0024](../docs/adr/0024-project-verification-contract.md)**
-("every asserted property has a gate"). `run.sh` already exits non-zero on any
-`expect` mismatch, so the gate is a thin wrapper. **This is the immediate
-next step.**
+The tamper-evidence model is a shipped, asserted property, so it sits behind a CI
+gate per **[ADR-0024](../docs/adr/0024-project-verification-contract.md)** ("every
+asserted property has a gate"):
+[`.github/workflows/formal.yml`](../.github/workflows/formal.yml) runs `run.sh` on
+every change under `formal/**` and fails the build on any `expect` mismatch (a
+counterexample, or a non-vacuity run gone UNSAT).
 
 ### Next, sequenced ≈ v1.5 — TLA⁺ for the emission / recovery runtime
 
@@ -74,26 +75,66 @@ gates rather than good intentions. **First target:** the WAL / at-least-once +
 crash-recovery machine (TLC over bounded emitters/crashes; TLAPS if unbounded is
 later wanted).
 
-### Later, narrow — Tamarin for the key-rotation protocol
+### Key-trust — Tamarin (deferred by *readiness*, not by consequence)
 
-**Why.** obsigna's core (§7.3) is a *data format + a local, offline verification
-algorithm*, not a message-exchange protocol — so there is little for a
-protocol-level active-attacker tool to prove that the structural model has not
-already covered. The one genuine exception is **key rotation**
-([§7.3.7](../spec/v0.5.0/spec.md), [ADR-0015](../docs/adr/0015-key-rotation-byok-anchoring.md)):
-rotation *is* a mini-protocol — a receipt signed with the outgoing key binds the
-incoming key. Tamarin could prove that across **unbounded** rotations an attacker
-without the key cannot hijack a chain's future (no key-confusion, downgrade, or
-cross-chain rotation-replay). It is the highest-consequence case: a broken
-rotation hands an attacker the chain's *future*, worse than tampering with stored
-history. (Delegation §7.6 and remote/daemon signing are secondary candidates if
-they grow challenge–response exchanges.)
+> The order in this roadmap is a **readiness** order, not a criticality order.
+> Read "later" as "not yet buildable / not yet ours to build," not as
+> "unimportant" — this section is, by consequence, arguably the most load-bearing
+> unproven area in the system.
 
-**Why not yet.** The surface is small (one protocol), and it is only worth the
-distinct tool and mental model once rotation's adversarial resistance must be
-*proven* rather than argued — e.g. a security audit demands it. Not urgent, and
-narrower than the TLA⁺ work. Note Tamarin is *symbolic*: it idealises the
-primitives (it does not prove Ed25519), so it discharges the layer-2 *protocol*
+**What the target actually is.** Not the chain — that is structural and Alloy
+owns it. The target is the **key-trust chain the whole tamper-evidence result
+rests on.** The Alloy model proves integrity *relative to* "an issuer-signed set
+the adversary cannot enlarge" — i.e. it assumes the verifier already holds the
+**correct issuer key.** The realistic attack on a signed-audit log is almost never
+"forge the hash chain" (proven hard here); it is "get the verifier to accept the
+*wrong* key" — a rotated-out key, a key valid for a different chain, or a key
+injected at distribution. That assumption is the ballgame, and it has three
+distinct parts with different readiness:
+
+- **Genesis key trust** — delegated to DID resolution (§7.8 step 2), which this
+  version deliberately does **not** specify (§9.6, `UNRESOLVABLE_DID`;
+  [ADR-0007](../docs/adr/0007-did-method-strategy.md)). With a self-certifying
+  method (`did:key`) there is no protocol to verify; with a registry or `did:web`
+  the trust is an *external* PKI concern. This part may simply be **not ours.**
+- **Rotation traversal** ([§7.3.7](../spec/v0.5.0/spec.md),
+  [ADR-0015](../docs/adr/0015-key-rotation-byok-anchoring.md)) — a genuine
+  in-project cryptographic protocol: a receipt signed with the outgoing key binds
+  the incoming key, and a verifier chains through unbounded rotations from the
+  genesis key alone. **This design is settled and shipped.** It is Tamarin's exact
+  home turf: can any active attacker without the outgoing key hijack the active
+  key (key-confusion, downgrade, cross-chain rotation-replay)?
+- **Origin authentication** — the P2 gap
+  ([ADR-0019 §P2](../docs/adr/0019-protocol-integrity-gaps-and-mitigations.md)):
+  an attacker who can write the store fabricates a genesis under a fresh key and
+  the chain verifies internally. The fix (trust registry / witnessed
+  `agent_start`) is **deferred to v2 and undesigned.**
+
+**Why defer — and the honest reasons, kept separate.** The earlier framing ("the
+core isn't a message-exchange protocol") is a *non-sequitur* here: it argues
+against pointing Tamarin at the chain, which nobody proposes — the target is the
+key-trust protocol, which the same breath concedes *is* a protocol. The real
+reasons split by part:
+
+- Rotation traversal is settled, so its defer is purely **priority** — small,
+  shipped, no forcing function demanding a proof yet.
+- Origin authentication is defer-by-**readiness**: verifying a v2 sketch would
+  model a moving target and ship a spec obsolete on merge — the "model that lies"
+  failure mode. This is a *readiness* reason, not a consequence one, and the two
+  resolve on different timelines.
+- Genesis trust may be **not ours** at all. The fork that decides the real scope —
+  *is issuer-key trust bespoke to agent-receipts, or delegated to a DID method /
+  external PKI?* — is itself unsettled (§9.6, ADR-0007) and should be stated
+  before any Tamarin effort, since it determines whether there is an in-project
+  protocol to verify.
+
+**If the aim is to learn, not to close a gap.** As a *pedagogical* target — does
+Tamarin earn its place? — the rotation/key-trust protocol is near-ideal: small,
+self-owned, genuinely message-exchange-shaped, consequential. The one discipline:
+such a model stays clearly **exploratory and out of CI**. The Alloy model earned
+its gate; an exploratory protocol model masquerading as an assurance artifact is
+the one way to do real harm here. Tamarin is *symbolic*: it idealises the
+primitives (it does not prove Ed25519); it discharges the layer-2 *protocol*
 question, not layer 1.
 
 ### Out of scope everywhere — the primitives (layer 1)

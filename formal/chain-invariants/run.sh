@@ -14,6 +14,9 @@
 #   - The Alloy 6 distribution jar (org.alloytools.alloy.dist). This script
 #     fetches Alloy 6.2.0 from Maven Central on first run if ALLOY_JAR is unset
 #     and ./alloy.jar is absent, and verifies it against a pinned SHA-256.
+#   - Only for that auto-fetch path: `curl`, plus a SHA-256 tool (`sha256sum`,
+#     `shasum`, or `openssl`). Neither is needed when ALLOY_JAR points at a jar
+#     that already exists.
 #
 # Usage:
 #   ./run.sh                       # fetch+verify jar if needed, run the model

@@ -290,9 +290,9 @@ from "scope ≤ 8" to "any length." Noted, not claimed here.
 - Two spec-clarity nits (§7.3 step-1 ordering; the split of the "sequence starts
   at 1" rule) are documented for a future spec revision. They are **not** acted
   on here — modifying `spec/` requires explicit human approval per AGENTS.md.
-- The model is additive and CI-agnostic (Java + one Maven-Central jar). Wiring it
-  into a verification gate (ADR-0024) is possible future work but not required by
-  this ADR.
+- The model is additive (Java + one Maven-Central jar) and is wired into a CI gate
+  per ADR-0024: `.github/workflows/formal.yml` runs `run.sh` on changes under
+  `formal/**` and fails the build on any `expect` mismatch.
 - Follow-up: an inductive/unbounded proof, and a separate TLA⁺ model for the
   behavioral properties, are the natural next formal-methods steps. The
   cross-layer sequencing — CI gate now, TLA⁺ for the emission/recovery runtime at
