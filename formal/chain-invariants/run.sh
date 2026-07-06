@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 #
-# Run the Agent Receipt Protocol chain tamper-evidence Alloy model headless and
-# print, for every `check` and `run` command, whether the result matched its
-# `expect` annotation.
+# Run the Agent Receipt Protocol chain tamper-evidence Alloy model headless, using
+# Alloy's own built-in `exec` command. It runs every `check`/`run` in the model,
+# enforces each command's `expect` annotation, prints a one-line-per-command
+# summary, and exits non-zero if any result contradicts its `expect` — a `check`
+# that finds a counterexample, or a non-vacuity `run` that comes back UNSAT.
+#
+# (This uses Alloy's supported command-line entry point rather than a bespoke Java
+# driver on its internal API — same result, nothing custom to compile or maintain.)
 #
 # Requirements:
 #   - Java 17+ (tested with OpenJDK 21)
@@ -11,13 +16,12 @@
 #     and ./alloy.jar is absent, and verifies it against a pinned SHA-256.
 #
 # Usage:
-#   ./run.sh                       # fetch+verify jar if needed, compile runner, run model
+#   ./run.sh                       # fetch+verify jar if needed, run the model
 #   ALLOY_JAR=/path/to/alloy.jar ./run.sh
-#   DUMP=1 ./run.sh                # also print the instance for any unexpected result
 #
-# Exit code (from RunAlloy): 0 all commands matched their `expect`;
-#   2 a result contradicted its `expect` (counterexample, or a non-vacuity run
-#   went UNSAT); 3 a command threw during solving.
+# Exit code: 0 if every command matched its `expect`; non-zero (from `alloy exec`)
+# if any did not, or on a solver/parse error. Full solutions and a machine-readable
+# receipt.json are written under ./out/ (git-ignored).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -84,12 +88,12 @@ else
   fi
 fi
 
-echo ">> Compiling headless runner ..."
-javac -cp "$JAR" RunAlloy.java
-
-echo ">> Running model (SAT4J, pure Java; this takes a few minutes at the top scopes) ..."
-# Quiet Kodkod's INFO logging; keep only the per-command verdicts. `pipefail` (set
-# above) preserves RunAlloy's exit code through the grep, and RunAlloy always prints
-# a non-filtered header line so grep exits 0 and never masks/inverts that code.
-java -Dorg.slf4j.simpleLogger.defaultLogLevel=warn -cp "$JAR:." RunAlloy chain-tamper-evidence.als \
-  2>&1 | grep -vE "INFO kodkod|^Picked up JAVA_TOOL"
+echo ">> Running model via 'alloy exec' (SAT4J, pure Java; a few minutes at the top scopes) ..."
+# `exec -c '*'` runs every check and run in the model, enforces each command's
+# `expect` annotation, and returns non-zero on any mismatch. `-s sat4j` pins the
+# pure-Java solver (no native libraries). Solutions + receipt.json go to ./out/;
+# the concise per-command summary goes to stdout. `pipefail` (set above) preserves
+# exec's exit code through the grep, which only strips the JVM's JAVA_TOOL_OPTIONS
+# banner — exec always prints unfiltered summary lines, so grep exits 0.
+java -jar "$JAR" exec --command '*' --solver sat4j --force --output out chain-tamper-evidence.als \
+  2>&1 | grep -vE "^Picked up JAVA_TOOL"

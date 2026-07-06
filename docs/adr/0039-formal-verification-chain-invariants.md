@@ -35,9 +35,11 @@ over increasing bounded scopes. Nothing in the spec, schema, or SDKs is changed.
 
 ### Tool choice and rationale
 
-- **Alloy 6.2.0**, SAT4J (pure-Java) backend, run headless via a small
-  [`RunAlloy.java`](../../formal/chain-invariants/RunAlloy.java) driver and
-  [`run.sh`](../../formal/chain-invariants/run.sh).
+- **Alloy 6.2.0**, SAT4J (pure-Java) backend, run headless via Alloy's own
+  built-in `exec` command (`alloy exec -c '*' -s sat4j`, wrapped by
+  [`run.sh`](../../formal/chain-invariants/run.sh)). `exec` runs every command,
+  enforces each command's `expect` annotation, and exits non-zero on any
+  mismatch — its supported CLI, nothing custom to compile.
 - **Why Alloy:** the property is "does a tampered-but-verifying instance exist?"
   — pure structure over finite instances (receipts, hashes, sequence links).
   Alloy's relational logic expresses the §7.3 predicate and the adversary
@@ -164,14 +166,13 @@ was weakened to force a pass.
 A high-effort code review of the model and tooling drove several additive
 strengthenings, all re-verified (still 0 unexpected results):
 
-- **The harness now enforces non-vacuity.** Every command carries an `expect`
-  annotation (`check … expect 0`, `run … expect 1`) and `RunAlloy` fails on any
-  mismatch — crucially, a non-vacuity `run` that regresses to UNSAT now fails the
+- **The harness enforces non-vacuity.** Every command carries an `expect`
+  annotation (`check … expect 0`, `run … expect 1`), and `alloy exec` fails on
+  any mismatch — crucially, a non-vacuity `run` that regresses to UNSAT fails the
   suite instead of silently exiting green while its paired `*_Detected` check
   passes over an empty antecedent. Confirmed by a negative test (a deliberately
-  mis-annotated command exits 2). `RunAlloy` also isolates per-command
-  exceptions (exit 3) so one blow-up cannot skip the rest or downgrade a later
-  counterexample's signal.
+  mis-annotated command makes `exec` exit non-zero). This enforcement is native
+  to Alloy's built-in executor, so it needs no bespoke driver.
 - **Non-vacuity is now certified at every scope a check runs at**, including the
   `can*` runs at scope 7 and `genuineVerifies` at scopes 7 and 8, plus a
   `genuineFullLength` run proving a maximal-length chain is constructible at

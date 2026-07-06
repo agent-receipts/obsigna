@@ -33,21 +33,31 @@ cd formal/chain-invariants
 ```
 
 `run.sh` will, on first use, download **Alloy 6.2.0** from Maven Central
-(`org.alloytools:org.alloytools.alloy.dist:6.2.0`), compile the small headless
-runner [`RunAlloy.java`](./RunAlloy.java), and execute every `check` and `run`
-command in the model with the pure-Java SAT4J solver (no native dependencies).
+(`org.alloytools:org.alloytools.alloy.dist:6.2.0`) and verify it against a pinned
+SHA-256, then run every `check` and `run` in the model through Alloy's own
+built-in headless executor:
+
+```sh
+java -jar alloy.jar exec --command '*' --solver sat4j chain-tamper-evidence.als
+```
+
+`exec -c '*'` runs all commands with the pure-Java SAT4J solver (no native
+dependencies), enforces each command's `expect` annotation, prints a
+one-line-per-command summary, and **exits non-zero if any result contradicts its
+`expect`**. This is Alloy's supported command-line entry point — there is nothing
+custom to compile or maintain. (Full solutions and a machine-readable
+`receipt.json` are written under `./out/`, which is git-ignored.)
 
 - Already have the jar? `ALLOY_JAR=/path/to/alloy.jar ./run.sh` (skips the
   fetch + checksum; the pinned SHA-256 is only enforced on jars this script
   downloads or previously cached).
-- Want to see the instance behind any unexpected result? `DUMP=1 ./run.sh`.
 - Prefer the GUI? Open `chain-tamper-evidence.als` in the Alloy 6 Analyzer and
   use **Execute → Execute All**. Every command is self-contained.
 
 **Every command carries an `expect` annotation** — `check … expect 0` (expect
 UNSAT / no counterexample) and `run … expect 1` (expect SAT / scenario
-reachable) — and the runner **fails on any result that contradicts it**, in
-either direction:
+reachable) — and `exec` **fails on any result that contradicts it**, in either
+direction:
 
 | Command | Annotated | Pass condition | A failing result means |
 |---|---|---|---|
@@ -55,10 +65,10 @@ either direction:
 | `run` (a `pred`) | `expect 1` | **SAT** — scenario reachable | **UNSAT**: a sanity/non-vacuity scenario became unreachable → a paired check may now pass **vacuously** |
 
 Enforcing the `expect` on **runs** is what closes the vacuity hole: if a
-non-vacuity `can*` run ever regressed to UNSAT, the runner flags it instead of
+non-vacuity `can*` run ever regressed to UNSAT, `exec` flags it instead of
 silently exiting green while its paired `*_Detected` check passes over an empty
-antecedent. Runner exit codes: **0** all matched; **2** a result contradicted
-its `expect`; **3** a command threw during solving.
+antecedent. `alloy exec` exits **0** when every command matched its `expect` and
+**non-zero** if any did not (or on a solver/parse error).
 
 ---
 

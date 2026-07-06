@@ -3,5 +3,5 @@
 alloy.jar
 *.jar
 
-# Compiled runner classes.
-*.class
+# Alloy `exec` output (solutions + receipt.json), regenerated on every run.
+out/
