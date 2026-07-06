@@ -40,15 +40,51 @@ over increasing bounded scopes. Nothing in the spec, schema, or SDKs is changed.
   [`run.sh`](../../formal/chain-invariants/run.sh)). `exec` runs every command,
   enforces each command's `expect` annotation, and exits non-zero on any
   mismatch — its supported CLI, nothing custom to compile.
-- **Why Alloy:** the property is "does a tampered-but-verifying instance exist?"
-  — pure structure over finite instances (receipts, hashes, sequence links).
-  Alloy's relational logic expresses the §7.3 predicate and the adversary
-  operators directly, and its SAT search is exactly a search for a
-  counterexample chain. No temporal operators are needed.
-- **Why not TLA⁺ (here):** behavioral/concurrent properties — parallel emission,
-  crash-recovery, at-least-once delivery (ADR-0019 O3 / ADR-0020), key-rotation
-  traversal dynamics (§7.3.7) — are temporal and belong in a **separate future
-  TLA⁺ model**. They are explicitly out of scope for this one.
+
+**Alloy vs TLA⁺.** The two tools answer different questions. **Alloy** is
+relational logic over a bounded universe: it compiles to SAT and searches for a
+*structure* — a configuration of atoms and relations — that satisfies or violates
+a property. Its native question is "does there exist a structure such that…?"
+**TLA⁺** specifies *systems that change over time*: an initial state, a next-state
+action relation, and safety/liveness properties over all executions; its native
+question is "over all behaviors, does this hold?" In a slogan: **Alloy is for
+structure, TLA⁺ is for behavior over time.**
+
+This property is structural. Tamper-evidence is a predicate over a *single stored
+artifact* — the chain a verifier is handed — and the check is existential: *does
+there exist a chain, built by adversary operations over a genuine one, that is
+tampered yet still passes §7.3?* The adversary operators are one-shot
+constructions of an alternative instance, not temporal transitions to interleave;
+hash linkage, injectivity, the issuer-signed set, and sequence contiguity are
+relations and functions over finite atoms. Alloy's SAT-based finder *is* the
+search for a tampered-but-verifying witness. Expressing the same thing in TLA⁺
+would shoehorn a static predicate into a state machine (effectively a one-state
+spec), and TLC — an explicit-state enumerator — is a worse fit than SAT for
+constructing a witness under injectivity constraints.
+
+**Tool choice tracks the axis, not just this one property.** Record-integrity is
+structural → Alloy. The properties this model defers — parallel emission,
+crash-recovery / at-least-once delivery (ADR-0019 O3, ADR-0020), key-rotation
+traversal over a live stream (§7.3.7) — are about interleavings, fairness, and
+liveness over executions → TLA⁺, in a **separate future model**. The two are
+complementary, split by property class, not substitutes.
+
+**Bounded vs unbounded.** Both Alloy and TLA⁺'s TLC are *bounded* — finite scope
+/ finite state — so neither, as a checker, proves the property for all chain
+lengths. The route to unbounded assurance is a proof assistant: TLA⁺'s **TLAPS**
+(or Coq/Isabelle/Lean) discharging the master soundness theorem as an *inductive*
+proof on chain position (null-first anchors the genesis; hash injectivity forces
+each `previous_receipt_hash` to name a unique predecessor). That is the one place
+TLA⁺-family tooling would extend *this* property rather than a different one — see
+"What is and is not guaranteed → Path to unbounded assurance."
+
+*Two caveats.* (1) Alloy 6 added mutable state and linear temporal operators
+(`always`, `eventually`), so "Alloy = structure only" is a simplification — but
+serious concurrent/distributed behavior (fairness, complex liveness, refinement)
+remains far more idiomatic in TLA⁺/TLC, and this property needs none of Alloy's
+temporal features (it is plain relational Alloy). (2) This is a choice about the
+*property*, not a ranking of the tools: were we verifying the receipt system's
+*runtime* behavior, TLA⁺ would be the first reach.
 
 ### Threat model (encoded in the model, stated here in prose)
 
