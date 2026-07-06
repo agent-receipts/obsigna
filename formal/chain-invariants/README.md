@@ -37,20 +37,28 @@ cd formal/chain-invariants
 runner [`RunAlloy.java`](./RunAlloy.java), and execute every `check` and `run`
 command in the model with the pure-Java SAT4J solver (no native dependencies).
 
-- Already have the jar? `ALLOY_JAR=/path/to/alloy.jar ./run.sh`.
-- Want to see a counterexample instance if one is ever found?
-  `DUMP=1 ./run.sh`.
+- Already have the jar? `ALLOY_JAR=/path/to/alloy.jar ./run.sh` (skips the
+  fetch + checksum; the pinned SHA-256 is only enforced on jars this script
+  downloads or previously cached).
+- Want to see the instance behind any unexpected result? `DUMP=1 ./run.sh`.
 - Prefer the GUI? Open `chain-tamper-evidence.als` in the Alloy 6 Analyzer and
   use **Execute → Execute All**. Every command is self-contained.
 
-The runner prints, per command:
+**Every command carries an `expect` annotation** — `check … expect 0` (expect
+UNSAT / no counterexample) and `run … expect 1` (expect SAT / scenario
+reachable) — and the runner **fails on any result that contradicts it**, in
+either direction:
 
-| Command kind | Alloy result | Meaning |
-|---|---|---|
-| `check` (an `assert`) | **UNSAT** | No counterexample in scope → **property holds** in the checked scope |
-| `check` | **SAT** | **Counterexample found** → property violated (exit code 2) |
-| `run` (a `pred`) | **SAT** | Instance found → the scenario is reachable (used for sanity/non-vacuity/floor) |
-| `run` | **UNSAT** | No instance → scenario unreachable in scope |
+| Command | Annotated | Pass condition | A failing result means |
+|---|---|---|---|
+| `check` (an `assert`) | `expect 0` | **UNSAT** — no counterexample in scope → property holds | **SAT**: a counterexample → property violated |
+| `run` (a `pred`) | `expect 1` | **SAT** — scenario reachable | **UNSAT**: a sanity/non-vacuity scenario became unreachable → a paired check may now pass **vacuously** |
+
+Enforcing the `expect` on **runs** is what closes the vacuity hole: if a
+non-vacuity `can*` run ever regressed to UNSAT, the runner flags it instead of
+silently exiting green while its paired `*_Detected` check passes over an empty
+antecedent. Runner exit codes: **0** all matched; **2** a result contradicted
+its `expect`; **3** a command threw during solving.
 
 ---
 
@@ -101,21 +109,27 @@ noted. Scopes are stated as Alloy scope / integer bitwidth.
 
 | Command | Scope(s) | Result |
 |---|---|---|
-| `genuineVerifies` / `genuineMultiVerifies` | 5/5, 6/5 | SAT (as intended) |
+| `genuineVerifies` | 5/5, 7/6, 8/6 | SAT (as intended) |
+| `genuineMultiVerifies` | 6/5 | SAT (as intended) |
+| `genuineFullLength` (length-8 chain constructible) | 8/6 | SAT (as intended) |
 | `Modification_Detected` | 5/5, 7/6 | UNSAT — holds |
 | `Insertion_Detected` | 5/5, 7/6 | UNSAT — holds |
 | `Interior_Deletion_Detected` | 5/5, 7/6 | UNSAT — holds |
 | `Reorder_Detected` | 5/5, 7/6 | UNSAT — holds |
-| `CrossChainSplice_Detected` | 6/5 | UNSAT — holds |
+| `CrossChainSplice_Detected` | 6/5, 7/6 | UNSAT — holds |
 | `AppendAfterTerminal_Detected` | 5/5, 7/6 | UNSAT — holds |
-| `can*` (six non-vacuity runs) | 5/5, 6/5 | SAT (as intended) |
+| `can*` (six non-vacuity runs) | 5/5 (splice 6/5) **and 7/6** | SAT (as intended) |
 | `Soundness_VerifiedIsGenuinePrefix` | 5/5, 7/6, **8/6** | UNSAT — holds |
 | `Combined_OnlySurvivorIsTailTruncation` | 5/5, 7/6, **8/6** | UNSAT — holds |
 | `truncationSurvives` | 5/5 | SAT (documented floor, as intended) |
 
-No `check` produced a counterexample at any scope. The scope-8 master-theorem
-checks are the most expensive (~1 minute each on SAT4J); the rest complete in
-seconds. See ADR-0039 for the full results table with timings.
+Every command matched its `expect` (**0 unexpected results, 0 errors**, runner
+exit 0). No `check` produced a counterexample at any scope; every non-vacuity
+`run` was reachable at every scope its paired check runs at. The scope-8
+master-theorem checks are the most expensive (~1 minute each on SAT4J), and
+`genuineFullLength` at scope 8 takes ~50 s (it searches for a maximal-length
+chain); the rest complete in seconds. See ADR-0039 for the full results with
+timings.
 
 > **One model artifact was found and fixed during development, not a spec gap.**
 > Alloy's `seq.add`/`insert` are *no-ops when a sequence is already at the
@@ -174,6 +188,21 @@ It does **NOT** prove:
    log to be a genuine prefix) suggests it holds unboundedly, but that is not
    discharged here.
 
+### §7.3.2 and §7.3.4 are defense-in-depth, not independently load-bearing here
+
+The `AppendAfterTerminal_Detected` (§7.3.2) and `CrossChainSplice_Detected`
+(§7.3.4) checks *hold*, but within this threat model they are **not
+independently necessary**: mutation testing (deleting either conjunct from
+`verifies`) leaves both checks UNSAT, because a party **without the issuer key**
+cannot produce a receipt that hash-links and sequences correctly yet carries a
+foreign `chain_id` or sits past a terminal — that requires re-signing. Those two
+automatic checks exist to stop a **Byzantine issuer** who *can* forge a matching
+hash link (e.g. splice two of its own chains, or reopen a terminal chain) — the
+case this model names as out of scope. They are modeled to encode §7.3
+faithfully and to stay sound if a future model widens the adversary; the master
+Soundness theorem, hash-linkage, and signature checks are what actually catch
+these tampers against a non-key-holder.
+
 ### Path to unbounded assurance (future work)
 
 The master soundness statement — *verifies(l) ⟹ l is a prefix of a genuine
@@ -201,10 +230,14 @@ a future spec revision can tighten the language.
    `sdk/go/receipt/chain.go` iterates the receipts *as given* and fails the
    step-3 increment check on a scrambled order. This model uses (b), which is
    why `Reorder_Detected` is a genuine failure rather than a silent
-   normalization. Under reading (a) the security guarantee is unchanged (the
-   logical order is pinned by the signed `sequence` field either way), but a
-   reordered store would verify-after-sort instead of being rejected. Recommend
-   §7.3 state explicitly that the verifier checks the presented order.
+   normalization. The sort-first reading (a) is **not machine-checked here** —
+   under it a reordered store would verify-after-sort instead of being rejected,
+   so `Reorder_Detected` would not hold as stated. We *argue* (but do not prove
+   in Alloy) that the security guarantee is unchanged under (a) because the
+   logical order is pinned by the signed `sequence` field either way; a future
+   revision could add a `verifiesSorted` variant to discharge that argument
+   mechanically. Recommend §7.3 state explicitly that the verifier checks the
+   presented order.
 
 2. **First-receipt sequence value.** §7.3 step 4 checks only that
    `previous_receipt_hash` is null on the first receipt; the "sequence starts at

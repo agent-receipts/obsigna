@@ -103,8 +103,15 @@ operator is reachable at scope, so no `*_Detected` check passes vacuously);
 Run over increasing scopes, integer bitwidth stated as `Int`:
 
 - Operator-level checks: scope **5** (`5 Int`) and **7** (`6 Int`);
-  `CrossChainSplice` at scope **6** (needs ≥2 chains).
-- Master theorems: scope **5**, **7**, and **8** (`6 Int`).
+  `CrossChainSplice` at scope **6** (`5 Int`) and **7** (`6 Int`) — it needs ≥2
+  chains.
+- Master theorems: scope **5** (`5 Int`), **7** (`6 Int`), and **8** (`6 Int`).
+
+Every command carries an `expect` annotation and the headless runner fails on any
+result that contradicts it (a `check` going SAT, or a non-vacuity `run` going
+UNSAT), so a vacuity regression cannot pass green. Non-vacuity `run`s are supplied
+at **every** scope a check runs at (including 7 and 8), so the strongest results
+self-certify that their antecedents are reachable.
 
 Scope *N* bounds every top-level signature (receipts, hashes, chain_ids, genuine
 chains) to ≤ *N*, so chains of up to 8 receipts drawn from up to 8 distinct
@@ -114,23 +121,25 @@ theorems.
 ## Results
 
 Alloy 6.2.0 / SAT4J. `check` → **UNSAT** means *no counterexample exists in
-scope* (property holds); `run` → **SAT** means *the scenario is reachable*.
-**No `check` produced a counterexample at any scope.** Representative timings
-from a headless run:
+scope* (property holds); `run` → **SAT** means *the scenario is reachable*. Every
+command carries an `expect` annotation and the runner fails on any mismatch;
+a headless run reports **0 unexpected results, 0 errors (exit 0)**. Representative
+timings:
 
 | Command | Kind | Scope / Int | Result | Time |
 |---|---|---|---|---|
-| `genuineVerifies` | run | 5 / 5 | SAT (intended) | 0.4 s |
+| `genuineVerifies` | run | 5 / 5 · 7 / 6 · 8 / 6 | SAT (intended) | 0.4 s · 0.4 s · 0.4 s |
 | `genuineMultiVerifies` | run | 6 / 5 | SAT (intended) | 0.3 s |
+| `genuineFullLength` (length-8 chain) | run | 8 / 6 | SAT (intended) | ~50 s |
 | `Modification_Detected` | check | 5 / 5 · 7 / 6 | UNSAT — holds | 0.1 s · 0.3 s |
-| `Insertion_Detected` | check | 5 / 5 · 7 / 6 | UNSAT — holds | 0.2 s · 3.2 s |
+| `Insertion_Detected` | check | 5 / 5 · 7 / 6 | UNSAT — holds | 0.3 s · 2.9 s |
 | `Interior_Deletion_Detected` | check | 5 / 5 · 7 / 6 | UNSAT — holds | 0.1 s · 0.7 s |
-| `Reorder_Detected` | check | 5 / 5 · 7 / 6 | UNSAT — holds | 0.1 s · 0.8 s |
-| `CrossChainSplice_Detected` | check | 6 / 5 | UNSAT — holds | 0.3 s |
+| `Reorder_Detected` | check | 5 / 5 · 7 / 6 | UNSAT — holds | 0.1 s · 0.6 s |
+| `CrossChainSplice_Detected` | check | 6 / 5 · 7 / 6 | UNSAT — holds | 0.3 s · 1.4 s |
 | `AppendAfterTerminal_Detected` | check | 5 / 5 · 7 / 6 | UNSAT — holds | 0.1 s · 0.6 s |
-| `canModify … canAppendTerminal` | run ×6 | 5 / 5, 6 / 5 | SAT (non-vacuity) | ≤ 0.15 s each |
-| `Soundness_VerifiedIsGenuinePrefix` | check | 5 / 5 · 7 / 6 · **8 / 6** | UNSAT — holds | 0.7 s · 28 s · 54 s |
-| `Combined_OnlySurvivorIsTailTruncation` | check | 5 / 5 · 7 / 6 · **8 / 6** | UNSAT — holds | 0.7 s · 27 s · 67 s |
+| `canModify … canAppendTerminal` | run ×6 | 5 / 5 (splice 6 / 5) **and 7 / 6** | SAT (non-vacuity) | ≤ 0.75 s each |
+| `Soundness_VerifiedIsGenuinePrefix` | check | 5 / 5 · 7 / 6 · **8 / 6** | UNSAT — holds | 0.7 s · 27 s · 62 s |
+| `Combined_OnlySurvivorIsTailTruncation` | check | 5 / 5 · 7 / 6 · **8 / 6** | UNSAT — holds | 0.7 s · 42 s · 61 s |
 | `truncationSurvives` | run | 5 / 5 | SAT (documented floor) | 0.1 s |
 
 ### One model artifact found and fixed (not a spec gap)
@@ -150,6 +159,33 @@ tamper scenario was unreachable). Per the project's formal-methods discipline,
 the model was adjusted only because it misrepresented the operator — no property
 was weakened to force a pass.
 
+### Review-driven hardening
+
+A high-effort code review of the model and tooling drove several additive
+strengthenings, all re-verified (still 0 unexpected results):
+
+- **The harness now enforces non-vacuity.** Every command carries an `expect`
+  annotation (`check … expect 0`, `run … expect 1`) and `RunAlloy` fails on any
+  mismatch — crucially, a non-vacuity `run` that regresses to UNSAT now fails the
+  suite instead of silently exiting green while its paired `*_Detected` check
+  passes over an empty antecedent. Confirmed by a negative test (a deliberately
+  mis-annotated command exits 2). `RunAlloy` also isolates per-command
+  exceptions (exit 3) so one blow-up cannot skip the rest or downgrade a later
+  counterexample's signal.
+- **Non-vacuity is now certified at every scope a check runs at**, including the
+  `can*` runs at scope 7 and `genuineVerifies` at scopes 7 and 8, plus a
+  `genuineFullLength` run proving a maximal-length chain is constructible at
+  scope 8 — so the strongest results self-certify their antecedents are reachable.
+- **`CrossChainSplice_Detected` gained a second, larger scope (7/6)** to match its
+  siblings.
+- **`§7.3.2 / §7.3.4` are documented as defense-in-depth, not independently
+  load-bearing** against a non-key-holder (mutation-tested: deleting either
+  conjunct still leaves the paired checks UNSAT) — see interpretation note 3.
+- **`run.sh` now fetches the Alloy jar atomically and verifies a pinned SHA-256**
+  (cross-checked against Maven's published `.sha1`/`.md5`), so an interrupted or
+  substituted download fails loudly instead of poisoning the cache or executing
+  unverified — matching the supply-chain caution in AGENTS.md.
+
 ### Interpretation notes (minor spec ambiguities surfaced)
 
 Neither is a soundness break; both are recorded for a future spec revision.
@@ -158,14 +194,28 @@ Neither is a soundness break; both are recorded for a future spec revision.
    or *check-the-given-order*. The reference SDK verifiers (e.g.
    `sdk/go/receipt/chain.go`) check the given order; the model matches that, so
    `Reorder_Detected` is a genuine failure rather than a silent
-   sort-normalization. The security guarantee is identical under either reading
-   (the logical order is pinned by the signed `sequence` field), but §7.3 should
+   sort-normalization. The sort-first reading is **not machine-checked** here —
+   under it a reordered store verifies-after-sort and `Reorder_Detected` would
+   not hold as written; we *argue* (but do not prove in Alloy) the guarantee is
+   unchanged because order is pinned by the signed `sequence` field. §7.3 should
    say which the verifier does.
 2. **"First receipt has `sequence: 1`"** lives in §4.3.2 (schema) while §7.3
    step 4 checks only the null previous-hash; the Go verifier checks
    `sequence >= 1` at index 0. The model requires only what §7.3 states; the
    null-first check already forces the first verifying receipt to be a genuine
    genesis. Worth a cross-reference in §7.3.
+3. **§7.3.2 / §7.3.4 are defense-in-depth against the out-of-scope Byzantine
+   issuer, not independently load-bearing against a non-key-holder.** Mutation
+   testing confirms this: deleting the receipt-after-terminal or chain_id
+   conjunct from `verifies` still leaves `AppendAfterTerminal_Detected` and
+   `CrossChainSplice_Detected` UNSAT, because a non-key-holder cannot forge a
+   receipt that hash-links and sequences correctly yet carries a foreign
+   chain_id or follows a terminal. Those §7.3 checks earn their keep only against
+   a key-holder who *can* forge a matching hash link — the case named out of
+   scope. They are modeled to encode §7.3 faithfully and to remain sound if the
+   adversary is later widened. This is a coverage nuance, not a defect: the
+   master Soundness theorem and hash/signature checks are what catch these
+   tampers here.
 
 ## What is and is not guaranteed (honest statement)
 

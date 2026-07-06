@@ -96,6 +96,17 @@ sig Receipt {
 // also keeps sequence arithmetic inside the Int bitwidth used by the commands.
 fact PositiveSequence { all r: Receipt | r.seqNum >= 1 }
 
+// Upper-bound sequence numbers by the size of the receipt universe. A meaningful
+// chain never has a sequence higher than the number of receipts that exist, and a
+// verifying log forces contiguous 1..k with k <= length <= #Receipt — so this
+// bound excludes no counterexample to any Detected/Soundness assert. Its purpose
+// is to make the "arithmetic stays in range" assumption EXPLICIT rather than
+// emergent: with #Receipt <= scope and bitwidth >= 5, `plus[seqNum,1]` never
+// overflows. (Without an upper bound, a fabricated receipt could carry seqNum at
+// the Int ceiling and `plus[seqNum,1]` would wrap; that only ever biases
+// `verifies` toward FALSE — the safe direction here — but pinning it is cleaner.)
+fact SequenceInRange { all r: Receipt | r.seqNum <= #Receipt }
+
 // COLLISION RESISTANCE (the hash assumption): distinct receipts never share a
 // body hash. Equivalently, `bodyHash` is injective. An adversary cannot craft a
 // second receipt whose canonical form collides with a genuine receipt's hash,
@@ -205,6 +216,17 @@ pred verifies[l: seq Receipt] {
   // §7.3.2 — receipt-after-terminal: no receipt may follow a terminal one
   // (automatic, unsuppressable, position-based).
   all i: l.inds | some l[i].terminal implies i = l.lastIdx
+  //
+  // DEFENSE-IN-DEPTH NOTE (verified by mutation testing): within THIS threat
+  // model (adversary without the issuer key), the two conjuncts above are NOT
+  // independently load-bearing — deleting either still leaves
+  // CrossChainSplice_Detected and AppendAfterTerminal_Detected UNSAT, because a
+  // non-key-holder cannot produce a receipt that hash-links and sequences
+  // correctly yet carries a foreign chain_id or sits past a terminal (that
+  // requires re-signing, i.e. the key). §7.3.4/§7.3.2 exist precisely to catch a
+  // BYZANTINE ISSUER who CAN forge a matching hash link — the case this model
+  // names as out of scope. They are kept here to encode §7.3 faithfully and to
+  // remain sound if a future model widens the adversary. See README/ADR-0039.
 }
 
 
@@ -235,13 +257,13 @@ pred isProperPrefixOf[l: seq Receipt, o: seq Receipt] {
 pred genuineVerifies {
   some c: GenuineChain | Presented.log = c.order and verifies[Presented.log]
 }
-run genuineVerifies for 5 but 5 Int
+run genuineVerifies for 5 but 5 Int expect 1
 
 // A multi-receipt genuine chain verifies (exercise real hash-linkage). SAT.
 pred genuineMultiVerifies {
   some c: GenuineChain | #c.order >= 3 and Presented.log = c.order and verifies[Presented.log]
 }
-run genuineMultiVerifies for 6 but 5 Int
+run genuineMultiVerifies for 6 but 5 Int expect 1
 
 
 /* ==========================================================================
@@ -258,7 +280,15 @@ run genuineMultiVerifies for 6 but 5 Int
  * different signed content. Altering ANY signed field changes the canonical
  * body, so by CollisionResistance + EUF-CMA the replacement is NOT in
  * IssuerSigned. Detected by §7.3 step 2a (and, for hash/seq fields, also by
- * step 2b/3). */
+ * step 2b/3).
+ *
+ * SCOPE OF THIS OPERATOR: it exercises replacement with an UNSIGNED body (the
+ * result of altering any signed field). The related "swap in a DIFFERENT but
+ * validly-signed receipt" attack (m in IssuerSigned) is left to the master
+ * Soundness theorem (§7.1), which rules out ANY non-genuine-prefix log — a
+ * same-position swap to another chain's receipt breaks hash-linkage/chain_id
+ * there. It is not folded in here so this operator stays a clean "unsigned
+ * modification" witness. */
 pred tamper_modify[c: GenuineChain] {
   some i: c.order.inds, m: Receipt {
     m not in IssuerSigned            // a modified body the issuer never signed
@@ -268,8 +298,8 @@ pred tamper_modify[c: GenuineChain] {
 assert Modification_Detected {
   all c: GenuineChain | tamper_modify[c] implies not verifies[Presented.log]
 }
-check Modification_Detected for 5 but 5 Int
-check Modification_Detected for 7 but 6 Int
+check Modification_Detected for 5 but 5 Int expect 0
+check Modification_Detected for 7 but 6 Int expect 0
 
 /* ---- 6.2 Insertion-detection --------------------------------------------
  * The adversary splices in a receipt that the issuer did not sign-and-chain
@@ -285,8 +315,8 @@ pred tamper_insert[c: GenuineChain] {
 assert Insertion_Detected {
   all c: GenuineChain | tamper_insert[c] implies not verifies[Presented.log]
 }
-check Insertion_Detected for 5 but 5 Int
-check Insertion_Detected for 7 but 6 Int
+check Insertion_Detected for 5 but 5 Int expect 0
+check Insertion_Detected for 7 but 6 Int expect 0
 
 /* ---- 6.3 Interior-deletion-detection -------------------------------------
  * The adversary removes an INTERIOR receipt (the head or any middle receipt —
@@ -301,8 +331,8 @@ pred tamper_deleteInterior[c: GenuineChain] {
 assert Interior_Deletion_Detected {
   all c: GenuineChain | tamper_deleteInterior[c] implies not verifies[Presented.log]
 }
-check Interior_Deletion_Detected for 5 but 5 Int
-check Interior_Deletion_Detected for 7 but 6 Int
+check Interior_Deletion_Detected for 5 but 5 Int expect 0
+check Interior_Deletion_Detected for 7 but 6 Int expect 0
 
 /* ---- 6.4 Reorder-detection ----------------------------------------------
  * The adversary presents the SAME receipts in a different order. Because each
@@ -317,8 +347,8 @@ pred tamper_reorder[c: GenuineChain] {
 assert Reorder_Detected {
   all c: GenuineChain | tamper_reorder[c] implies not verifies[Presented.log]
 }
-check Reorder_Detected for 5 but 5 Int
-check Reorder_Detected for 7 but 6 Int
+check Reorder_Detected for 5 but 5 Int expect 0
+check Reorder_Detected for 7 but 6 Int expect 0
 
 /* ---- 6.5 Cross-chain-splice-detection (§7.3.4) ---------------------------
  * The adversary inserts a VALIDLY-SIGNED receipt from a DIFFERENT genuine chain
@@ -334,7 +364,8 @@ pred tamper_crossChainSplice[c: GenuineChain] {
 assert CrossChainSplice_Detected {
   all c: GenuineChain | tamper_crossChainSplice[c] implies not verifies[Presented.log]
 }
-check CrossChainSplice_Detected for 6 but 5 Int
+check CrossChainSplice_Detected for 6 but 5 Int expect 0
+check CrossChainSplice_Detected for 7 but 6 Int expect 0
 
 /* ---- 6.5b Append-after-terminal-detection (§7.3.2) -----------------------
  * If the genuine chain closed with chain.terminal:true, appending ANY receipt
@@ -349,27 +380,46 @@ pred tamper_appendAfterTerminal[c: GenuineChain] {
 assert AppendAfterTerminal_Detected {
   all c: GenuineChain | tamper_appendAfterTerminal[c] implies not verifies[Presented.log]
 }
-check AppendAfterTerminal_Detected for 5 but 5 Int
-check AppendAfterTerminal_Detected for 7 but 6 Int
+check AppendAfterTerminal_Detected for 5 but 5 Int expect 0
+check AppendAfterTerminal_Detected for 7 but 6 Int expect 0
 
 
 /* ---- 6.6 Non-vacuity: every adversary operator is actually reachable -------
  * A "Detected" assert would pass VACUOUSLY if its tamper predicate had no
  * instance in scope. These runs prove each operator is genuinely exercised at
- * the checked scope (each Expected: SAT), so the UNSAT results above are real
- * detections, not empty quantification over an unsatisfiable antecedent. */
+ * EVERY scope its check runs at (each Expected: SAT), so the UNSAT results above
+ * are real detections, not empty quantification over an unsatisfiable antecedent.
+ * The runner enforces the `expect 1` here: if any operator ever became
+ * unreachable, this run flips to UNSAT and fails the suite — which is exactly the
+ * signal that its paired `*_Detected` check has gone vacuous. */
 pred canModify           { some c: GenuineChain | tamper_modify[c] }
 pred canInsert           { some c: GenuineChain | tamper_insert[c] }
 pred canDeleteInterior   { some c: GenuineChain | tamper_deleteInterior[c] }
 pred canReorder          { some c: GenuineChain | tamper_reorder[c] }
 pred canCrossChainSplice { some c: GenuineChain | tamper_crossChainSplice[c] }
 pred canAppendTerminal   { some c: GenuineChain | tamper_appendAfterTerminal[c] }
-run canModify           for 5 but 5 Int
-run canInsert           for 5 but 5 Int
-run canDeleteInterior   for 5 but 5 Int
-run canReorder          for 5 but 5 Int
-run canCrossChainSplice for 6 but 5 Int
-run canAppendTerminal   for 5 but 5 Int
+run canModify           for 5 but 5 Int expect 1
+run canModify           for 7 but 6 Int expect 1
+run canInsert           for 5 but 5 Int expect 1
+run canInsert           for 7 but 6 Int expect 1
+run canDeleteInterior   for 5 but 5 Int expect 1
+run canDeleteInterior   for 7 but 6 Int expect 1
+run canReorder          for 5 but 5 Int expect 1
+run canReorder          for 7 but 6 Int expect 1
+run canCrossChainSplice for 6 but 5 Int expect 1
+run canCrossChainSplice for 7 but 6 Int expect 1
+run canAppendTerminal   for 5 but 5 Int expect 1
+run canAppendTerminal   for 7 but 6 Int expect 1
+
+// Antecedent reachability for the MASTER theorems at their top scopes: a genuine
+// chain must actually verify at scopes 7 and 8, else Soundness/Combined (whose
+// antecedent is `verifies[...]`) would hold vacuously there. (Expected: SAT.)
+run genuineVerifies for 7 but 6 Int expect 1
+run genuineVerifies for 8 but 6 Int expect 1
+// And a genuine chain must be constructible at the FULL scope length, so the
+// "scope 8" label really exercises length-8 chains (not just short ones). SAT.
+pred genuineFullLength { some c: GenuineChain | #c.order = 8 }
+run genuineFullLength for 8 but 6 Int expect 1
 
 
 /* ==========================================================================
@@ -386,9 +436,9 @@ assert Soundness_VerifiedIsGenuinePrefix {
   verifies[Presented.log]
     implies (some c: GenuineChain | isPrefixOf[Presented.log, c.order])
 }
-check Soundness_VerifiedIsGenuinePrefix for 5 but 5 Int
-check Soundness_VerifiedIsGenuinePrefix for 7 but 6 Int
-check Soundness_VerifiedIsGenuinePrefix for 8 but 6 Int
+check Soundness_VerifiedIsGenuinePrefix for 5 but 5 Int expect 0
+check Soundness_VerifiedIsGenuinePrefix for 7 but 6 Int expect 0
+check Soundness_VerifiedIsGenuinePrefix for 8 but 6 Int expect 0
 
 /* ---- 7.2 Combined: the ONLY surviving tamper is tail truncation -----------
  * If a verifying log is not EXACTLY some genuine chain, then it is a proper
@@ -399,9 +449,9 @@ assert Combined_OnlySurvivorIsTailTruncation {
   (verifies[Presented.log] and (all c: GenuineChain | Presented.log != c.order))
     implies (some c: GenuineChain | isProperPrefixOf[Presented.log, c.order])
 }
-check Combined_OnlySurvivorIsTailTruncation for 5 but 5 Int
-check Combined_OnlySurvivorIsTailTruncation for 7 but 6 Int
-check Combined_OnlySurvivorIsTailTruncation for 8 but 6 Int
+check Combined_OnlySurvivorIsTailTruncation for 5 but 5 Int expect 0
+check Combined_OnlySurvivorIsTailTruncation for 7 but 6 Int expect 0
+check Combined_OnlySurvivorIsTailTruncation for 8 but 6 Int expect 0
 
 /* ---- 7.3 The truncation floor is REAL (documented limitation) -------------
  * Dropping the final receipt of a genuine, NON-terminal chain still verifies.
@@ -420,4 +470,4 @@ pred truncationSurvives {
     verifies[Presented.log]             // ...and it still passes §7.3
   }
 }
-run truncationSurvives for 5 but 5 Int
+run truncationSurvives for 5 but 5 Int expect 1
