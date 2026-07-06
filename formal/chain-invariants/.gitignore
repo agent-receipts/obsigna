@@ -1,0 +1,7 @@
+# Alloy distribution jar — fetched on demand by run.sh from Maven Central.
+# Never commit the 21 MB binary.
+alloy.jar
+*.jar
+
+# Compiled runner classes.
+*.class
