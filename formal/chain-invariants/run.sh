@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Run the AARP chain tamper-evidence Alloy model headless and print, for every
-# `check` and `run` command, whether the result matched its `expect` annotation.
+# Run the Agent Receipt Protocol chain tamper-evidence Alloy model headless and
+# print, for every `check` and `run` command, whether the result matched its
+# `expect` annotation.
 #
 # Requirements:
 #   - Java 17+ (tested with OpenJDK 21)

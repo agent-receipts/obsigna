@@ -1,7 +1,7 @@
 # Formal chain tamper-evidence model (Alloy 6)
 
 This directory contains a machine-checked formalization of the **tamper-evidence
-property** of the Agent Receipt Protocol (AARP) receipt chain — the guarantee in
+property** of the Agent Receipt Protocol receipt chain — the guarantee in
 spec §3.2 that "each receipt contains the hash of the previous receipt, creating
 a tamper-evident log."
 

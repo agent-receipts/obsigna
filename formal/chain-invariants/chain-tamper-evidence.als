@@ -1,6 +1,6 @@
 /*
  * ============================================================================
- *  AARP Receipt Chain — Tamper-Evidence Invariants (Alloy 6)
+ *  Agent Receipt Protocol — Receipt-Chain Tamper-Evidence Invariants (Alloy 6)
  * ============================================================================
  *
  *  Formalizes and machine-checks the tamper-evidence property of the Agent
