@@ -294,7 +294,10 @@ from "scope ≤ 8" to "any length." Noted, not claimed here.
   into a verification gate (ADR-0024) is possible future work but not required by
   this ADR.
 - Follow-up: an inductive/unbounded proof, and a separate TLA⁺ model for the
-  behavioral properties, are the natural next formal-methods steps.
+  behavioral properties, are the natural next formal-methods steps. The
+  cross-layer sequencing — CI gate now, TLA⁺ for the emission/recovery runtime at
+  ≈ v1.5, Tamarin for the key-rotation protocol later — with the why-now /
+  why-not-yet for each, is recorded in [`formal/README.md`](../../formal/README.md).
 
 ---
 
