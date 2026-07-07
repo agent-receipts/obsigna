@@ -95,8 +95,9 @@ echo ">> Running model via 'alloy exec' (SAT4J, pure Java; a few minutes at the 
 # `exec -c '*'` runs every check and run in the model, enforces each command's
 # `expect` annotation, and returns non-zero on any mismatch. `-s sat4j` pins the
 # pure-Java solver (no native libraries). Solutions + receipt.json go to ./out/;
-# the concise per-command summary goes to stdout. `pipefail` (set above) preserves
-# exec's exit code through the grep, which only strips the JVM's JAVA_TOOL_OPTIONS
-# banner — exec always prints unfiltered summary lines, so grep exits 0.
+# the concise per-command summary goes to stdout. The `sed` only strips the JVM's
+# JAVA_TOOL_OPTIONS banner; unlike `grep -v` it always exits 0 (it can't be the
+# pipe's failing member), so `pipefail` (set above) faithfully surfaces exec's own
+# exit code.
 java -jar "$JAR" exec --command '*' --solver sat4j --force --output out chain-tamper-evidence.als \
-  2>&1 | grep -vE "^Picked up JAVA_TOOL"
+  2>&1 | sed '/^Picked up JAVA_TOOL/d'
