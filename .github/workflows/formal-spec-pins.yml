@@ -11,9 +11,10 @@ on:
   push:
     branches: [main]
     paths: &paths
-      - "spec/v0.5.0/spec.md"
+      - "spec/v*/spec.md"
       - "formal/chain-invariants/spec-pins.json"
       - "scripts/formal_spec_pins/**"
+      - ".github/workflows/formal-spec-pins.yml"
   pull_request:
     branches: [main]
     paths: *paths

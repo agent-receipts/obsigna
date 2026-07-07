@@ -10,7 +10,10 @@ only by the dedicated CI: formal spec pins workflow.
 
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import check
 
@@ -49,6 +52,39 @@ Step 1. Step 2.
 #### 7.3.1 Chain truncation detection
 
 Truncation is a floor.
+
+### 7.5 Chain issuer model
+
+A receipt chain MUST have a single issuer.
+
+Some prose.
+
+**Store trust model.** Unrelated operational content that follows.
+
+More unrelated prose.
+"""
+
+FAKE_SPEC_DUPLICATE_ANCHOR = """\
+### 7.3.5 First section
+
+First.
+
+### 7.3.5 Second section (renumbering slip)
+
+Second.
+"""
+
+FAKE_SPEC_WITH_CODE_FENCE = """\
+### 3.2 Receipt Chain
+
+Real prose.
+
+```bash
+# 3.2 this looks like a heading but is inside a fence
+echo hi
+```
+
+More real prose.
 """
 
 
@@ -73,6 +109,15 @@ class TestExtractSection(unittest.TestCase):
     def test_unknown_anchor_raises(self) -> None:
         with self.assertRaises(ValueError):
             check.extract_section(FAKE_SPEC, "99.9")
+
+    def test_duplicate_anchor_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            check.extract_section(FAKE_SPEC_DUPLICATE_ANCHOR, "7.3.5")
+
+    def test_heading_inside_fenced_code_block_is_ignored(self) -> None:
+        section = check.extract_section(FAKE_SPEC_WITH_CODE_FENCE, "3.2")
+        self.assertIn("More real prose.", section)
+        self.assertIn("echo hi", section)  # fence content is still part of 3.2's body
 
 
 class TestExtractRow(unittest.TestCase):
@@ -110,6 +155,77 @@ class TestCheckPins(unittest.TestCase):
         problems = check.check_pins(FAKE_SPEC, [pin])
         self.assertEqual(len(problems), 1)
         self.assertIn("no heading numbered", problems[0])
+
+    def test_pin_missing_text_key_is_reported_not_raised(self) -> None:
+        # A hand-added pin with only id/anchor (before running --write) must
+        # not crash the whole check with an uncaught KeyError.
+        pin = {"id": "incomplete-pin", "anchor": "3.2"}
+        problems = check.check_pins(FAKE_SPEC, [pin])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("incomplete-pin", problems[0])
+
+    def test_stop_before_truncates_before_marker(self) -> None:
+        pin = {"id": "x", "anchor": "7.5", "stop_before": "**Store trust model.**"}
+        pin["text"] = check.current_text(FAKE_SPEC, pin)
+        self.assertIn("Some prose.", pin["text"])
+        self.assertNotIn("Store trust model", pin["text"])
+        self.assertNotIn("More unrelated prose.", pin["text"])
+        self.assertEqual(check.check_pins(FAKE_SPEC, [pin]), [])
+
+    def test_stop_before_marker_missing_is_reported_not_raised(self) -> None:
+        pin = {"id": "x", "anchor": "7.5", "stop_before": "**Nonexistent Marker**", "text": "anything"}
+        problems = check.check_pins(FAKE_SPEC, [pin])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("x", problems[0])
+
+
+class TestWriteManifest(unittest.TestCase):
+    def test_one_broken_pin_does_not_block_repinning_the_rest(self) -> None:
+        manifest = {
+            "pins": [
+                {"id": "good", "anchor": "3.2", "text": "stale"},
+                {"id": "broken", "anchor": "99.9", "text": "stale"},
+            ]
+        }
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "pins.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            failed = check._write_manifest(path, manifest, FAKE_SPEC)
+            self.assertEqual(len(failed), 1)
+            self.assertIn("broken", failed[0])
+            written = json.loads(path.read_text(encoding="utf-8"))
+        good = next(p for p in written["pins"] if p["id"] == "good")
+        broken = next(p for p in written["pins"] if p["id"] == "broken")
+        self.assertIn("An ordered sequence of things.", good["text"])
+        self.assertEqual(broken["text"], "stale")  # left untouched, not crashed-and-lost
+
+
+class TestLatestSpecIn(unittest.TestCase):
+    def test_picks_the_highest_semver_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            spec_dir = Path(td)
+            for v in ["v0.4.0", "v0.10.0", "v0.5.0"]:
+                d = spec_dir / v
+                d.mkdir()
+                (d / "spec.md").write_text(v, encoding="utf-8")
+            result = check._latest_spec_in(spec_dir)
+            self.assertEqual(result.read_text(encoding="utf-8"), "v0.10.0")
+
+    def test_ignores_non_semver_and_directories_without_spec_md(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            spec_dir = Path(td)
+            (spec_dir / "v0.4.0").mkdir()
+            (spec_dir / "v0.4.0" / "spec.md").write_text("v0.4.0", encoding="utf-8")
+            (spec_dir / "vNext").mkdir()  # not a semver directory
+            (spec_dir / "vNext" / "spec.md").write_text("vNext", encoding="utf-8")
+            (spec_dir / "v9.9.9").mkdir()  # semver, but no spec.md inside
+            result = check._latest_spec_in(spec_dir)
+            self.assertEqual(result.read_text(encoding="utf-8"), "v0.4.0")
+
+    def test_raises_when_nothing_found(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            with self.assertRaises(FileNotFoundError):
+                check._latest_spec_in(Path(td))
 
 
 class TestRealManifestMatchesRealSpec(unittest.TestCase):

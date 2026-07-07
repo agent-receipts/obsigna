@@ -3,7 +3,7 @@
 Guards against `formal/chain-invariants/chain-tamper-evidence.als` silently
 drifting from the spec clauses it claims to encode.
 
-The Alloy model does not parse `spec/v0.5.0/spec.md` — it is a hand-written
+The Alloy model does not parse `spec/v<X.Y.Z>/spec.md` — it is a hand-written
 formalization with prose citations (§3.2, §4.3.2, §7.3, ...). Nothing forces it
 to change when those clauses do, so a spec edit under a modeled clause can
 land, merge, and leave the model quietly describing a spec that no longer
@@ -15,7 +15,7 @@ same (now possibly stale) claim and passes.
 
 | File | Role |
 |------|------|
-| `check.py` | Extracts the live text of each pinned clause from `spec/v0.5.0/spec.md` and compares it to the text pinned in `formal/chain-invariants/spec-pins.json`. |
+| `check.py` | Extracts the live text of each pinned clause from the current spec (the highest-versioned `spec/v<X.Y.Z>/spec.md` on disk) and compares it to the text pinned in `formal/chain-invariants/spec-pins.json`. |
 | `test_check.py` | Unit tests for the extraction/comparison core against a fake spec fragment, plus one test that runs the real manifest against the real spec.md. |
 
 ## Run locally
@@ -39,6 +39,13 @@ model depends on:
   single row by its first cell (e.g. `` "`chain.chain_id`" ``) instead of the
   whole table, so an edit to an unrelated field (`outcome.response_hash`, say)
   doesn't trip the gate.
+- `stop_before` (optional) — truncates the pinned text before a literal marker
+  string, for a section that mixes modeled and unmodeled prose. §7.3.5 pins
+  only the contiguity paragraph via `stop_before: "**Store trust model.**"`,
+  excluding the trailing operational-controls prose the model doesn't
+  formalize — an edit there shouldn't trip the gate. If the marker text itself
+  drifts, extraction fails loudly (same as a missing anchor) rather than
+  silently including everything.
 - `text` — the exact pinned text, maintained by `check.py --write`. Never hand-edit
   this field.
 
@@ -57,9 +64,14 @@ This gate only detects that the spec moved out from under a pin — it has no
 opinion on whether the model still needs a change. That judgment call is the
 point of making it a required, blocking step rather than a silent re-pin.
 
-## Known limitation
+`--write` re-pins every entry it can and reports (with a non-zero exit) any
+pin whose anchor or row no longer resolves — e.g. a clause was renumbered —
+rather than aborting before writing anything. Fix those pins' `anchor`/`row`
+by hand, then re-run `--write` to pick up the rest.
 
-`DEFAULT_SPEC` hardcodes `spec/v0.5.0/spec.md`. If a future spec revision
-supersedes v0.5.0 in a new directory, this script's target (and every pin) will
-need reconciling against the new file — a larger, one-time migration, not
-something this gate can automate away.
+## Spec version resolution
+
+`check.py` targets the highest-versioned `spec/v<X.Y.Z>/spec.md` under `spec/`
+— not a hardcoded version — so cutting a new spec version directory doesn't
+require editing this script. If a version bump also renumbers or restructures
+a pinned clause, the pin will (correctly) report drift against the new file.
