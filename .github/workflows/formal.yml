@@ -1,0 +1,38 @@
+name: "CI: formal"
+
+# Gate the Alloy formal models: run every check/run in the model and fail the
+# build if any result contradicts its `expect` annotation (a check that finds a
+# counterexample, or a non-vacuity run that comes back UNSAT). Per ADR-0024,
+# every asserted property has a gate. Path-filtered to formal/** so it only runs
+# when a model or its runner changes. (run.sh itself is shellcheck-gated by
+# shellcheck.yml.)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "formal/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "formal/**"
+
+permissions:
+  contents: read
+
+jobs:
+  chain-invariants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Java version
+        run: java -version # runner image ships Temurin 17+; run.sh needs Java 17+
+
+      - name: Check receipt-chain tamper-evidence model
+        working-directory: formal/chain-invariants
+        # run.sh fetches Alloy 6.2.0 from Maven Central, verifies its pinned
+        # SHA-256, then runs `alloy exec` over all commands. It exits non-zero on
+        # any `expect` mismatch, which fails this step.
+        run: ./run.sh

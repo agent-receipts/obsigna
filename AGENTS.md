@@ -14,6 +14,7 @@ hook/          # PostToolUse hook binary for Claude Code and other runtimes (Go)
 integrations/  # Per-agent-runtime adapters (e.g. opencode-plugin; hook to migrate here)
 site/          # Documentation site (Astro)
 cross-sdk-tests/  # Cross-language receipt verification tests
+formal/        # Formal models (Alloy) machine-checking protocol properties
 ```
 
 Each subdirectory has its own AGENTS.md with project-specific details.
