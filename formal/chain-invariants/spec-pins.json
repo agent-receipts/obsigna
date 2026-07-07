@@ -1,0 +1,64 @@
+{
+  "$comment": "Pins the exact spec/v0.5.0/spec.md text each chain-tamper-evidence.als assumption depends on. Checked by scripts/formal_spec_pins/check.py, gated by .github/workflows/formal-spec-pins.yml on every spec/** PR. If this check fails: read the new clause text, decide whether the Alloy model still holds, update it if not, then run `python3 scripts/formal_spec_pins/check.py --write` to re-pin.",
+  "pins": [
+    {
+      "id": "chain-definition",
+      "anchor": "3.2",
+      "text": "### 3.2 Receipt Chain\n\nAn ordered sequence of Agent Receipts linked by hash references. Each receipt contains the hash of the previous receipt in the chain, creating a tamper-evident log. The first receipt in a chain has a `null` previous hash.\n\n> **Note:** In this version, receipt chains are strictly linear — each receipt has exactly one predecessor. Concurrent action streams (e.g., parallel tool calls, sub-agent fan-out) cannot be represented within a single chain. See §9.8 for discussion of this limitation."
+    },
+    {
+      "id": "chain-id-field",
+      "anchor": "4.3.2",
+      "row": "`chain.chain_id`",
+      "text": "| `chain.chain_id` | Yes | Opaque identifier grouping receipts into a logical chain (e.g. per session). All receipts within a single chain MUST share the same value; verifiers MUST reject input that mixes receipts from different chains. See §7.3.4. |"
+    },
+    {
+      "id": "chain-sequence-field",
+      "anchor": "4.3.2",
+      "row": "`chain.sequence`",
+      "text": "| `chain.sequence` | Yes | Monotonically increasing integer position within the chain. Starts at `1`. |"
+    },
+    {
+      "id": "chain-previous-receipt-hash-field",
+      "anchor": "4.3.2",
+      "row": "`chain.previous_receipt_hash`",
+      "text": "| `chain.previous_receipt_hash` | Yes | `sha256:` prefixed hash of the previous receipt's canonical form. MUST be `null` for the first receipt in a chain (`sequence: 1`). The field MUST always be present; `null` is not the same as omitting it. |"
+    },
+    {
+      "id": "chain-terminal-field",
+      "anchor": "4.3.2",
+      "row": "`chain.terminal`",
+      "text": "| `chain.terminal` | No | When present, MUST be `true`. Asserts that no further receipts will be appended to this chain. Explicit `false` is schema-invalid; absence is the only valid way to express \"no claim\". Verifiers that observe any receipt following a terminal receipt in the verified input sequence MUST fail with a \"receipt after terminal\" error regardless of caller parameters. See §7.3.2. |"
+    },
+    {
+      "id": "chain-integrity-verification-algorithm",
+      "anchor": "7.3",
+      "text": "### 7.3 Chain integrity verification\n\nTo verify a receipt chain:\n\n1. Retrieve all receipts for the chain, ordered by `chain.sequence`. Let _n_ be the number of receipts.\n2. For each receipt _R(i)_ (0-based index):\n   a. Verify the `proof` signature against the issuer's public key at `proof.verificationMethod`. (Note: resolving the public key from the `verificationMethod` DID URL requires a DID resolution mechanism, which is not specified by this version of the protocol. See §9.6.)\n   b. Compute the hex-encoded SHA-256 digest of the RFC 8785 canonical form of _R(i)_ with the `proof` field removed.\n   c. If _i < n - 1_, confirm _R(i+1)_'s `chain.previous_receipt_hash` equals `sha256:` concatenated with that hex digest.\n3. For each receipt _R(i)_ where _i > 0_, confirm `chain.sequence` equals _R(i-1)_'s `chain.sequence` + 1.\n4. Confirm _R(0)_'s `chain.previous_receipt_hash` is `null`."
+    },
+    {
+      "id": "chain-truncation-detection",
+      "anchor": "7.3.1",
+      "text": "#### 7.3.1 Chain truncation detection\n\nChain verification as defined in steps 1–4 does **not** detect tail truncation: dropping the last N receipts from a chain still produces `Valid: true`, because no in-chain field commits to the chain's total length or final state. This is a deliberate design floor — a receipt can only commit to values its issuer already knows at signing time.\n\nThree mitigations are available:\n\n1. **Out-of-band witness (`ExpectedLength` / `ExpectedFinalHash`).** Callers who maintain an external record of chain state (audit log, transparency log, signed checkpoint) MAY supply `ExpectedLength` and/or `ExpectedFinalHash` to `VerifyChain`. Verification fails when the observed chain does not match. When unsupplied, the verifier preserves current behaviour — `Valid: true` for a tail-truncated chain is intentional and documented.\n\n2. **In-band terminal marker (`chain.terminal` + `chain.status` + `RequireTerminal`).** When the final receipt in a chain bears `chain.terminal: true`, no receipt referencing it via `previous_receipt_hash` is permitted — this check runs unconditionally (§7.3.2). The terminal receipt MAY also carry `chain.status` (§7.3.3) to distinguish normal `\"complete\"` termination from best-effort `\"interrupted\"` termination on signal. Callers MAY additionally supply `RequireTerminal`; verification then fails if the final observed receipt is not explicitly terminal. If the terminal receipt itself was dropped, `RequireTerminal` fires, but `chain.terminal` alone cannot detect this case — the verifier classifies the chain's termination status as `\"unknown\"` (§7.3.3) regardless of `RequireTerminal`.\n\n3. **Floor.** Tail truncation of an open (non-terminal) chain without any external witness **cannot** be detected by any mechanism defined in this specification. Operators whose compliance requirements demand detection of such truncation MUST maintain an out-of-band chain record and supply `ExpectedFinalHash`."
+    },
+    {
+      "id": "receipt-after-terminal-check",
+      "anchor": "7.3.2",
+      "text": "#### 7.3.2 Receipt-after-terminal integrity check (automatic)\n\nIf any receipt R(i) in the verified input has `chain.terminal: true`, and a subsequent receipt R(i+1) exists at position i+1 in the input, verification MUST fail immediately with a clear \"receipt after terminal\" error. This check is unconditional — no caller parameter can suppress it. It does not depend on R(i+1)'s `previous_receipt_hash` field; the presence of any receipt after a terminal predecessor in the verified sequence is sufficient to trigger the failure. This is the verifier's enforcement mechanism against an issuer who marks a chain closed and then extends it, or an attacker who appends a receipt to a chain its issuer marked terminal.\n\nIf any step fails, the chain is broken at that point. Receipts before the break may still be individually valid; receipts after are suspect.\n\n> **Note:** This algorithm assumes a linear chain where each receipt has exactly one predecessor. It does not cover concurrent or branching topologies (e.g., fan-out tool calls producing multiple receipts with the same predecessor). See §9.8."
+    },
+    {
+      "id": "chain-identifier-binding",
+      "anchor": "7.3.4",
+      "text": "#### 7.3.4 Chain identifier binding (automatic)\n\nAll receipts within a chain MUST share the same `chain.chain_id` (per §7.5, a chain is the authoritative log of a single issuer; the `chain_id` is the opaque identifier that groups its receipts). Verifiers MUST reject input in which any receipt R(i) has a `chain.chain_id` different from that of R(0), failing immediately with a clear \"chain_id mismatch\" error that identifies the offending index and both `chain_id` values. This check is unconditional — no caller parameter can suppress it, and it runs independently of `previous_receipt_hash` linkage so that an attacker who splices in a forged hash link cannot mix receipts from two distinct chains under a single verification call. Verifiers MUST NOT attempt to \"stitch\" or partition cross-chain input; the only correct response is rejection.\n\nThis check parallels §7.3.2: both enforce single-chain integrity invariants that no caller parameter can disable. Verifying receipts from multiple chains requires multiple calls to the chain verifier, one per chain."
+    },
+    {
+      "id": "sequence-contiguity-and-store-trust",
+      "anchor": "7.3.5",
+      "text": "#### 7.3.5 Sequence number contiguity and store trust\n\nVerification step 3 (above) mandates strict contiguity: each receipt's `chain.sequence` MUST equal its predecessor's + 1. Any gap (e.g. receipts at sequence 1, 3, 5 missing sequence 2 and 4) is a hard verification failure, not a warning. Verifiers MUST mark the chain invalid and identify the offending index. This applies even when signatures and hash linkage on the surviving receipts are otherwise valid — a partial chain with gaps cannot be silently accepted.\n\n**Store trust model.** Chain verification proves the integrity of the receipts the verifier is *given*; it cannot, on its own, prove that the verifier was given every receipt the issuer wrote. If an attacker can both delete receipts from the store AND re-sign every downstream receipt with an updated `previous_receipt_hash` (which requires the agent's signing key), they can erase mid-chain history undetectably from chain verification alone. The receipt store is therefore a trusted component for completeness claims.\n\nOperators who require detection of store-level tampering SHOULD layer at least one of the following on top of chain verification:\n\n- **Append-only storage backend** — S3 Object Lock, immutable WORM volumes, or an equivalent that prevents in-place mutation and rejects deletes.\n- **External chain-state witnesses** — `ExpectedLength` and/or `ExpectedFinalHash` (per §7.3.1) supplied from an out-of-band record the attacker cannot also rewrite (separate audit log, transparency log, signed checkpoint).\n- **Periodic chain-head anchoring** — publish chain-head hashes to an append-only public log at regular intervals; gaps relative to the anchored state are evidence of store-level rewriting.\n\nThese are operational controls outside the protocol; the verifier cannot synthesize them and the spec does not mandate any specific backend. They are listed here so that compliance reviewers can match the protocol's verification contract to their operational threat model."
+    },
+    {
+      "id": "chain-issuer-model",
+      "anchor": "7.5",
+      "text": "### 7.5 Chain issuer model\n\nA receipt chain MUST have a single issuer. All receipts within a chain MUST have the same `issuer.id`. Delegated agents MUST create a new chain and link it to the parent chain via the `delegation` field (see §4.3.2). This ensures that each chain is an authoritative log from a single agent, and cross-agent workflows are represented as linked chains rather than mixed-issuer sequences."
+    }
+  ]
+}
