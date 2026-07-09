@@ -129,11 +129,13 @@ type wireFrame struct {
 		Server string `json:"server,omitempty"`
 		Name   string `json:"name"`
 	} `json:"tool"`
-	Input    json.RawMessage `json:"input,omitempty"`
-	Output   json.RawMessage `json:"output,omitempty"`
-	Error    string          `json:"error,omitempty"`
-	Decision string          `json:"decision"`
-	TsEmit   string          `json:"ts_emit"`
+	Input          json.RawMessage `json:"input,omitempty"`
+	Output         json.RawMessage `json:"output,omitempty"`
+	Error          string          `json:"error,omitempty"`
+	Decision       string          `json:"decision"`
+	TargetSystem   string          `json:"target_system,omitempty"`
+	TargetResource string          `json:"target_resource,omitempty"`
+	TsEmit         string          `json:"ts_emit"`
 }
 
 // TestIntegration_ClaudeCodeFrame exercises the full path from stdin parsing
@@ -203,6 +205,63 @@ func TestIntegration_ClaudeCodeFrame(t *testing.T) {
 	}
 	if !json.Valid(got.Output) {
 		t.Errorf("output not valid JSON: %s", got.Output)
+	}
+}
+
+// TestIntegration_ResourceIsAbsoluteOnTheWire exercises the full path from
+// stdin parsing through the emitter to a real AF_UNIX listener and asserts the
+// end-to-end guarantee: a relative file_path in the tool input is emitted as an
+// absolute target_resource on the wire. This is the integration-level backstop
+// for the absolute-resource property — the frame the daemon would sign carries
+// an unambiguous path, resolved against the frame's cwd.
+func TestIntegration_ResourceIsAbsoluteOnTheWire(t *testing.T) {
+	dir := shortSocketDir(t)
+	rl := newRecordingListener(t, dir)
+
+	const sessionID = "integ-abs-2026"
+	// A relative file_path (out.go) with an explicit cwd: the emitted resource
+	// must be the absolute join, never the bare relative token.
+	stdin := `{
+		"hook_event_name": "PostToolUse",
+		"session_id": "` + sessionID + `",
+		"cwd": "/work/project",
+		"tool_name": "Write",
+		"tool_input": {"file_path":"out.go","content":"package main"}
+	}`
+
+	ev, sid, err := readClaudeCode([]byte(stdin), func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("readClaudeCode: %v", err)
+	}
+
+	em, err := emitter.NewDaemon(
+		emitter.WithSocketPath(rl.path),
+		emitter.WithSessionID(sid),
+		emitter.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	)
+	if err != nil {
+		t.Fatalf("emitter.NewDaemon: %v", err)
+	}
+	defer em.Close()
+
+	if err := em.Emit(context.Background(), ev); err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+
+	frames := rl.waitForFrames(t, 1, 2*time.Second)
+
+	var got wireFrame
+	if err := json.Unmarshal(frames[0], &got); err != nil {
+		t.Fatalf("unmarshal frame: %v (raw: %s)", err, frames[0])
+	}
+	if got.TargetSystem != "filesystem" {
+		t.Errorf("target_system = %q; want filesystem", got.TargetSystem)
+	}
+	if !filepath.IsAbs(got.TargetResource) {
+		t.Errorf("target_resource = %q; want an absolute path on the wire", got.TargetResource)
+	}
+	if got.TargetResource != "/work/project/out.go" {
+		t.Errorf("target_resource = %q; want /work/project/out.go", got.TargetResource)
 	}
 }
 

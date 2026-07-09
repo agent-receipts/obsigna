@@ -17,10 +17,13 @@ cmd/obsigna-hook/          # primary binary (ADR-0036)
   main.go                  # stdin read, format detection, emitter dispatch
   claude_code.go           # Claude Code PostToolUse frame parser
   claude_transcript.go     # transcript-derived model/token-usage lookup
+  shell_target.go          # Bash-command → filesystem target classifier
+  resource.go              # resolve action.target.resource to an absolute path
   main_test.go             # unit tests for readClaudeCode and detect
   integration_test.go      # end-to-end tests against a real AF_UNIX listener (linux/darwin)
   import_guard_test.go     # Gate A — fail-closed lean-import allowlist
   entrypoint_guard_test.go # obsigna-hook is primary; agent-receipts-hook only as shim
+  gate_absolute_resource_test.go # CI gate — every emitted filesystem resource is absolute
 cmd/agent-receipts-hook/   # deprecation shim — syscall.Execs into obsigna-hook
   main.go
   main_test.go
