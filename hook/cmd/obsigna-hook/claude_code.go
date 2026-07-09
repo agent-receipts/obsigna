@@ -55,6 +55,13 @@ type claudeCodeFrame struct {
 	AgentType      string          `json:"agent_type"`
 	TranscriptPath string          `json:"transcript_path"`
 
+	// Cwd is the working directory the tool ran in, sent by Claude Code on every
+	// hook frame. Relative filesystem resources (a Write of "out.go", a Bash
+	// "rm build") are resolved against it so the emitted action.target.resource is
+	// always absolute. Absent (older runtimes), resolution falls back to the hook
+	// process's own working directory.
+	Cwd string `json:"cwd"`
+
 	// Error and IsInterrupt are carried only on PostToolUseFailure frames.
 	// Error is the human-readable failure message. Claude Code sends a JSON
 	// string, but it is kept as RawMessage and decoded leniently (see
@@ -142,12 +149,12 @@ func readClaudeCode(stdin []byte, env func(string) string) (emitter.Event, strin
 			// like a harmless command. Unparseable commands fall through with
 			// no target, preserving current behaviour.
 			if sys, res, at := extractBashTarget(f.ToolInput); res != "" {
-				ev.Target = emitter.Target{System: sys, Resource: res}
+				ev.Target = emitter.Target{System: sys, Resource: absoluteResource(res, f.Cwd)}
 				ev.ActionType = at
 			}
 		default:
 			if sys, res, warn := extractFileTarget(f.ToolName, f.ToolInput); res != "" {
-				ev.Target = emitter.Target{System: sys, Resource: res}
+				ev.Target = emitter.Target{System: sys, Resource: absoluteResource(res, f.Cwd)}
 				// Set the taxonomic action type only for native tools whose verb we
 				// can name honestly (Read → read, Write/Edit/MultiEdit → modify).
 				// Opportunistically-captured tools yield a path but no known verb, so

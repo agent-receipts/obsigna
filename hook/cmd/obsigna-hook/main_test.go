@@ -687,7 +687,8 @@ func TestExtractFileTarget_MalformedJSON(t *testing.T) {
 
 // TestReadClaudeCode_Target verifies that readClaudeCode populates ev.Target
 // for filesystem tools, auto-captures unknown tools with file_path, and leaves
-// target empty for skip-listed and MCP tools.
+// target empty for skip-listed and MCP tools. Every frame carries a cwd, so a
+// relative file_path is resolved to an absolute resource before emit.
 func TestReadClaudeCode_Target(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -696,48 +697,48 @@ func TestReadClaudeCode_Target(t *testing.T) {
 		wantRes string
 	}{
 		{
-			name: "Read populates target",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Read",` +
+			name: "Read with absolute path passes through",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Read",` +
 				`"tool_input":{"file_path":"/etc/hosts"},"tool_response":{"content":"127.0.0.1"}}`,
 			wantSys: "filesystem",
 			wantRes: "/etc/hosts",
 		},
 		{
-			name: "Write populates target",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Write",` +
+			name: "Write relative path resolves against cwd",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Write",` +
 				`"tool_input":{"file_path":"out.go","content":"package main"}}`,
 			wantSys: "filesystem",
-			wantRes: "out.go",
+			wantRes: "/work/out.go",
 		},
 		{
-			name: "Edit populates target",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Edit",` +
+			name: "Edit relative path resolves against cwd",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Edit",` +
 				`"tool_input":{"file_path":"x.go","old_string":"a","new_string":"b"}}`,
 			wantSys: "filesystem",
-			wantRes: "x.go",
+			wantRes: "/work/x.go",
 		},
 		{
-			name: "MultiEdit populates target",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"MultiEdit",` +
+			name: "MultiEdit relative path resolves against cwd",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"MultiEdit",` +
 				`"tool_input":{"file_path":"z.go","edits":[]}}`,
 			wantSys: "filesystem",
-			wantRes: "z.go",
+			wantRes: "/work/z.go",
 		},
 		{
-			name: "unknown tool with file_path is auto-captured",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Move",` +
+			name: "unknown tool with relative file_path is auto-captured and resolved",
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Move",` +
 				`"tool_input":{"file_path":"old.go","destination":"new.go"}}`,
 			wantSys: "filesystem",
-			wantRes: "old.go",
+			wantRes: "/work/old.go",
 		},
 		{
 			name: "Bash leaves target empty",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Bash",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Bash",` +
 				`"tool_input":{"command":"echo hi"},"tool_response":{"output":"hi"}}`,
 		},
 		{
 			name: "MCP tool leaves target empty",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work",` +
 				`"tool_name":"mcp__github-audited__list_issues","tool_input":{"owner":"foo"}}`,
 		},
 	}
@@ -774,21 +775,21 @@ func TestReadClaudeCode_BashTarget(t *testing.T) {
 			name:       "rm -rf gets filesystem target and delete action",
 			command:    "rm -rf build",
 			wantSys:    "filesystem",
-			wantRes:    "build",
+			wantRes:    "/work/build",
 			wantAction: "filesystem.file.delete",
 		},
 		{
 			name:       "mv gets move action with dest target",
 			command:    "mv a.txt b.txt",
 			wantSys:    "filesystem",
-			wantRes:    "b.txt",
+			wantRes:    "/work/b.txt",
 			wantAction: "filesystem.file.move",
 		},
 		{
 			name:       "redirect gets create action",
 			command:    "echo hi > out.txt",
 			wantSys:    "filesystem",
-			wantRes:    "out.txt",
+			wantRes:    "/work/out.txt",
 			wantAction: "filesystem.file.create",
 		},
 		{
@@ -810,6 +811,7 @@ func TestReadClaudeCode_BashTarget(t *testing.T) {
 			stdin, err := json.Marshal(map[string]any{
 				"hook_event_name": "PostToolUse",
 				"session_id":      "s",
+				"cwd":             "/work",
 				"tool_name":       "Bash",
 				"tool_input":      json.RawMessage(input),
 			})
@@ -876,42 +878,42 @@ func TestReadClaudeCode_NativeActionType(t *testing.T) {
 	}{
 		{
 			name: "Read carries read action",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Read",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Read",` +
 				`"tool_input":{"file_path":"/etc/hosts"},"tool_response":{"content":"127.0.0.1"}}`,
 			wantRes:    "/etc/hosts",
 			wantAction: "filesystem.file.read",
 		},
 		{
 			name: "Write carries modify action",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Write",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Write",` +
 				`"tool_input":{"file_path":"out.go","content":"package main"}}`,
-			wantRes:    "out.go",
+			wantRes:    "/work/out.go",
 			wantAction: "filesystem.file.modify",
 		},
 		{
 			name: "Edit carries modify action",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Edit",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Edit",` +
 				`"tool_input":{"file_path":"x.go","old_string":"a","new_string":"b"}}`,
-			wantRes:    "x.go",
+			wantRes:    "/work/x.go",
 			wantAction: "filesystem.file.modify",
 		},
 		{
 			name: "MultiEdit carries modify action",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"MultiEdit",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"MultiEdit",` +
 				`"tool_input":{"file_path":"z.go","edits":[]}}`,
-			wantRes:    "z.go",
+			wantRes:    "/work/z.go",
 			wantAction: "filesystem.file.modify",
 		},
 		{
 			name: "opportunistic non-file tool with file_path carries empty action",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Move",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work","tool_name":"Move",` +
 				`"tool_input":{"file_path":"old.go","destination":"new.go"}}`,
-			wantRes:    "old.go",
+			wantRes:    "/work/old.go",
 			wantAction: "",
 		},
 		{
 			name: "MCP tool carries empty action",
-			stdin: `{"hook_event_name":"PostToolUse","session_id":"s",` +
+			stdin: `{"hook_event_name":"PostToolUse","session_id":"s","cwd":"/work",` +
 				`"tool_name":"mcp__github-audited__list_issues","tool_input":{"owner":"foo"}}`,
 			wantRes:    "",
 			wantAction: "",
