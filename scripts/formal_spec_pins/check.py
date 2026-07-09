@@ -2,7 +2,8 @@
 """Guard against a spec edit silently outrunning the formal chain-invariants model.
 
 ``formal/chain-invariants/chain-tamper-evidence.als`` formalizes a specific set
-of normative clauses from ``spec/v0.5.0/spec.md`` (see its header comment).
+of normative clauses from the spec (see its header comment; as of this writing
+``spec/v0.5.0/spec.md``, but see below for how the path is resolved).
 Nothing forces the Alloy model to change when those clauses do — the model does
 not parse the spec, so a wording or requirement change under, say, §7.3.5 can
 land, merge, and leave the model quietly describing a spec that no longer
