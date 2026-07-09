@@ -15,6 +15,9 @@ sole residual being the *deliberately documented* tail-truncation floor
 - **Model:** [`chain-tamper-evidence.als`](./chain-tamper-evidence.als)
 - **Decision record:** [`docs/adr/0039-formal-verification-chain-invariants.md`](../../docs/adr/0039-formal-verification-chain-invariants.md)
 - **Tool:** Alloy 6.2.0, SAT4J (pure-Java) backend.
+- **Spec-drift guard:** [`spec-pins.json`](./spec-pins.json) pins the exact spec
+  text every clause above depends on; CI: formal spec pins fails a spec PR the
+  moment one drifts. See [`scripts/formal_spec_pins/AGENTS.md`](../../scripts/formal_spec_pins/AGENTS.md).
 
 Behavioral / concurrent properties (parallel emission, crash-recovery,
 at-least-once delivery) are **out of scope** for this model — they are

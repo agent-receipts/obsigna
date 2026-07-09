@@ -1,0 +1,33 @@
+name: "CI: formal spec pins"
+
+# Guards against the formal chain-invariants Alloy model silently drifting from
+# the spec clauses it claims to encode. The model does not parse spec.md, so a
+# spec edit under a modeled clause (§3.2, §4.3.2, §7.3.x, §7.5, ...) can land
+# without the model changing, and CI: formal would stay green re-proving the
+# same, now-stale claim. Logic and the pinned clause set live in
+# scripts/formal_spec_pins/check.py and formal/chain-invariants/spec-pins.json.
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "spec/v*/spec.md"
+      - "formal/chain-invariants/spec-pins.json"
+      - "scripts/formal_spec_pins/**"
+      - ".github/workflows/formal-spec-pins.yml"
+  pull_request:
+    branches: [main]
+    paths: *paths
+
+permissions:
+  contents: read
+
+jobs:
+  check-pins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Self-test the guard
+        run: python3 scripts/formal_spec_pins/test_check.py
+      - name: Check formal-model spec pins
+        run: python3 scripts/formal_spec_pins/check.py
