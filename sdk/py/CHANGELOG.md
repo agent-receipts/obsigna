@@ -12,6 +12,13 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-17
+
+### Added
+
+- **`target_system` / `target_resource` on `DaemonEmitter.emit()`** ([#946](https://github.com/agent-receipts/obsigna/pull/946)) — keyword-only params forwarding file-identity metadata the daemon maps onto `action.target.{system,resource}`. Validation mirrors the Go and TS emitters and the daemon's XOR rule: both fields must be set together or both empty, `target_system` capped at 256 UTF-8 bytes and `target_resource` at 4096, measured in bytes not code points. Additive and backwards-compatible; completes cross-SDK emitter target parity.
+- **`did:key` v0.7 resolution** ([#958](https://github.com/agent-receipts/obsigna/pull/958)) — new standalone `did` module (base58btc encode/decode, `did_from_public_key`, `resolve_did`) conforming to the shared cross-SDK test vectors (ADR-0007), with no new dependencies. `resolve_did` caps input length at 64 characters to bound the base58btc decode's cost.
+
 ## [0.14.0] - 2026-06-23
 
 Graduates `0.14.0a1` after the alpha pass. Ships the grounded-principal conformance tier (ADR-0038, spec §7.9): `GrantResolver` abstract base class and `verify_grounded_principal_tier`.
