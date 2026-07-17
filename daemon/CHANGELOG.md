@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-07-17
+
 ### Added
 
 - **Forensic response disclosure** ([#819](https://github.com/agent-receipts/obsigna/issues/819)) — a `--response-disclosure` policy flag (env `AGENTRECEIPTS_RESPONSE_DISCLOSURE`, TOML `response_disclosure`) that seals elected tool responses into `outcome.response_disclosure`, mirroring `--parameter-disclosure`. Same value space (`false|true|high|<action types>`), shares the single forensic key, and fires independently of parameter disclosure. `outcome.response_hash` remains the authoritative commitment; sealing is best-effort and falls back to hash-only on error. `obsigna receipt disclose --response` decrypts the response envelope. Receipts now stamp protocol version `0.6.0` / context v3 (sdk/go catch-up).
+
+### Fixed
+
+- **hook: resolve `action.target.resource` to an absolute path** ([#969](https://github.com/agent-receipts/obsigna/pull/969)) — the hook previously copied the runtime's file path verbatim, so a relative path (a `Write` of `out.go`, a `Bash` `rm build`) was recorded as a bare relative token — meaningless in a forensic trail without also knowing the working directory, which the receipt does not carry. Filesystem resources are now resolved to an absolute path at emit time against the frame's cwd (falling back to the hook process's own working directory); resolution is purely lexical, no symlink evaluation. A new CI gate fails the build if any emitted filesystem target carries a relative resource. Non-filesystem resource identifiers (e.g. MCP URIs) are exempt.
+
+### Security
+
+- Bumped `golang.org/x/crypto` to v0.52.0 across `daemon`, `mcp-proxy` (39 open Dependabot alerts, several critical) and fixed the underlying `obsigna.dev/daemon`/`obsigna.dev/mcp-proxy`/`obsigna.dev/hook` Go module resolution gap that was blocking Dependabot's remediation (#978).
 
 ## [0.29.0] - 2026-06-23
 
