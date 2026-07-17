@@ -12,6 +12,12 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-17
+
+### Added
+
+- **`did:key` v0.7 resolution** ([#958](https://github.com/agent-receipts/obsigna/pull/958)) — new standalone `did` module (base58btc encode/decode, `didFromPublicKey`, `resolveDid`) conforming to the shared cross-SDK test vectors (ADR-0007), with no new dependencies. `resolveDid` caps input length at 64 characters to bound the base58btc decode's cost.
+
 ## [0.16.0] - 2026-06-24
 
 ### Added
