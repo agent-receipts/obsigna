@@ -124,6 +124,42 @@ jobs:
       - name: Run unit tests for daemon-protocol gate
         run: python3 scripts/daemon_protocol/test_check.py
 
+  # Go module resolution (#978): daemon, mcp-proxy, hook, and collector are
+  # each their own Go module, and Go's monorepo convention resolves a
+  # submodule's version off a per-subdirectory tag (daemon/vX.Y.Z, ...), not
+  # off the packaging tag this workflow triggers on. Nothing has pushed those
+  # tags since ADR-0034 retired the standalone per-component release
+  # workflows, so obsigna.dev/daemon et al. were stuck resolving pre-ADR-0037
+  # versions whose go.mod still declared the old github.com/agent-receipts/ar/...
+  # path — breaking Dependabot remediation and any GOWORK=off build that needs
+  # a fresh cross-module import. Push a matching tag for each submodule at this
+  # release's commit and version (ADR-0034 decision 3: one shared version
+  # number across the whole toolset) once every other gate has passed.
+  tag-go-submodules:
+    needs: [release, daemon-protocol, reproducible-attest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Tag each Go submodule at this release's commit
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#obsigna/}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for mod in daemon mcp-proxy hook collector; do
+            tag="${mod}/${VERSION}"
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "already exists, skipping: ${tag}"
+              continue
+            fi
+            git tag -a "${tag}" -m "obsigna ${VERSION}" "${GITHUB_REF_NAME}"
+            git push origin "refs/tags/${tag}"
+          done
+
   # Gate B (release side, ADR-0031/0033/0034/0035/0036): the attestation claim is
   # that auditors can independently rebuild each primary toolset binary and match
   # a published hash. With the trains folded into one (ADR-0034 PR 2), prove it
