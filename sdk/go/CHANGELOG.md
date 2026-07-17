@@ -11,13 +11,21 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-07-17
+
 ### Added
 
 - **Forensic response disclosure** ([#819](https://github.com/agent-receipts/obsigna/issues/819)) — `EncryptResponse` / `DecryptResponse` and the `Outcome.ResponseDisclosure` field, mirroring `EncryptDisclosure` / `Action.ParametersDisclosure` for the tool output side (ADR-0012). Same HPKE v1 envelope, forensic keypair, and JCS canonicalization; `Outcome.ResponseHash` remains the authoritative commitment. Catches the Go SDK up to the TS/Python SDKs, which shipped response disclosure in 0.6.0 (PR #913).
+- **`did:key` v0.7 resolution** ([#958](https://github.com/agent-receipts/obsigna/pull/958)) — new `did` package (base58btc encode/decode, `FromPublicKey`, `Resolve`) conforming to the shared cross-SDK test vectors (ADR-0007), with no new dependencies. `Resolve` caps input length to bound the base58btc decode's cost.
+- **`checkpoint` package** ([#932](https://github.com/agent-receipts/obsigna/pull/932)) — the checkpoint wire types and sign/verify crypto used to live only inside the daemon's internal package; they're now public at `obsigna.dev/sdk/go/checkpoint` so the daemon emitter, the verify CLI, and the browser verifier can share one implementation. Behaviour-preserving move plus a focused crypto unit test (sign/verify round-trip, tampered body, wrong key, malformed signature, bad PEM) that previously only had daemon-level integration coverage.
 
 ### Changed
 
 - **Protocol version bumped to `0.6.0` and JSON-LD context to v3** to match the TS and Python SDKs. New receipts stamp `version: "0.6.0"` and reference `https://agentreceipts.ai/context/v3`, restoring the cross-SDK live-emit version invariant (the Go SDK was intentionally held at `0.5.0`/context v2 pending the vanity module-path migration).
+
+### Security
+
+- Bumped `golang.org/x/crypto` to v0.52.0 (39 open Dependabot alerts across the Go modules, several critical).
 
 ## [0.23.0] - 2026-06-23
 
