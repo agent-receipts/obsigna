@@ -57,14 +57,12 @@ describe("resolveDid", () => {
 		expect(() => resolveDid(did)).toThrow(/prefix/);
 	});
 
-	it.each([
-		"0",
-		"O",
-		"I",
-		"l",
-	])("rejects the excluded base58btc character %j", (ch) => {
-		expect(() => resolveDid(`did:key:z${ch}6Mktwup`)).toThrow(/base58btc/);
-	});
+	it.each(["0", "O", "I", "l"])(
+		"rejects the excluded base58btc character %j",
+		(ch) => {
+			expect(() => resolveDid(`did:key:z${ch}6Mktwup`)).toThrow(/base58btc/);
+		},
+	);
 
 	it("rejects a payload that decodes to the wrong length", () => {
 		const short = base58btcEncode(
