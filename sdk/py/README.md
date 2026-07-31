@@ -309,20 +309,22 @@ from obsigna import (
 keys = generate_key_pair()
 
 # Create an unsigned receipt
-unsigned = create_receipt(CreateReceiptInput(
-    issuer=Issuer(id="did:agent:my-agent"),
-    principal=Principal(id="did:user:alice"),
-    action=ActionInput(
-        type="filesystem.file.read",
-        risk_level="low",
-    ),
-    outcome=Outcome(status="success"),
-    chain=Chain(
-        sequence=1,
-        previous_receipt_hash=None,
-        chain_id="chain_session-1",
-    ),
-))
+unsigned = create_receipt(
+    CreateReceiptInput(
+        issuer=Issuer(id="did:agent:my-agent"),
+        principal=Principal(id="did:user:alice"),
+        action=ActionInput(
+            type="filesystem.file.read",
+            risk_level="low",
+        ),
+        outcome=Outcome(status="success"),
+        chain=Chain(
+            sequence=1,
+            previous_receipt_hash=None,
+            chain_id="chain_session-1",
+        ),
+    )
+)
 
 # Sign and hash
 receipt = sign_receipt(unsigned, keys.private_key, "did:agent:my-agent#key-1")
@@ -365,12 +367,12 @@ A [W3C Verifiable Credential](https://www.w3.org/TR/vc-data-model-2.0/) signed w
 
 ```python
 from obsigna import (
-    ActionInput,          # Action fields for CreateReceiptInput
-    CreateReceiptInput,   # Input bundle for create_receipt
-    create_receipt,       # Build an unsigned receipt from input fields
-    generate_key_pair,    # Ed25519 key pair (PEM-encoded)
-    sign_receipt,         # Sign with Ed25519Signature2020 proof
-    verify_receipt,       # Verify a receipt's signature
+    ActionInput,  # Action fields for CreateReceiptInput
+    CreateReceiptInput,  # Input bundle for create_receipt
+    create_receipt,  # Build an unsigned receipt from input fields
+    generate_key_pair,  # Ed25519 key pair (PEM-encoded)
+    sign_receipt,  # Sign with Ed25519Signature2020 proof
+    verify_receipt,  # Verify a receipt's signature
 )
 ```
 
@@ -378,9 +380,9 @@ from obsigna import (
 
 ```python
 from obsigna import (
-    canonicalize,         # RFC 8785 JSON canonicalization
-    hash_receipt,         # Hash receipt (excluding proof) -> "sha256:<hex>"
-    sha256,               # Hash arbitrary data -> "sha256:<hex>"
+    canonicalize,  # RFC 8785 JSON canonicalization
+    hash_receipt,  # Hash receipt (excluding proof) -> "sha256:<hex>"
+    sha256,  # Hash arbitrary data -> "sha256:<hex>"
 )
 ```
 
@@ -388,7 +390,7 @@ from obsigna import (
 
 ```python
 from obsigna import (
-    verify_chain,         # Verify signatures, hash links, and sequence numbering
+    verify_chain,  # Verify signatures, hash links, and sequence numbering
 )
 ```
 
@@ -396,11 +398,20 @@ from obsigna import (
 
 ```python
 from obsigna import (
-    AgentReceipt,         # Signed receipt with proof
+    AgentReceipt,  # Signed receipt with proof
     UnsignedAgentReceipt,  # Receipt before signing
-    Action, ActionTarget, Authorization, Chain,
-    CredentialSubject, Intent, Issuer, Operator,
-    Outcome, Principal, Proof, StateChange,
+    Action,
+    ActionTarget,
+    Authorization,
+    Chain,
+    CredentialSubject,
+    Intent,
+    Issuer,
+    Operator,
+    Outcome,
+    Principal,
+    Proof,
+    StateChange,
 )
 ```
 
@@ -421,12 +432,12 @@ camelCase aliases are available for users coming from the TS SDK:
 
 ```python
 from obsigna import (
-    createReceipt,    # = create_receipt
+    createReceipt,  # = create_receipt
     generateKeyPair,  # = generate_key_pair
-    signReceipt,      # = sign_receipt
-    verifyReceipt,    # = verify_receipt
-    hashReceipt,      # = hash_receipt
-    verifyChain,      # = verify_chain
+    signReceipt,  # = sign_receipt
+    verifyReceipt,  # = verify_receipt
+    hashReceipt,  # = hash_receipt
+    verifyChain,  # = verify_chain
 )
 ```
 
