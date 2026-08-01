@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	github.com/cloudflare/circl v1.6.4
 	github.com/google/uuid v1.6.0
-	modernc.org/sqlite v1.54.0
+	modernc.org/sqlite v1.55.0
 )
 
 require (
