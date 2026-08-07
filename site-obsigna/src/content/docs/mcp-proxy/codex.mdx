@@ -161,7 +161,7 @@ SEQ  TIMESTAMP             CHAIN       TOOL / ACTION TYPE
 1    2026-04-15T00:00:09Z  2026-04-15  list_issues
 ```
 
-`obsigna receipt verify` prints `Chain 2026-04-15: VALID (4 receipts)` when signatures and hash links are intact. The `-issuer-name Codex` flag stamps each receipt so you can tell Codex sessions apart from Claude Code or Claude Desktop when reviewing a shared store — that issuer/operator metadata doesn't appear in the tabular view, but it's visible via `obsigna receipt list -json` and `obsigna receipt show <seq>`. See the [CLI reference](/reference/cli-commands/#obsigna) for all subcommands.
+`obsigna receipt verify` prints `Chain 2026-04-15: VALID (4 receipts) — truncation not checked. Pass --against-anchor to check against an out-of-band checkpoint.` when signatures and hash links are intact. The `-issuer-name Codex` flag stamps each receipt so you can tell Codex sessions apart from Claude Code or Claude Desktop when reviewing a shared store — that issuer/operator metadata doesn't appear in the tabular view, but it's visible via `obsigna receipt list -json` and `obsigna receipt show <seq>`. See the [CLI reference](/reference/cli-commands/#obsigna) for all subcommands.
 
 ## Gotchas
 

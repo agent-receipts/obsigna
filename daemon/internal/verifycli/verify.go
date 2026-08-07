@@ -66,10 +66,18 @@ type anchorOutcome struct {
 // breaking parsers that key off the existing ones. ExitCode duplicates the
 // process exit code so a caller capturing only stdout still sees the verdict.
 type verifyOutcome struct {
-	ChainID    string          `json:"chain_id"`
-	Verified   bool            `json:"verified"`
-	ExitCode   int             `json:"exit_code"`
-	Length     int             `json:"length"`
+	ChainID  string `json:"chain_id"`
+	Verified bool   `json:"verified"`
+	ExitCode int    `json:"exit_code"`
+	Length   int    `json:"length"`
+	// Status is the chain's termination-status classification: "complete" |
+	// "interrupted" | "unknown" (spec §7.3.3). "unknown" covers both a chain
+	// whose issuer never wrote a terminator and a chain whose terminator was
+	// truncated off the end — VerifyChain cannot tell those apart without an
+	// out-of-band witness (spec §7.3.1), so callers that need to distinguish
+	// "verified complete" from "verified as far as it goes" should check this
+	// alongside Verified rather than treating Verified alone as completeness.
+	Status     string          `json:"status"`
 	Head       string          `json:"head,omitempty"`
 	BrokenAt   *int            `json:"broken_at,omitempty"`
 	Cause      string          `json:"cause,omitempty"`
@@ -191,6 +199,7 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 	outcome := verifyOutcome{
 		ChainID:    *chainID,
 		Length:     result.Length,
+		Status:     string(result.Status),
 		Advisories: []string{},
 	}
 	if n := len(receipts); n > 0 {
@@ -266,18 +275,39 @@ func Run(args []string, stdout, stderr io.Writer, envLookup func(string) string)
 
 	if result.Valid {
 		if !*asJSON {
-			noun := "receipts"
-			if result.Length == 1 {
-				noun = "receipt"
+			// A verdict of "VALID" only ever claims what VerifyChain actually
+			// checked: signatures, hash links, and sequence contiguity of the
+			// receipts it was given. It does NOT claim completeness — an empty
+			// or tail-truncated chain satisfies every one of those checks
+			// trivially (spec §7.3.1) — so an unqualified "VALID" would let a
+			// reader who hasn't read the spec conclude nothing was removed.
+			// Qualify the verdict whenever --against-anchor did not run, and
+			// give the zero-receipt case its own wording instead of "VALID"
+			// so it can't be misread as "confirmed nothing was deleted."
+			anchorHint := ""
+			if *againstAnchor == "" {
+				anchorHint = " Pass --against-anchor to check against an out-of-band checkpoint."
 			}
-			fmt.Fprintf(stdout, "Chain %s: VALID (%d %s)\n", *chainID, result.Length, noun)
+			if result.Length == 0 {
+				fmt.Fprintf(stdout, "Chain %s: NO RECEIPTS FOUND (0 receipts) — nothing to verify; this is not evidence the chain never existed or that its receipts were not deleted.%s\n", *chainID, anchorHint)
+			} else {
+				noun := "receipts"
+				if result.Length == 1 {
+					noun = "receipt"
+				}
+				suffix := ""
+				if *againstAnchor == "" {
+					suffix = " — truncation not checked." + anchorHint
+				}
+				fmt.Fprintf(stdout, "Chain %s: VALID (%d %s)%s\n", *chainID, result.Length, noun, suffix)
+			}
 		}
 
 		// Out-of-band anchor check (ADR-0008), opt-in via --against-anchor. A
 		// tail-truncated chain still verifies as VALID above — its remaining
 		// receipts are internally consistent — so the anchor is the only thing
 		// that can catch a dropped tail. Default off: without the flag this
-		// returns here, byte-identical to before.
+		// returns here.
 		if *againstAnchor == "" {
 			return emit(ExitOK)
 		}

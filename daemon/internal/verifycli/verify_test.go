@@ -20,6 +20,15 @@ import (
 // path the verify CLI should be pointed at.
 func fixtureChain(t *testing.T, dir, chainID string, count int) (dbPath, pubKeyPath string) {
 	t.Helper()
+	dbPath, pubKeyPath, _ = fixtureChainWithKey(t, dir, chainID, count)
+	return dbPath, pubKeyPath
+}
+
+// fixtureChainWithKey is fixtureChain but also returns the signing private
+// key, for tests that need to produce another artifact (e.g. an anchor
+// checkpoint) signed by the same key as the chain.
+func fixtureChainWithKey(t *testing.T, dir, chainID string, count int) (dbPath, pubKeyPath string, priv ed25519.PrivateKey) {
+	t.Helper()
 
 	dbPath = filepath.Join(dir, "receipts.db")
 	pubKeyPath = filepath.Join(dir, "signing.key.pub")
@@ -70,7 +79,7 @@ func fixtureChain(t *testing.T, dir, chainID string, count int) (dbPath, pubKeyP
 		}
 		prevHash = &h
 	}
-	return dbPath, pubKeyPath
+	return dbPath, pubKeyPath, priv
 }
 
 // fixturePendingTailChain writes a valid signed chain whose final receipt is
@@ -250,6 +259,85 @@ func TestRun_VerifiesGoodChain(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "VALID (3 receipts)") {
 		t.Errorf("stdout = %q, expected VALID with count", stdout)
+	}
+	// Issue #1011: a VALID verdict without --against-anchor must say so —
+	// VerifyChain cannot detect tail truncation on its own (spec §7.3.1), and
+	// an unqualified VALID would let a reader wrongly conclude nothing was
+	// removed.
+	if !strings.Contains(stdout, "truncation not checked") {
+		t.Errorf("stdout = %q, expected the verdict to note truncation was not checked", stdout)
+	}
+	if !strings.Contains(stdout, "--against-anchor") {
+		t.Errorf("stdout = %q, expected the verdict to point at --against-anchor", stdout)
+	}
+}
+
+// TestRun_EmptyChainDoesNotReportBareValid covers issue #1011: an empty chain
+// (every receipt deleted, or none ever written) trivially satisfies every
+// check VerifyChain performs, so it must not be reported with the same
+// unqualified "VALID" wording a genuinely checked chain gets.
+func TestRun_EmptyChainDoesNotReportBareValid(t *testing.T) {
+	dir := t.TempDir()
+	dbPath, pubKeyPath := fixtureChain(t, dir, "chain-1", 0)
+
+	code, stdout, stderr := runOnce(t, []string{
+		"--db", dbPath,
+		"--public-key", pubKeyPath,
+		"--chain-id", "chain-1",
+	})
+	if code != ExitOK {
+		t.Fatalf("exit = %d, want %d (an empty chain is not itself a verification failure); stderr=%s", code, ExitOK, stderr)
+	}
+	if strings.Contains(stdout, "VALID") {
+		t.Errorf("stdout = %q, an empty chain must not report a bare VALID verdict", stdout)
+	}
+	if !strings.Contains(stdout, "0 receipts") {
+		t.Errorf("stdout = %q, expected the receipt count to still be surfaced", stdout)
+	}
+	if !strings.Contains(stdout, "--against-anchor") {
+		t.Errorf("stdout = %q, expected a pointer to --against-anchor for an out-of-band check", stdout)
+	}
+}
+
+// TestRun_ValidChainWithPassingAnchorOmitsTruncationQualifier covers issue
+// #1011: once --against-anchor has actually run and passed, the truncation
+// question is answered, so the VALID line should not carry the "not checked"
+// qualifier — the following "Anchor ... PASS" line already says truncation
+// was checked.
+func TestRun_ValidChainWithPassingAnchorOmitsTruncationQualifier(t *testing.T) {
+	dir := t.TempDir()
+	chainID := "chain-1"
+	dbPath, pubKeyPath, priv := fixtureChainWithKey(t, dir, chainID, 3)
+
+	s, err := store.OpenReadOnly(dbPath)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	headSeq, headHash, found, err := s.GetChainTail(chainID)
+	s.Close()
+	if err != nil || !found {
+		t.Fatalf("get chain tail: found=%v err=%v", found, err)
+	}
+
+	anchorPath := writeAnchor(t, anchorTestSigner{priv: priv}, cp(chainID, headSeq, headHash))
+
+	code, stdout, stderr := runOnce(t, []string{
+		"--db", dbPath,
+		"--public-key", pubKeyPath,
+		"--chain-id", chainID,
+		"--against-anchor", anchorPath,
+	})
+	if code != ExitOK {
+		t.Fatalf("exit = %d, want %d (stderr=%s)", code, ExitOK, stderr)
+	}
+	if !strings.Contains(stdout, "VALID (3 receipts)") {
+		t.Errorf("stdout = %q, expected VALID with count", stdout)
+	}
+	if strings.Contains(stdout, "truncation not checked") {
+		t.Errorf("stdout = %q, a passing --against-anchor check means truncation WAS checked", stdout)
+	}
+	if !strings.Contains(stdout, "Anchor") || !strings.Contains(stdout, "PASS") {
+		t.Errorf("stdout = %q, expected the anchor PASS line", stdout)
 	}
 }
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`obsigna receipt verify`: qualify the VALID verdict when truncation was not checked** ([#1011](https://github.com/agent-receipts/obsigna/issues/1011)) — chain verification does not detect tail truncation by default (spec §7.3.1: an empty or tail-truncated chain satisfies every check trivially), but the CLI previously printed an unqualified `Chain <id>: VALID (<n> receipts)` either way. The verdict now says so: without `--against-anchor`, it appends `— truncation not checked. Pass --against-anchor to check against an out-of-band checkpoint.` A chain with zero receipts is no longer reported as `VALID` at all — it gets its own `NO RECEIPTS FOUND (0 receipts)` line, since an empty result is not evidence the chain never existed or wasn't deleted. `--json` output gains a `status` field (`"complete" | "interrupted" | "unknown"`, spec §7.3.3) so machine consumers can distinguish "verified complete" from "verified as far as it goes" without re-deriving it. Presentation-layer only — verification semantics and exit codes are unchanged.
+
 ### Security
 
 - **Apply the Redactor to `intent.prompt_preview`** ([#1012](https://github.com/agent-receipts/obsigna/issues/1012)) — the daemon redacted `outcome.error` but wrote `prompt_preview` into signed receipts verbatim after truncation only, leaving a documented wire-protocol field free to carry pasted secrets unredacted. `intentFromFrame` now redacts before truncating, matching the ordering already used for `outcome.error`. No in-tree emitter populates `prompt_preview` today, so this closes a latent gap rather than a live leak.

@@ -59,6 +59,41 @@ func TestRun_JSONValidChain(t *testing.T) {
 	if len(o.Advisories) != 0 || o.BrokenAt != nil || o.Anchor != nil || len(o.Receipts) != 0 {
 		t.Errorf("clean chain carried failure detail: %+v", o)
 	}
+	// Issue #1011: a chain with no terminal receipt classifies as "unknown"
+	// (spec §7.3.3) regardless of Verified — machine consumers need this to
+	// distinguish "verified complete" from "verified as far as it goes".
+	if o.Status != "unknown" {
+		t.Errorf("status = %q, want unknown for a non-terminal chain", o.Status)
+	}
+}
+
+// TestRun_JSONEmptyChainStatusUnknown covers issue #1011: an empty chain must
+// still carry status "unknown" in --json output, and must not report
+// verified without qualification a reader could mistake for "confirmed
+// nothing was deleted".
+func TestRun_JSONEmptyChainStatusUnknown(t *testing.T) {
+	dir := t.TempDir()
+	dbPath, pubKeyPath := fixtureChain(t, dir, "chain-1", 0)
+
+	code, stdout, stderr := runOnce(t, []string{
+		"--db", dbPath,
+		"--public-key", pubKeyPath,
+		"--chain-id", "chain-1",
+		"--json",
+	})
+	if code != ExitOK {
+		t.Fatalf("exit = %d, want %d (stderr=%s)", code, ExitOK, stderr)
+	}
+	o := decodeOutcome(t, stdout)
+	if !o.Verified {
+		t.Errorf("outcome = %+v, an empty chain still trivially verifies", o)
+	}
+	if o.Length != 0 {
+		t.Errorf("length = %d, want 0", o.Length)
+	}
+	if o.Status != "unknown" {
+		t.Errorf("status = %q, want unknown for an empty chain", o.Status)
+	}
 }
 
 func TestRun_JSONBrokenChainCarriesFailureDetail(t *testing.T) {
