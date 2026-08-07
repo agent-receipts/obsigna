@@ -66,10 +66,16 @@ type anchorOutcome struct {
 // breaking parsers that key off the existing ones. ExitCode duplicates the
 // process exit code so a caller capturing only stdout still sees the verdict.
 type verifyOutcome struct {
-	ChainID  string `json:"chain_id"`
-	Verified bool   `json:"verified"`
-	ExitCode int    `json:"exit_code"`
-	Length   int    `json:"length"`
+	ChainID    string          `json:"chain_id"`
+	Verified   bool            `json:"verified"`
+	ExitCode   int             `json:"exit_code"`
+	Length     int             `json:"length"`
+	Head       string          `json:"head,omitempty"`
+	BrokenAt   *int            `json:"broken_at,omitempty"`
+	Cause      string          `json:"cause,omitempty"`
+	Receipts   []receiptStatus `json:"receipts,omitempty"`
+	Advisories []string        `json:"advisories"`
+	Anchor     *anchorOutcome  `json:"anchor,omitempty"`
 	// Status is the chain's termination-status classification: "complete" |
 	// "interrupted" | "unknown" (spec §7.3.3). "unknown" covers both a chain
 	// whose issuer never wrote a terminator and a chain whose terminator was
@@ -77,13 +83,8 @@ type verifyOutcome struct {
 	// out-of-band witness (spec §7.3.1), so callers that need to distinguish
 	// "verified complete" from "verified as far as it goes" should check this
 	// alongside Verified rather than treating Verified alone as completeness.
-	Status     string          `json:"status"`
-	Head       string          `json:"head,omitempty"`
-	BrokenAt   *int            `json:"broken_at,omitempty"`
-	Cause      string          `json:"cause,omitempty"`
-	Receipts   []receiptStatus `json:"receipts,omitempty"`
-	Advisories []string        `json:"advisories"`
-	Anchor     *anchorOutcome  `json:"anchor,omitempty"`
+	// Appended last per the struct-growth contract above.
+	Status string `json:"status"`
 }
 
 // Run executes the verify subcommand with the given args (sans the program
