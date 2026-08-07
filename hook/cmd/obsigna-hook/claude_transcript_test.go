@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -209,5 +214,60 @@ func TestReadClaudeCode_NoTranscriptLeavesFieldsUnset(t *testing.T) {
 	if ev.Model != "" || ev.Usage != nil || ev.CaptureMethod != "" {
 		t.Errorf("enrichment fields set without a transcript: model=%q usage=%s capture=%q",
 			ev.Model, ev.Usage, ev.CaptureMethod)
+	}
+}
+
+// TestLookupTranscriptUsage_LineTooLong asserts that a transcript line with no
+// newline within maxTranscriptLineLength aborts the scan with
+// errTranscriptLineTooLong rather than buffering it without bound (issue
+// #1010: an unbounded-length reader lets a malformed or hostile transcript
+// exhaust the short-lived hook process's memory).
+func TestLookupTranscriptUsage_LineTooLong(t *testing.T) {
+	// A single line, with no trailing newline, that exceeds the cap.
+	oversized := bytes.Repeat([]byte("a"), maxTranscriptLineLength+1)
+	path := writeTranscript(t, string(oversized))
+
+	_, _, found, err := lookupTranscriptUsage(path, "toolu_AAA")
+	if !errors.Is(err, errTranscriptLineTooLong) {
+		t.Fatalf("err = %v; want errTranscriptLineTooLong", err)
+	}
+	if found {
+		t.Error("found = true; want false when the scan aborts on an oversized line")
+	}
+}
+
+// TestReadBoundedLine_WithinMax confirms normal delimited and trailing
+// (EOF-terminated, no newline) lines are returned unchanged when under the
+// cap, matching bufio.Reader.ReadBytes's own behaviour.
+func TestReadBoundedLine_WithinMax(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("hello\nworld"))
+
+	line, err := readBoundedLine(r, 1024)
+	if err != nil {
+		t.Fatalf("first line: unexpected err %v", err)
+	}
+	if string(line) != "hello\n" {
+		t.Errorf("first line = %q; want %q", line, "hello\n")
+	}
+
+	line, err = readBoundedLine(r, 1024)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("second line: err = %v; want io.EOF", err)
+	}
+	if string(line) != "world" {
+		t.Errorf("second line = %q; want %q", line, "world")
+	}
+}
+
+// TestReadBoundedLine_ExceedsMax confirms the cap is enforced even when the
+// oversized line spans more than one internal buffer refill.
+func TestReadBoundedLine_ExceedsMax(t *testing.T) {
+	const max = 4096
+	data := bytes.Repeat([]byte("x"), max*3) // no delimiter anywhere
+	r := bufio.NewReader(bytes.NewReader(data))
+
+	_, err := readBoundedLine(r, max)
+	if !errors.Is(err, errTranscriptLineTooLong) {
+		t.Fatalf("err = %v; want errTranscriptLineTooLong", err)
 	}
 }

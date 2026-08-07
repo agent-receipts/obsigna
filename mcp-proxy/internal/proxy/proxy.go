@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +15,17 @@ import (
 	"sync"
 	"time"
 )
+
+// maxLineLength bounds a single line (one JSON-RPC message) read from either
+// STDIO pipe. bufio.Reader.ReadBytes grows its returned slice without limit
+// while it searches for the delimiter, so a peer that streams an arbitrarily
+// large line with no newline would otherwise exhaust the proxy's memory.
+// readLine enforces this cap explicitly instead.
+const maxLineLength = 10 * 1024 * 1024 // 10MiB
+
+// errLineTooLong is returned by readLine when a line exceeds maxLineLength
+// before a newline is found.
+var errLineTooLong = errors.New("line too large")
 
 // HandlerResult tells the proxy what to do with a message.
 type HandlerResult struct {
@@ -147,10 +159,14 @@ func (p *Proxy) writeToClient(data []byte) error {
 }
 
 func (p *Proxy) pipe(src io.Reader, dst io.Writer, direction string) {
-	reader := bufio.NewReaderSize(src, 10*1024*1024) // 10MB buffer
+	reader := bufio.NewReaderSize(src, 64*1024)
 
 	for {
-		line, err := reader.ReadBytes('\n')
+		line, err := readLine(reader, maxLineLength)
+		if errors.Is(err, errLineTooLong) {
+			log.Printf("mcp-proxy: pipe %s line too large (max %d bytes), closing", direction, maxLineLength)
+			return
+		}
 		if len(line) > 0 {
 			// Trim trailing newline for processing.
 			raw := line
@@ -204,6 +220,29 @@ func (p *Proxy) pipe(src io.Reader, dst io.Writer, direction string) {
 			}
 			return
 		}
+	}
+}
+
+// readLine reads one '\n'-delimited line from r, mirroring
+// bufio.Reader.ReadBytes but capping the accumulated line at max bytes
+// instead of growing the returned slice without bound while it searches for
+// the delimiter. Returns errLineTooLong once max is exceeded, before the
+// oversized line is fully accumulated.
+func readLine(r *bufio.Reader, max int) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(line)+len(chunk) > max {
+			return line, errLineTooLong
+		}
+		line = append(line, chunk...)
+		if err == nil {
+			return line, nil
+		}
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+		return line, err
 	}
 }
 

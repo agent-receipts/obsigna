@@ -1,9 +1,11 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -344,6 +346,71 @@ func TestPipe_HandlerBlockWithNilClientResponse(t *testing.T) {
 	// Nothing forwarded to dst.
 	if dst.Len() > 0 {
 		t.Errorf("expected nothing forwarded, got: %q", dst.String())
+	}
+}
+
+// TestPipe_LineTooLong asserts that a line with no newline exceeding
+// maxLineLength closes the pipe instead of buffering it without bound (issue
+// #1010: bufio.Reader.ReadBytes grows its returned slice without limit while
+// searching for the delimiter, so a peer streaming an arbitrarily large line
+// could otherwise exhaust the proxy's memory). Nothing should be forwarded
+// for the oversized, unterminated line.
+func TestPipe_LineTooLong(t *testing.T) {
+	var dst bytes.Buffer
+	p := &Proxy{handler: nil}
+
+	oversized := bytes.Repeat([]byte("a"), maxLineLength+1) // no trailing newline
+	p.pipe(bytes.NewReader(oversized), &dst, "client_to_server")
+
+	if dst.Len() > 0 {
+		t.Errorf("expected nothing forwarded for an oversized line, got %d bytes", dst.Len())
+	}
+}
+
+// TestPipe_LineAtMaxIsForwarded confirms the cap doesn't reject a line that
+// exactly matches maxLineLength.
+func TestPipe_LineAtMaxIsForwarded(t *testing.T) {
+	var dst bytes.Buffer
+	p := &Proxy{handler: nil}
+
+	payload := append(bytes.Repeat([]byte("a"), maxLineLength-1), '\n')
+	p.pipe(bytes.NewReader(payload), &dst, "client_to_server")
+
+	if !bytes.Contains(dst.Bytes(), bytes.Repeat([]byte("a"), maxLineLength-1)) {
+		t.Errorf("expected the max-length line to be forwarded")
+	}
+}
+
+// --- readLine ---
+
+func TestReadLine_WithinMax(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("hello\nworld"))
+
+	line, err := readLine(r, 1024)
+	if err != nil {
+		t.Fatalf("first line: unexpected err %v", err)
+	}
+	if string(line) != "hello\n" {
+		t.Errorf("first line = %q; want %q", line, "hello\n")
+	}
+
+	line, err = readLine(r, 1024)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("second line: err = %v; want io.EOF", err)
+	}
+	if string(line) != "world" {
+		t.Errorf("second line = %q; want %q", line, "world")
+	}
+}
+
+func TestReadLine_ExceedsMax(t *testing.T) {
+	const max = 4096
+	data := bytes.Repeat([]byte("x"), max*3) // no delimiter anywhere
+	r := bufio.NewReader(bytes.NewReader(data))
+
+	_, err := readLine(r, max)
+	if !errors.Is(err, errLineTooLong) {
+		t.Fatalf("err = %v; want errLineTooLong", err)
 	}
 }
 

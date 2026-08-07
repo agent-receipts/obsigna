@@ -8,7 +8,20 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"obsigna.dev/sdk/go/emitter"
 )
+
+// maxTranscriptLineLength caps a single transcript JSONL line, reusing the
+// daemon's frame-size cap (via the already-imported emitter package):
+// bufio.Reader.ReadBytes otherwise grows its returned slice without limit
+// while it searches for a newline, so a line with no delimiter could exhaust
+// the short-lived hook process's memory.
+const maxTranscriptLineLength = emitter.MaxFrameSize
+
+// errTranscriptLineTooLong is returned by readBoundedLine when a line
+// exceeds maxTranscriptLineLength before a newline is found.
+var errTranscriptLineTooLong = errors.New("transcript line too large")
 
 // transcriptEntry is the minimal projection of one Claude Code transcript JSONL
 // line we need to resolve a tool call's model and token usage. Only assistant
@@ -50,7 +63,9 @@ type transcriptBlock struct {
 //     non-fatal condition for a best-effort enrichment.
 //   - found == true, usage == nil when the turn is located but has no usage
 //     object (model is still returned).
-//   - a non-nil err only for I/O failures opening or reading the file.
+//   - a non-nil err for I/O failures opening or reading the file, and for a
+//     line exceeding maxTranscriptLineLength (errTranscriptLineTooLong) —
+//     the scan aborts rather than accumulating an unbounded line in memory.
 //
 // The file may be large, so it is streamed line by line rather than read whole.
 // Each line is cheaply pre-filtered with a substring check on toolUseID before
@@ -69,7 +84,10 @@ func lookupTranscriptUsage(path, toolUseID string) (model string, usage json.Raw
 	needle := []byte(toolUseID)
 	r := bufio.NewReader(f)
 	for {
-		line, readErr := r.ReadBytes('\n')
+		line, readErr := readBoundedLine(r, maxTranscriptLineLength)
+		if errors.Is(readErr, errTranscriptLineTooLong) {
+			return "", nil, false, readErr
+		}
 		if len(line) > 0 && bytes.Contains(line, needle) {
 			m, u, ok := matchToolUse(line, toolUseID)
 			if ok {
@@ -82,6 +100,29 @@ func lookupTranscriptUsage(path, toolUseID string) (model string, usage json.Raw
 			}
 			return "", nil, false, readErr
 		}
+	}
+}
+
+// readBoundedLine reads one '\n'-delimited line from r, mirroring
+// bufio.Reader.ReadBytes but capping the accumulated line at max bytes
+// instead of growing the returned slice without bound while it searches for
+// the delimiter. Returns errTranscriptLineTooLong once max is exceeded,
+// before the oversized line is fully accumulated.
+func readBoundedLine(r *bufio.Reader, max int) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(line)+len(chunk) > max {
+			return line, errTranscriptLineTooLong
+		}
+		line = append(line, chunk...)
+		if err == nil {
+			return line, nil
+		}
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+		return line, err
 	}
 }
 
