@@ -440,17 +440,23 @@ func TestPipeline_PromptPreviewIsRedactedInReceipt(t *testing.T) {
 
 // TestPipeline_PromptPreviewRedactedBeforeTruncation verifies redaction runs
 // before the rune cap, matching the ordering already used for outcome.error
-// (build.go:852-856): redaction can lengthen a string (a short secret replaced
-// by the longer "[REDACTED]" placeholder), so capping first could leave an
-// over-cap value, and redacting after truncation could leave a secret's tail
-// exposed if the cap split it mid-match.
+// (build.go:852-856). The cap (30) is chosen to land strictly between the
+// redacted length (37 runes: "leading text [REDACTED] trailing text") and the
+// point in the raw preview where truncation would still leave the full 36+
+// character run the ghp_ pattern requires (raw truncation at 30 runes cuts
+// the token down to "ghp_" + 13 x's, short of the {36,} minimum). So:
+//   - redact-then-truncate (correct): the placeholder is already in place
+//     before the cut, so "[REDACTED]" survives and no raw "ghp_" remains.
+//   - truncate-then-redact (wrong): the cut token no longer matches the
+//     pattern, so the raw secret prefix "ghp_xxx..." would leak untouched.
 func TestPipeline_PromptPreviewRedactedBeforeTruncation(t *testing.T) {
 	ks := newTestKeySource(t)
 	st := newTestStore(t)
 	state := chain.New("chain-preview-redact-trunc")
 	p := New(state, ks, st, "did:agent-receipts-daemon:test")
 	p.Redactor = NewRedactor(nil)
-	p.MaxPromptPreviewLen = 4096
+	const cap = 30
+	p.MaxPromptPreviewLen = cap
 
 	secret := "ghp_" + strings.Repeat("x", 36)
 	preview := "leading text " + secret + " trailing text"
@@ -478,11 +484,14 @@ func TestPipeline_PromptPreviewRedactedBeforeTruncation(t *testing.T) {
 	if intent == nil {
 		t.Fatal("intent nil")
 	}
-	if intent.PromptPreview != "leading text [REDACTED] trailing text" {
-		t.Errorf("prompt_preview = %q, want redacted", intent.PromptPreview)
+	if want := "leading text [REDACTED] traili"; intent.PromptPreview != want {
+		t.Errorf("prompt_preview = %q, want %q", intent.PromptPreview, want)
 	}
-	if intent.PromptPreviewTruncated != nil {
-		t.Error("prompt_preview_truncated must be absent; well within cap after redaction")
+	if strings.Contains(intent.PromptPreview, "ghp_") {
+		t.Errorf("prompt_preview contains raw secret prefix — truncation ran before redaction: %q", intent.PromptPreview)
+	}
+	if intent.PromptPreviewTruncated == nil || !*intent.PromptPreviewTruncated {
+		t.Error("prompt_preview_truncated must be true; the redacted string (37 runes) exceeds the 30-rune cap")
 	}
 }
 
