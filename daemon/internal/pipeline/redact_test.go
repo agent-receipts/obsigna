@@ -395,6 +395,97 @@ func TestPipeline_RedactionAppliedToError(t *testing.T) {
 	}
 }
 
+// TestPipeline_PromptPreviewIsRedactedInReceipt verifies intent.prompt_preview
+// — the second inline plaintext field alongside outcome.error (issue #1012) —
+// is redacted before persistence when it contains a recognisable secret shape.
+func TestPipeline_PromptPreviewIsRedactedInReceipt(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("chain-preview-redact")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+	p.Redactor = NewRedactor(nil)
+
+	secret := "ghp_" + strings.Repeat("x", 36)
+	body, err := json.Marshal(EmitterFrame{
+		Version:       "1",
+		TsEmit:        "2026-05-03T00:00:00Z",
+		SessionID:     "s",
+		Channel:       "sdk",
+		Tool:          EmitterTool{Name: "t"},
+		PromptPreview: "use token " + secret + " to authenticate",
+		Decision:      "allowed",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	receipts, err := st.GetChain("chain-preview-redact")
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := receipts[0].CredentialSubject.Intent
+	if intent == nil {
+		t.Fatal("intent nil; daemon must populate intent.prompt_preview")
+	}
+	if strings.Contains(intent.PromptPreview, secret) {
+		t.Errorf("prompt_preview contains raw secret — redaction did not run: %q", intent.PromptPreview)
+	}
+	if !strings.Contains(intent.PromptPreview, "[REDACTED]") {
+		t.Errorf("prompt_preview does not contain [REDACTED]: %q", intent.PromptPreview)
+	}
+}
+
+// TestPipeline_PromptPreviewRedactedBeforeTruncation verifies redaction runs
+// before the rune cap, matching the ordering already used for outcome.error
+// (build.go:852-856): redaction can lengthen a string (a short secret replaced
+// by the longer "[REDACTED]" placeholder), so capping first could leave an
+// over-cap value, and redacting after truncation could leave a secret's tail
+// exposed if the cap split it mid-match.
+func TestPipeline_PromptPreviewRedactedBeforeTruncation(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("chain-preview-redact-trunc")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+	p.Redactor = NewRedactor(nil)
+	p.MaxPromptPreviewLen = 4096
+
+	secret := "ghp_" + strings.Repeat("x", 36)
+	preview := "leading text " + secret + " trailing text"
+	body, err := json.Marshal(EmitterFrame{
+		Version:       "1",
+		TsEmit:        "2026-05-03T00:00:00Z",
+		SessionID:     "s",
+		Channel:       "sdk",
+		Tool:          EmitterTool{Name: "t"},
+		PromptPreview: preview,
+		Decision:      "allowed",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	receipts, err := st.GetChain("chain-preview-redact-trunc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := receipts[0].CredentialSubject.Intent
+	if intent == nil {
+		t.Fatal("intent nil")
+	}
+	if intent.PromptPreview != "leading text [REDACTED] trailing text" {
+		t.Errorf("prompt_preview = %q, want redacted", intent.PromptPreview)
+	}
+	if intent.PromptPreviewTruncated != nil {
+		t.Error("prompt_preview_truncated must be absent; well within cap after redaction")
+	}
+}
+
 // TestPipeline_NoRedactorIsNoop verifies that when no Redactor is set (nil),
 // the pipeline behaves exactly as before — hashes and error field are
 // unmodified. Nil Redactor must not panic.
