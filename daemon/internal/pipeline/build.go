@@ -954,11 +954,13 @@ func (p *Pipeline) issuerFromFrame(f *EmitterFrame) receipt.Issuer {
 // syntactically valid JSON but overflows float64 when Canonicalize re-parses
 // it (see canonicalSHA256). Unlike Input/Output, Usage is not required for
 // the receipt to be a valid audit record, so a violation here MUST NOT fail
-// the whole receipt build the way a bad Input/Output hash does. Instead it is
-// dropped with a logged warning — mirroring the disclosure-encryption
-// fallback (degrade, never drop the event) — so the receipt still gets
-// signed and stored via the normal path, and the failure surfaces later, once
-// only, when the whole receipt is canonicalised for hashing/signing.
+// the whole receipt build the way a bad Input/Output hash does. Instead the
+// check runs eagerly, right here, before the field is ever attached to the
+// Runtime the caller builds: on failure it is dropped with a logged warning
+// — mirroring the disclosure-encryption fallback (degrade, never drop the
+// event) — so the later whole-receipt canonicalisation in signAndHash never
+// sees an uncanonicalisable usage payload and the receipt still gets signed
+// and stored via the normal path.
 func (p *Pipeline) validatedUsage(raw json.RawMessage) (json.RawMessage, bool) {
 	if !hasJSONPayload(raw) {
 		return nil, false
