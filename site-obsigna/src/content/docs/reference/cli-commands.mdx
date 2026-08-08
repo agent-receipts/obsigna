@@ -153,10 +153,12 @@ obsigna receipt verify \
 | `-db` | Receipt-store path (default: per-user path; env: `AGENTRECEIPTS_DB`) |
 | `-public-key` | PEM-encoded SPKI public key path (env: `AGENTRECEIPTS_PUBLIC_KEY`; defaults to `<key>.pub` derived from `AGENTRECEIPTS_KEY`) |
 | `-chain-id` | Chain id to verify (default: the current UTC date, e.g. `2026-06-13`, matching the daemon's per-day chain id; env: `AGENTRECEIPTS_CHAIN_ID`) |
+| `-against-anchor` | Path to an out-of-band signed checkpoint log (ADR-0008). When set, additionally checks the chain HEAD against the latest checkpoint and fails on tail truncation (env: `AGENTRECEIPTS_AGAINST_ANCHOR`) |
+| `-json` | Emit a single machine-readable JSON object instead of human-readable text |
 
-A successful run prints `Chain <id>: VALID (<n> receipts)` (or `receipt` when n=1). A tampered chain prints `Chain <id>: BROKEN at receipt <n>` with the failing cause and per-receipt status (`BAD SIGNATURE`, `BAD HASH LINK`, `BAD SEQUENCE`).
+A successful run prints `Chain <id>: VALID (<n> receipts)` (or `receipt` when n=1). Chain verification proves signatures, hash linkage, and sequence numbers on the receipts it was given — it does **not** by itself prove none were deleted (spec §7.3.1), so without `--against-anchor` the verdict is qualified: `... — truncation not checked. Pass --against-anchor to check against an out-of-band checkpoint.` An empty chain (no receipts at all) is reported separately as `Chain <id>: NO RECEIPTS FOUND (0 receipts)` rather than `VALID`, since an empty result trivially passes every check and is not evidence the chain never existed or wasn't deleted. A tampered chain prints `Chain <id>: BROKEN at receipt <n>` with the failing cause and per-receipt status (`BAD SIGNATURE`, `BAD HASH LINK`, `BAD SEQUENCE`).
 
-**Exit codes:** `0` chain verified; `1` chain failed verification; `2` bad flags or an unreadable DB/key file.
+**Exit codes:** `0` chain verified (including an empty or unqualified-truncation result); `1` chain failed verification, or a `--against-anchor` check failed; `2` bad flags or an unreadable DB/key file.
 
 ### `obsigna receipt verify-event`
 

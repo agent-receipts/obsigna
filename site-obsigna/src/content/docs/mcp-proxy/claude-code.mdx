@@ -254,7 +254,7 @@ SEQ  TIMESTAMP             CHAIN       TOOL / ACTION TYPE
 1    2026-04-24T00:19:35Z  2026-04-24  issue_write
 ```
 
-`obsigna receipt verify` prints `Chain 2026-04-24: VALID (5 receipts)` when signatures and hash links are intact. Inspect a single receipt — including its action type, risk level, and parameters hash — with `obsigna receipt show <seq>`. See the [CLI reference](/reference/cli-commands/#obsigna) for all subcommands.
+`obsigna receipt verify` prints `Chain 2026-04-24: VALID (5 receipts) — truncation not checked. Pass --against-anchor to check against an out-of-band checkpoint.` when signatures and hash links are intact. Inspect a single receipt — including its action type, risk level, and parameters hash — with `obsigna receipt show <seq>`. See the [CLI reference](/reference/cli-commands/#obsigna) for all subcommands.
 
 ## Gotchas
 
