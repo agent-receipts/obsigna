@@ -186,6 +186,52 @@ func TestDescribeDisabled(t *testing.T) {
 	}
 }
 
+func TestMalformedToolPatternDisablesRule(t *testing.T) {
+	rules := []Rule{
+		{Name: "bad_tool_pattern", Enabled: true, ToolPattern: "delete[*", Action: "block"},
+	}
+	engine := NewEngine(rules)
+	if engine.rules[0].Enabled {
+		t.Error("expected rule with malformed tool pattern to be disabled")
+	}
+	d := engine.Evaluate(EvalContext{ToolName: "delete_secrets"})
+	if d.Action != "pass" {
+		t.Errorf("expected pass (rule disabled), got %s", d.Action)
+	}
+}
+
+func TestMalformedServerPatternDisablesRule(t *testing.T) {
+	rules := []Rule{
+		{Name: "bad_server_pattern", Enabled: true, ServerPattern: "[a-", Action: "block"},
+	}
+	engine := NewEngine(rules)
+	if engine.rules[0].Enabled {
+		t.Error("expected rule with malformed server pattern to be disabled")
+	}
+}
+
+func TestWellFormedPatternsStayEnabled(t *testing.T) {
+	rules := []Rule{
+		{Name: "ok", Enabled: true, ToolPattern: "delete_*", ServerPattern: "vault?", Action: "block"},
+	}
+	engine := NewEngine(rules)
+	if !engine.rules[0].Enabled {
+		t.Error("expected rule with well-formed patterns to remain enabled")
+	}
+}
+
+func TestDisabledRuleWithBadPatternNotValidated(t *testing.T) {
+	// A rule that's already disabled shouldn't trigger the malformed-pattern
+	// log/disable path; it's simply skipped.
+	rules := []Rule{
+		{Name: "off_bad_pattern", Enabled: false, ToolPattern: "rm[[", Action: "block"},
+	}
+	engine := NewEngine(rules)
+	if engine.rules[0].Enabled {
+		t.Error("expected already-disabled rule to remain disabled")
+	}
+}
+
 func TestHasPauseRules(t *testing.T) {
 	// Default rules include pause_high_risk.
 	engine := NewEngine(DefaultRules())
