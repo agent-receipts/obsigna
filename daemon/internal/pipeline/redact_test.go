@@ -395,6 +395,106 @@ func TestPipeline_RedactionAppliedToError(t *testing.T) {
 	}
 }
 
+// TestPipeline_PromptPreviewIsRedactedInReceipt verifies intent.prompt_preview
+// — the second inline plaintext field alongside outcome.error (issue #1012) —
+// is redacted before persistence when it contains a recognisable secret shape.
+func TestPipeline_PromptPreviewIsRedactedInReceipt(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("chain-preview-redact")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+	p.Redactor = NewRedactor(nil)
+
+	secret := "ghp_" + strings.Repeat("x", 36)
+	body, err := json.Marshal(EmitterFrame{
+		Version:       "1",
+		TsEmit:        "2026-05-03T00:00:00Z",
+		SessionID:     "s",
+		Channel:       "sdk",
+		Tool:          EmitterTool{Name: "t"},
+		PromptPreview: "use token " + secret + " to authenticate",
+		Decision:      "allowed",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	receipts, err := st.GetChain("chain-preview-redact")
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := receipts[0].CredentialSubject.Intent
+	if intent == nil {
+		t.Fatal("intent nil; daemon must populate intent.prompt_preview")
+	}
+	if strings.Contains(intent.PromptPreview, secret) {
+		t.Errorf("prompt_preview contains raw secret — redaction did not run: %q", intent.PromptPreview)
+	}
+	if !strings.Contains(intent.PromptPreview, "[REDACTED]") {
+		t.Errorf("prompt_preview does not contain [REDACTED]: %q", intent.PromptPreview)
+	}
+}
+
+// TestPipeline_PromptPreviewRedactedBeforeTruncation verifies redaction runs
+// before the rune cap, matching the ordering already used for outcome.error
+// (build.go:852-856). The cap (30) is chosen to land strictly between the
+// redacted length (37 runes: "leading text [REDACTED] trailing text") and the
+// point in the raw preview where truncation would still leave the full 36+
+// character run the ghp_ pattern requires (raw truncation at 30 runes cuts
+// the token down to "ghp_" + 13 x's, short of the {36,} minimum). So:
+//   - redact-then-truncate (correct): the placeholder is already in place
+//     before the cut, so "[REDACTED]" survives and no raw "ghp_" remains.
+//   - truncate-then-redact (wrong): the cut token no longer matches the
+//     pattern, so the raw secret prefix "ghp_xxx..." would leak untouched.
+func TestPipeline_PromptPreviewRedactedBeforeTruncation(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("chain-preview-redact-trunc")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+	p.Redactor = NewRedactor(nil)
+	const cap = 30
+	p.MaxPromptPreviewLen = cap
+
+	secret := "ghp_" + strings.Repeat("x", 36)
+	preview := "leading text " + secret + " trailing text"
+	body, err := json.Marshal(EmitterFrame{
+		Version:       "1",
+		TsEmit:        "2026-05-03T00:00:00Z",
+		SessionID:     "s",
+		Channel:       "sdk",
+		Tool:          EmitterTool{Name: "t"},
+		PromptPreview: preview,
+		Decision:      "allowed",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	receipts, err := st.GetChain("chain-preview-redact-trunc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := receipts[0].CredentialSubject.Intent
+	if intent == nil {
+		t.Fatal("intent nil")
+	}
+	if want := "leading text [REDACTED] traili"; intent.PromptPreview != want {
+		t.Errorf("prompt_preview = %q, want %q", intent.PromptPreview, want)
+	}
+	if strings.Contains(intent.PromptPreview, "ghp_") {
+		t.Errorf("prompt_preview contains raw secret prefix — truncation ran before redaction: %q", intent.PromptPreview)
+	}
+	if intent.PromptPreviewTruncated == nil || !*intent.PromptPreviewTruncated {
+		t.Error("prompt_preview_truncated must be true; the redacted string (37 runes) exceeds the 30-rune cap")
+	}
+}
+
 // TestPipeline_NoRedactorIsNoop verifies that when no Redactor is set (nil),
 // the pipeline behaves exactly as before — hashes and error field are
 // unmodified. Nil Redactor must not panic.

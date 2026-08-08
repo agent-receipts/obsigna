@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Apply the Redactor to `intent.prompt_preview`** ([#1012](https://github.com/agent-receipts/obsigna/issues/1012)) — the daemon redacted `outcome.error` but wrote `prompt_preview` into signed receipts verbatim after truncation only, leaving a documented wire-protocol field free to carry pasted secrets unredacted. `intentFromFrame` now redacts before truncating, matching the ordering already used for `outcome.error`. No in-tree emitter populates `prompt_preview` today, so this closes a latent gap rather than a live leak.
+
 ## [0.30.0] - 2026-07-17
 
 ### Added

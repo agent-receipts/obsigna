@@ -162,6 +162,16 @@ func (r *Redactor) Redact(raw string) string {
 	return raw
 }
 
+// RedactIfSet applies Redact when r is non-nil, and returns raw unchanged
+// when it is nil — the "no Redactor configured" case every call site would
+// otherwise have to guard against individually.
+func (r *Redactor) RedactIfSet(raw string) string {
+	if r == nil {
+		return raw
+	}
+	return r.Redact(raw)
+}
+
 func redactJSONValue(v any) any {
 	switch val := v.(type) {
 	case map[string]any:

@@ -212,10 +212,11 @@ type Pipeline struct {
 	ResponseDisclosurePolicy DisclosurePolicy
 
 	// Redactor is applied to text fields before they are persisted in the
-	// receipt body. Today that means outcome.error only; input and output are
-	// never stored as raw text — only their SHA-256 hashes go into
-	// parameters_hash / response_hash, so those hashes are always over the
-	// original emitter payload. Nil = no redaction.
+	// receipt body: outcome.error and intent.prompt_preview, the two inline
+	// plaintext fields the daemon writes (see MaxErrorLen/MaxPromptPreviewLen
+	// below). Input and output are never stored as raw text — only their
+	// SHA-256 hashes go into parameters_hash / response_hash, so those hashes
+	// are always over the original emitter payload. Nil = no redaction.
 	Redactor *Redactor
 
 	// MaxErrorLen and MaxPromptPreviewLen bound, in runes, the two plaintext
@@ -854,10 +855,7 @@ func (p *Pipeline) buildAndSign(
 	// placeholder), so capping first could still leave an over-cap value. The
 	// error is plaintext written inline (issue #478); truncating keeps a hostile
 	// or runaway message from inflating the receipt and slowing canonicalisation.
-	errText := f.Error
-	if p.Redactor != nil {
-		errText = p.Redactor.Redact(errText)
-	}
+	errText := p.Redactor.RedactIfSet(f.Error)
 	errText = truncateError(errText, p.MaxErrorLen)
 
 	outcome := receipt.Outcome{
@@ -894,7 +892,7 @@ func (p *Pipeline) buildAndSign(
 		Principal:     principalFromPeer(peer),
 		Action:        action,
 		Outcome:       outcome,
-		Intent:        intentFromFrame(f, p.MaxPromptPreviewLen),
+		Intent:        intentFromFrame(f, p.Redactor, p.MaxPromptPreviewLen),
 		CorrelationID: f.CorrelationID,
 		Delegation:    delegation,
 		Chain: receipt.Chain{
@@ -946,24 +944,30 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 	}
 }
 
-// intentFromFrame builds the receipt Intent from the emitter frame, truncating
-// the plaintext prompt_preview to maxPreviewLen runes (issue #478). It returns
-// nil when the emitter sent no preview, so the receipt omits the intent block
-// entirely rather than emitting an empty object. The conversation/reasoning
-// hashes are not carried on the daemon emit path today — only the one inline
-// plaintext intent field is, which is why it is the only one bounded here.
-func intentFromFrame(f *EmitterFrame, maxPreviewLen int) *receipt.Intent {
+// intentFromFrame builds the receipt Intent from the emitter frame, redacting
+// then truncating the plaintext prompt_preview (issue #478, issue #1012). It
+// returns nil when the emitter sent no preview, so the receipt omits the
+// intent block entirely rather than emitting an empty object. The
+// conversation/reasoning hashes are not carried on the daemon emit path today
+// — only the one inline plaintext intent field is, which is why it is the
+// only one bounded here.
+//
+// Redaction runs before the cap, mirroring errText's ordering (build.go:852-
+// 856): redaction can lengthen the string, so capping first could leave an
+// over-cap value.
+func intentFromFrame(f *EmitterFrame, redactor *Redactor, maxPreviewLen int) *receipt.Intent {
 	if f.PromptPreview == "" {
 		return nil
 	}
+	preview := redactor.RedactIfSet(f.PromptPreview)
 	// A non-positive cap disables truncation, matching truncateError and the
 	// flag/env/TOML contract ("negative disables"). The shared
 	// TruncatePromptPreview helper instead treats maxLen <= 0 as "drop the
 	// whole preview", so guard it here rather than route a disable through it.
 	if maxPreviewLen <= 0 {
-		return &receipt.Intent{PromptPreview: f.PromptPreview}
+		return &receipt.Intent{PromptPreview: preview}
 	}
-	preview, truncated := receipt.TruncatePromptPreview(f.PromptPreview, maxPreviewLen)
+	preview, truncated := receipt.TruncatePromptPreview(preview, maxPreviewLen)
 	intent := &receipt.Intent{PromptPreview: preview}
 	if truncated {
 		intent.PromptPreviewTruncated = &truncated
