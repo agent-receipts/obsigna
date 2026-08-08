@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Validate `runtime.usage` for canonicalisation-safety before embedding it in the signed receipt** ([#1008](https://github.com/agent-receipts/obsigna/issues/1008)) — `issuer.runtime.usage` is an ADR-0026 open container forwarded verbatim from an external artifact (e.g. the Claude Code transcript). It previously reached the signer unvalidated, so a syntactically-valid-but-uncanonicalisable payload (a number like `1e400`, which overflows `float64` on RFC 8785 re-parse) would fail the whole-receipt canonicalisation and drop the event, defeating the audit trail. The daemon now validates `usage` at the trust boundary; on a canonicalisation violation it drops the field, logs a warning, and still emits the receipt — mirroring the existing forensic-disclosure fallback (degrade, never drop the event).
+
 ## [0.31.0] - 2026-08-08
 
 ### Changed
