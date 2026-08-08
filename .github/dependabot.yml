@@ -10,6 +10,24 @@ updates:
           - "*"
 
   - package-ecosystem: npm
+    directory: /sdk/ts-aws
+    schedule:
+      interval: weekly
+    groups:
+      npm_and_yarn:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /integrations/opencode-plugin
+    schedule:
+      interval: weekly
+    groups:
+      npm_and_yarn:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
     directory: /site
     schedule:
       interval: weekly
@@ -39,7 +57,16 @@ updates:
     # locally via go.work; Dependabot bumping their pins (often to alpha tags)
     # is noise. Third-party deps still update normally.
     ignore:
-      - dependency-name: "github.com/agent-receipts/ar/*"
+      - dependency-name: "obsigna.dev/*"
+
+  - package-ecosystem: gomod
+    directory: /sdk/go/aws
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns:
+          - "*"
 
   - package-ecosystem: gomod
     directory: /mcp-proxy
@@ -50,7 +77,40 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "github.com/agent-receipts/ar/*"
+      - dependency-name: "obsigna.dev/*"
+
+  - package-ecosystem: gomod
+    directory: /hook
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "obsigna.dev/*"
+
+  - package-ecosystem: gomod
+    directory: /daemon
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "obsigna.dev/*"
+
+  - package-ecosystem: gomod
+    directory: /collector
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "obsigna.dev/*"
 
   - package-ecosystem: gomod
     directory: /cross-sdk-tests
@@ -61,7 +121,7 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "github.com/agent-receipts/ar/*"
+      - dependency-name: "obsigna.dev/*"
 
   - package-ecosystem: uv
     directory: /sdk/py
