@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Validate emitter-supplied `issuer.runtime.usage` before embedding it in the signed receipt** ([#1008](https://github.com/agent-receipts/obsigna/issues/1008)) — `usage` is an ADR-0026 open container forwarded verbatim from an external artifact (the hook reads it straight out of the Claude Code transcript), and it reached `signAndHash`'s canonicalisation step with no well-formedness check. A syntactically valid but uncanonicalisable value (e.g. a JSON number like `1e400` that overflows `float64`) would fail the *entire* receipt build, punching an audit-trail hole. The daemon now validates `usage` against the canonicaliser at the trust boundary and, on failure, drops the field with a logged warning while still emitting the receipt — mirroring the existing forensic-disclosure fallback (encryption failure degrades to hash-only, never drops the event). `model`/`capture_method` and the rest of the receipt are unaffected.
+
 ## [0.31.0] - 2026-08-08
 
 ### Changed

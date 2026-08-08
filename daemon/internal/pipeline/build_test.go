@@ -1870,6 +1870,72 @@ func TestProcess_RuntimeModelUsageOnRootReceipt(t *testing.T) {
 	}
 }
 
+// TestProcess_MalformedRuntimeUsageDropsFieldNotReceipt verifies that a
+// syntactically-valid-JSON usage payload that cannot be canonicalised (e.g. a
+// JSON number overflowing float64) is dropped from issuer.runtime.usage with
+// a logged warning, rather than failing the whole receipt build. This is the
+// trust-boundary validation for emitter-supplied open containers (issue
+// #1008): Usage is forwarded verbatim from an external artifact (the Claude
+// Code transcript), so the daemon cannot assume it is well-formed enough for
+// receipt.Canonicalize.
+func TestProcess_MalformedRuntimeUsageDropsFieldNotReceipt(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("root")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+
+	var logged string
+	p.ErrorLog = func(format string, args ...any) {
+		logged = fmt.Sprintf(format, args...)
+	}
+
+	// 1e400 is syntactically valid JSON (survives EmitterFrame's outer
+	// json.Unmarshal as a json.RawMessage token) but overflows float64 when
+	// receipt.Canonicalize re-parses it into a generic `any` tree.
+	body, err := json.Marshal(EmitterFrame{
+		Version:   "1",
+		TsEmit:    "2026-05-03T00:00:00Z",
+		SessionID: "sess-abc",
+		Channel:   "claude-code",
+		Tool:      EmitterTool{Name: "Bash"},
+		Decision:  "allowed",
+		Model:     "claude-opus-4-8",
+		Usage:     json.RawMessage(`{"input_tokens":1e400}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v; want the receipt to still be emitted with usage dropped", err)
+	}
+	if logged == "" {
+		t.Error("ErrorLog was not called; dropped runtime.usage must be logged")
+	}
+
+	receipts, err := st.GetChain("root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts, want 1", len(receipts))
+	}
+	rt := receipts[0].Issuer.Runtime
+	if rt == nil {
+		t.Fatal("issuer.runtime is nil; want it present for model even with usage dropped")
+	}
+	if rt.Model != "claude-opus-4-8" {
+		t.Errorf("runtime.model = %q; want claude-opus-4-8 (unaffected by the dropped usage)", rt.Model)
+	}
+	if rt.Usage != nil {
+		t.Errorf("runtime.usage = %s; want nil (dropped as uncanonicalisable)", rt.Usage)
+	}
+
+	// The signed receipt must still be valid and hash-stable.
+	if _, err := receipt.HashReceipt(receipts[0]); err != nil {
+		t.Fatalf("HashReceipt on the usage-dropped receipt: %v", err)
+	}
+}
+
 // TestProcess_AgentIDRoutesToSeparateChain verifies that frames with a non-empty
 // agent_id land on a per-agent chain distinct from the root chain.
 func TestProcess_AgentIDRoutesToSeparateChain(t *testing.T) {

@@ -724,6 +724,32 @@ func (p *Pipeline) encryptDisclosure(payload json.RawMessage, kid string) *recei
 	return env
 }
 
+// sanitizeUsage validates the emitter-supplied issuer.runtime.usage open
+// container (ADR-0026) at the trust boundary. Usage is forwarded into the
+// signed receipt verbatim and has no schema of its own, so it must at least
+// be safe for the canonicaliser: a value that survives EmitterFrame's initial
+// json.Unmarshal as a syntactically valid json.RawMessage can still fail a
+// later re-parse (e.g. a JSON number like 1e400 that overflows float64 — see
+// canonicalSHA256). Unlike Input/Output, Usage is not hashed through
+// canonicalSHA256 with the caller surfacing the error, so an unvalidated
+// blob would instead reach signAndHash's receipt.Canonicalize call and fail
+// the ENTIRE receipt build — punching exactly the audit-trail hole the
+// encryptDisclosure fallback above exists to avoid.
+//
+// Returns usage unchanged when it is empty/null/well-formed, or nil (with a
+// logged warning) when canonicalisation would fail — dropping the field
+// rather than the receipt, mirroring the disclosure best-effort fallback.
+func (p *Pipeline) sanitizeUsage(usage json.RawMessage) json.RawMessage {
+	if !hasJSONPayload(usage) {
+		return usage
+	}
+	if _, err := receipt.Canonicalize(usage); err != nil {
+		p.logError("dropping runtime.usage (not safe to canonicalise): %v", err)
+		return nil
+	}
+	return usage
+}
+
 func (p *Pipeline) buildAndSign(
 	f *EmitterFrame,
 	peer socket.PeerCred,
@@ -888,7 +914,7 @@ func (p *Pipeline) buildAndSign(
 	}
 
 	return p.signAndHash(receipt.CreateInput{
-		Issuer:        issuerFromFrame(f, p.IssuerID),
+		Issuer:        issuerFromFrame(f, p.IssuerID, p.sanitizeUsage(f.Usage)),
 		Principal:     principalFromPeer(peer),
 		Action:        action,
 		Outcome:       outcome,
@@ -906,7 +932,9 @@ func (p *Pipeline) buildAndSign(
 // issuerFromFrame builds the receipt Issuer from the emitter frame and the
 // daemon's own DID. Name, Model, and Operator come from the proxy; they are
 // empty/nil when an old proxy that predates this field set emits the frame.
-func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
+// usage is the emitter-supplied runtime.usage payload, already validated by
+// sanitizeUsage — callers MUST NOT pass f.Usage directly.
+func issuerFromFrame(f *EmitterFrame, daemonID string, usage json.RawMessage) receipt.Issuer {
 	var op *receipt.Operator
 	if f.OperatorID != "" {
 		op = &receipt.Operator{ID: f.OperatorID, Name: f.OperatorName}
@@ -920,7 +948,7 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 	// has transcript-derived model/usage even though it has no agent_id.
 	// Forward usage verbatim, but only a real JSON payload — a literal null or
 	// empty must not be stored as the runtime's reported usage.
-	hasUsage := hasJSONPayload(f.Usage)
+	hasUsage := hasJSONPayload(usage)
 	var runtime *receipt.Runtime
 	if f.AgentID != "" || f.Model != "" || f.CaptureMethod != "" || hasUsage {
 		runtime = &receipt.Runtime{
@@ -930,7 +958,7 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 			CaptureMethod: f.CaptureMethod,
 		}
 		if hasUsage {
-			runtime.Usage = f.Usage
+			runtime.Usage = usage
 		}
 	}
 	return receipt.Issuer{
