@@ -888,7 +888,7 @@ func (p *Pipeline) buildAndSign(
 	}
 
 	return p.signAndHash(receipt.CreateInput{
-		Issuer:        issuerFromFrame(f, p.IssuerID),
+		Issuer:        p.issuerFromFrame(f),
 		Principal:     principalFromPeer(peer),
 		Action:        action,
 		Outcome:       outcome,
@@ -906,7 +906,7 @@ func (p *Pipeline) buildAndSign(
 // issuerFromFrame builds the receipt Issuer from the emitter frame and the
 // daemon's own DID. Name, Model, and Operator come from the proxy; they are
 // empty/nil when an old proxy that predates this field set emits the frame.
-func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
+func (p *Pipeline) issuerFromFrame(f *EmitterFrame) receipt.Issuer {
 	var op *receipt.Operator
 	if f.OperatorID != "" {
 		op = &receipt.Operator{ID: f.OperatorID, Name: f.OperatorName}
@@ -920,7 +920,7 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 	// has transcript-derived model/usage even though it has no agent_id.
 	// Forward usage verbatim, but only a real JSON payload — a literal null or
 	// empty must not be stored as the runtime's reported usage.
-	hasUsage := hasJSONPayload(f.Usage)
+	usage, hasUsage := p.validatedUsage(f.Usage)
 	var runtime *receipt.Runtime
 	if f.AgentID != "" || f.Model != "" || f.CaptureMethod != "" || hasUsage {
 		runtime = &receipt.Runtime{
@@ -930,11 +930,11 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 			CaptureMethod: f.CaptureMethod,
 		}
 		if hasUsage {
-			runtime.Usage = f.Usage
+			runtime.Usage = usage
 		}
 	}
 	return receipt.Issuer{
-		ID:        daemonID,
+		ID:        p.IssuerID,
 		Type:      "AgentReceiptsDaemon",
 		Name:      f.IssuerName,
 		Model:     f.IssuerModel,
@@ -942,6 +942,32 @@ func issuerFromFrame(f *EmitterFrame, daemonID string) receipt.Issuer {
 		SessionID: f.SessionID,
 		Runtime:   runtime,
 	}
+}
+
+// validatedUsage reports whether raw is a real, canonicalisation-safe JSON
+// payload, returning it (unchanged) alongside true when so.
+//
+// Usage is an ADR-0026 open container: the emitter forwards it verbatim from
+// an external artifact (the Claude Code transcript, for other runtimes
+// whatever they report), so the daemon cannot assume it is well-formed enough
+// to survive RFC 8785 canonicalisation — e.g. a number like 1e400 is
+// syntactically valid JSON but overflows float64 when Canonicalize re-parses
+// it (see canonicalSHA256). Unlike Input/Output, Usage is not required for
+// the receipt to be a valid audit record, so a violation here MUST NOT fail
+// the whole receipt build the way a bad Input/Output hash does. Instead it is
+// dropped with a logged warning — mirroring the disclosure-encryption
+// fallback (degrade, never drop the event) — so the receipt still gets
+// signed and stored via the normal path, and the failure surfaces later, once
+// only, when the whole receipt is canonicalised for hashing/signing.
+func (p *Pipeline) validatedUsage(raw json.RawMessage) (json.RawMessage, bool) {
+	if !hasJSONPayload(raw) {
+		return nil, false
+	}
+	if _, err := receipt.Canonicalize(raw); err != nil {
+		p.logError("dropping runtime.usage (not canonicalization-safe): %v", err)
+		return nil, false
+	}
+	return raw, true
 }
 
 // intentFromFrame builds the receipt Intent from the emitter frame, redacting

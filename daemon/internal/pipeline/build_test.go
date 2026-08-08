@@ -1870,6 +1870,73 @@ func TestProcess_RuntimeModelUsageOnRootReceipt(t *testing.T) {
 	}
 }
 
+// TestProcess_DropsUncanonicalizableUsage verifies the fix for issue #1008:
+// runtime.usage is an ADR-0026 open container forwarded verbatim from an
+// external artifact (the emitter's transcript reader), so the daemon cannot
+// assume it survives RFC 8785 canonicalisation. A payload that is
+// syntactically valid JSON but not canonicalisation-safe (1e400 overflows
+// float64 — see TestProcess_RejectsUnrepresentableNumbers) MUST NOT fail the
+// whole receipt build the way a bad Input/Output does; the daemon drops the
+// field, logs a warning, and still emits the receipt.
+func TestProcess_DropsUncanonicalizableUsage(t *testing.T) {
+	ks := newTestKeySource(t)
+	st := newTestStore(t)
+	state := chain.New("root")
+	p := New(state, ks, st, "did:agent-receipts-daemon:test")
+
+	var warnings []string
+	p.ErrorLog = func(format string, args ...any) {
+		warnings = append(warnings, fmt.Sprintf(format, args...))
+	}
+
+	body, err := json.Marshal(EmitterFrame{
+		Version:       "1",
+		TsEmit:        "2026-05-03T00:00:00Z",
+		SessionID:     "sess-abc",
+		Channel:       "claude-code",
+		Tool:          EmitterTool{Name: "Bash"},
+		Decision:      "allowed",
+		Model:         "claude-opus-4-8",
+		Usage:         json.RawMessage(`{"input_tokens":1e400}`),
+		CaptureMethod: "transcript",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Process(socket.Frame{Payload: body}); err != nil {
+		t.Fatalf("Process: %v (usage must be dropped, not fail the receipt)", err)
+	}
+
+	if len(warnings) != 1 {
+		t.Fatalf("got %d warnings, want 1 logged warning about the dropped usage field: %v", len(warnings), warnings)
+	}
+	if !strings.Contains(warnings[0], "usage") {
+		t.Errorf("warning = %q; want it to mention usage", warnings[0])
+	}
+
+	receipts, err := st.GetChain("root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts, want 1", len(receipts))
+	}
+	rt := receipts[0].Issuer.Runtime
+	if rt == nil {
+		t.Fatal("issuer.runtime is nil; want it present for the surviving model/capture_method")
+	}
+	if rt.Usage != nil {
+		t.Errorf("runtime.usage = %s; want nil (dropped)", rt.Usage)
+	}
+	if rt.Model != "claude-opus-4-8" {
+		t.Errorf("runtime.model = %q; want claude-opus-4-8 (unaffected by the dropped usage)", rt.Model)
+	}
+
+	if _, err := receipt.HashReceipt(receipts[0]); err != nil {
+		t.Fatalf("HashReceipt on the surviving receipt: %v", err)
+	}
+}
+
 // TestProcess_AgentIDRoutesToSeparateChain verifies that frames with a non-empty
 // agent_id land on a per-agent chain distinct from the root chain.
 func TestProcess_AgentIDRoutesToSeparateChain(t *testing.T) {
