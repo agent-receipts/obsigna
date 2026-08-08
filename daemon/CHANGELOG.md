@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-08-08
+
 ### Changed
 
 - **`obsigna receipt verify`: qualify the VALID verdict when truncation was not checked** ([#1011](https://github.com/agent-receipts/obsigna/issues/1011)) — chain verification does not detect tail truncation by default (spec §7.3.1: an empty or tail-truncated chain satisfies every check trivially), but the CLI previously printed an unqualified `Chain <id>: VALID (<n> receipts)` either way. The verdict now says so: without `--against-anchor`, it appends `— truncation not checked. Pass --against-anchor to check against an out-of-band checkpoint.` A chain with zero receipts is no longer reported as `VALID` at all — it gets its own `NO RECEIPTS FOUND (0 receipts)` line, since an empty result is not evidence the chain never existed or wasn't deleted. `--json` output gains a `status` field (`"complete" | "interrupted" | "unknown"`, spec §7.3.3) so machine consumers can distinguish "verified complete" from "verified as far as it goes" without re-deriving it. Presentation-layer only — verification semantics and exit codes are unchanged.
+
+### Fixed
+
+- **mcp-proxy + hook: bound unbounded line buffering on peer and transcript input** ([#1010](https://github.com/agent-receipts/obsigna/issues/1010)) — both the proxy's STDIO pipe and the hook's Claude transcript scan grew a read buffer without limit via `bufio.Reader.ReadBytes` while searching for a delimiter, so a malicious or malformed peer streaming an arbitrarily large line with no newline could exhaust process memory. Bounded `readLine`/`readBoundedLine` helpers now cap accumulated line length (10 MiB in the proxy, matching `emitter.MaxFrameSize` in the hook) and discard the remainder of an oversized line rather than fully buffering it. The proxy closes that pipe direction on an oversized line; the hook's transcript scan skips the oversized line and keeps scanning, so one large-but-legitimate line (e.g. a `Write` embedding a big file) doesn't cost every other tool call in the session its receipt enrichment.
 
 ### Security
 
