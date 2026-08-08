@@ -855,10 +855,7 @@ func (p *Pipeline) buildAndSign(
 	// placeholder), so capping first could still leave an over-cap value. The
 	// error is plaintext written inline (issue #478); truncating keeps a hostile
 	// or runaway message from inflating the receipt and slowing canonicalisation.
-	errText := f.Error
-	if p.Redactor != nil {
-		errText = p.Redactor.Redact(errText)
-	}
+	errText := p.Redactor.RedactIfSet(f.Error)
 	errText = truncateError(errText, p.MaxErrorLen)
 
 	outcome := receipt.Outcome{
@@ -962,10 +959,7 @@ func intentFromFrame(f *EmitterFrame, redactor *Redactor, maxPreviewLen int) *re
 	if f.PromptPreview == "" {
 		return nil
 	}
-	preview := f.PromptPreview
-	if redactor != nil {
-		preview = redactor.Redact(preview)
-	}
+	preview := redactor.RedactIfSet(f.PromptPreview)
 	// A non-positive cap disables truncation, matching truncateError and the
 	// flag/env/TOML contract ("negative disables"). The shared
 	// TruncatePromptPreview helper instead treats maxLen <= 0 as "drop the
