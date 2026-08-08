@@ -57,18 +57,43 @@ type Engine struct {
 }
 
 // NewEngine creates a policy engine with the given rules.
-// It validates that all rule actions are known; unknown actions are logged and
-// the rule is disabled to prevent silent misconfiguration.
+// It validates that all rule actions are known and that tool/server patterns
+// are well-formed globs; invalid rules are logged and disabled to prevent
+// silent misconfiguration.
 func NewEngine(rules []Rule) *Engine {
 	validated := make([]Rule, len(rules))
 	copy(validated, rules)
 	for i := range validated {
-		if _, ok := actionSeverity[validated[i].Action]; !ok && validated[i].Enabled {
+		if !validated[i].Enabled {
+			continue
+		}
+		if _, ok := actionSeverity[validated[i].Action]; !ok {
 			log.Printf("mcp-proxy: policy rule %q has unknown action %q — disabling", validated[i].Name, validated[i].Action)
+			validated[i].Enabled = false
+			continue
+		}
+		if pattern, ok := badPattern(validated[i]); ok {
+			log.Printf("mcp-proxy: policy rule %q has malformed glob pattern %q — disabling", validated[i].Name, pattern)
 			validated[i].Enabled = false
 		}
 	}
 	return &Engine{rules: validated}
+}
+
+// badPattern reports whether rule's tool or server pattern is not a valid
+// glob, returning the offending pattern.
+func badPattern(rule Rule) (string, bool) {
+	if rule.ToolPattern != "" {
+		if _, err := filepath.Match(rule.ToolPattern, ""); err != nil {
+			return rule.ToolPattern, true
+		}
+	}
+	if rule.ServerPattern != "" {
+		if _, err := filepath.Match(rule.ServerPattern, ""); err != nil {
+			return rule.ServerPattern, true
+		}
+	}
+	return "", false
 }
 
 // LoadRules loads policy rules from a YAML file.
@@ -184,7 +209,10 @@ func matchesRule(rule Rule, ctx EvalContext) bool {
 	return true
 }
 
-// globMatch does simple glob matching (supports * only).
+// globMatch does case-insensitive glob matching via filepath.Match, which
+// supports *, ?, and [...] character classes. Patterns are validated at
+// engine construction time (see NewEngine/badPattern); a malformed pattern
+// here just falls through to a non-match.
 func globMatch(pattern, value string) bool {
 	pattern = strings.ToLower(pattern)
 	value = strings.ToLower(value)
