@@ -8,7 +8,20 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"obsigna.dev/sdk/go/emitter"
 )
+
+// maxTranscriptLineLength caps a single transcript JSONL line, reusing the
+// daemon's frame-size cap (via the already-imported emitter package):
+// bufio.Reader.ReadBytes otherwise grows its returned slice without limit
+// while it searches for a newline, so a line with no delimiter could exhaust
+// the short-lived hook process's memory.
+const maxTranscriptLineLength = emitter.MaxFrameSize
+
+// errTranscriptLineTooLong is returned by readBoundedLine when a line
+// exceeds maxTranscriptLineLength before a newline is found.
+var errTranscriptLineTooLong = errors.New("transcript line too large")
 
 // transcriptEntry is the minimal projection of one Claude Code transcript JSONL
 // line we need to resolve a tool call's model and token usage. Only assistant
@@ -50,7 +63,13 @@ type transcriptBlock struct {
 //     non-fatal condition for a best-effort enrichment.
 //   - found == true, usage == nil when the turn is located but has no usage
 //     object (model is still returned).
-//   - a non-nil err only for I/O failures opening or reading the file.
+//   - a non-nil err only for I/O failures opening or reading the file. A line
+//     exceeding maxTranscriptLineLength is skipped like a malformed line
+//     (readBoundedLine still bounds the memory used to read it) rather than
+//     aborting the scan — real transcripts can legitimately contain large
+//     tool_use inputs unrelated to the id being looked up, so one oversized
+//     line must not cost every other tool call in the session its receipt
+//     enrichment.
 //
 // The file may be large, so it is streamed line by line rather than read whole.
 // Each line is cheaply pre-filtered with a substring check on toolUseID before
@@ -69,7 +88,13 @@ func lookupTranscriptUsage(path, toolUseID string) (model string, usage json.Raw
 	needle := []byte(toolUseID)
 	r := bufio.NewReader(f)
 	for {
-		line, readErr := r.ReadBytes('\n')
+		line, readErr := readBoundedLine(r, maxTranscriptLineLength)
+		if errors.Is(readErr, errTranscriptLineTooLong) {
+			// Can't be the JSON we're matching against — it would already
+			// have blown the daemon's own frame-size cap — so skip it like a
+			// malformed line and keep scanning instead of aborting.
+			continue
+		}
 		if len(line) > 0 && bytes.Contains(line, needle) {
 			m, u, ok := matchToolUse(line, toolUseID)
 			if ok {
@@ -82,6 +107,56 @@ func lookupTranscriptUsage(path, toolUseID string) (model string, usage json.Raw
 			}
 			return "", nil, false, readErr
 		}
+	}
+}
+
+// readBoundedLine reads one '\n'-delimited line from r, mirroring
+// bufio.Reader.ReadBytes but capping the accumulated line at max bytes
+// instead of growing the returned slice without bound while it searches for
+// the delimiter. Once max is exceeded it discards the remainder of the line
+// (still without accumulating it) so r is left positioned at the start of
+// the next line, then returns errTranscriptLineTooLong — the caller can
+// resume scanning from a subsequent readBoundedLine call.
+func readBoundedLine(r *bufio.Reader, max int) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(line)+len(chunk) > max {
+			if err == bufio.ErrBufferFull {
+				if discardErr := discardRestOfLine(r); discardErr != nil {
+					return line, discardErr
+				}
+			}
+			return line, errTranscriptLineTooLong
+		}
+		line = append(line, chunk...)
+		if err == nil {
+			return line, nil
+		}
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+		return line, err
+	}
+}
+
+// discardRestOfLine reads and discards bytes from r up to and including the
+// next '\n', without accumulating them, so readBoundedLine can resync to the
+// next line after abandoning an oversized one. Returns nil once the
+// delimiter is found, and also on io.EOF (the file's final line was itself
+// the oversized one, with no trailing newline — there is simply nothing left
+// to discard). A non-nil return is a genuine I/O error on the underlying
+// reader, distinct from EOF.
+func discardRestOfLine(r *bufio.Reader) error {
+	for {
+		_, err := r.ReadSlice('\n')
+		if err == nil || errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+		return err
 	}
 }
 

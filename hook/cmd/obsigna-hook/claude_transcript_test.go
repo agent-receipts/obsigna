@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -209,5 +214,112 @@ func TestReadClaudeCode_NoTranscriptLeavesFieldsUnset(t *testing.T) {
 	if ev.Model != "" || ev.Usage != nil || ev.CaptureMethod != "" {
 		t.Errorf("enrichment fields set without a transcript: model=%q usage=%s capture=%q",
 			ev.Model, ev.Usage, ev.CaptureMethod)
+	}
+}
+
+// TestLookupTranscriptUsage_LineTooLong asserts that a transcript line
+// exceeding maxTranscriptLineLength (with no delimiter) is skipped like a
+// malformed line, bounding the memory used to read it, without aborting the
+// whole scan (issue #1010 follow-up: real transcripts can legitimately
+// contain a large tool_use input unrelated to the id being looked up, so an
+// oversized line elsewhere in the file must not cost every other tool call
+// in the session its receipt enrichment). The smaller, matching line that
+// follows the oversized one must still be found.
+func TestLookupTranscriptUsage_LineTooLong(t *testing.T) {
+	oversized := bytes.Repeat([]byte("a"), maxTranscriptLineLength+1) // no newline
+	body := string(oversized) + "\n" + twoModelTranscript
+	path := writeTranscript(t, body)
+
+	model, usage, found, err := lookupTranscriptUsage(path, "toolu_AAA")
+	if err != nil {
+		t.Fatalf("lookupTranscriptUsage: %v", err)
+	}
+	if !found {
+		t.Fatal("found = false; want true — the oversized line should be skipped, not abort the scan")
+	}
+	if model != "claude-opus-4-8" {
+		t.Errorf("model = %q; want claude-opus-4-8", model)
+	}
+	if _, ok := usageField(t, usage, "input_tokens"); !ok {
+		t.Error("expected usage.input_tokens to be present")
+	}
+}
+
+// TestLookupTranscriptUsage_OnlyOversizedLine confirms a transcript
+// consisting solely of one too-long, undelimited line degrades to the
+// ordinary "not found" outcome (found=false, err=nil) rather than an error,
+// matching the ordinary missing-id contract.
+func TestLookupTranscriptUsage_OnlyOversizedLine(t *testing.T) {
+	oversized := bytes.Repeat([]byte("a"), maxTranscriptLineLength+1)
+	path := writeTranscript(t, string(oversized)) // no trailing newline
+
+	_, _, found, err := lookupTranscriptUsage(path, "toolu_AAA")
+	if err != nil {
+		t.Fatalf("lookupTranscriptUsage: %v", err)
+	}
+	if found {
+		t.Error("found = true; want false when the file has no valid lines")
+	}
+}
+
+// TestReadBoundedLine_WithinMax confirms normal delimited and trailing
+// (EOF-terminated, no newline) lines are returned unchanged when under the
+// cap, matching bufio.Reader.ReadBytes's own behaviour.
+func TestReadBoundedLine_WithinMax(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("hello\nworld"))
+
+	line, err := readBoundedLine(r, 1024)
+	if err != nil {
+		t.Fatalf("first line: unexpected err %v", err)
+	}
+	if string(line) != "hello\n" {
+		t.Errorf("first line = %q; want %q", line, "hello\n")
+	}
+
+	line, err = readBoundedLine(r, 1024)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("second line: err = %v; want io.EOF", err)
+	}
+	if string(line) != "world" {
+		t.Errorf("second line = %q; want %q", line, "world")
+	}
+}
+
+// TestReadBoundedLine_ExceedsMax confirms the cap is enforced even when the
+// oversized line spans more than one internal buffer refill.
+func TestReadBoundedLine_ExceedsMax(t *testing.T) {
+	const max = 4096
+	data := bytes.Repeat([]byte("x"), max*3) // no delimiter anywhere
+	r := bufio.NewReader(bytes.NewReader(data))
+
+	_, err := readBoundedLine(r, max)
+	if !errors.Is(err, errTranscriptLineTooLong) {
+		t.Fatalf("err = %v; want errTranscriptLineTooLong", err)
+	}
+}
+
+// TestReadBoundedLine_ExceedsMax_ResyncsAtNextLine confirms that after an
+// oversized line is abandoned, the reader is left positioned at the start of
+// the following line rather than mid-line — the discard behind
+// errTranscriptLineTooLong must consume exactly the abandoned line, not more
+// or less. A tiny underlying buffer forces bufio.ErrBufferFull mid-line
+// (rather than the delimiter turning up in the very first read), exercising
+// the multi-refill discard path.
+func TestReadBoundedLine_ExceedsMax_ResyncsAtNextLine(t *testing.T) {
+	const max = 16
+	oversized := strings.Repeat("a", 64) // no delimiter, spans many buffer refills
+	data := oversized + "\nsecond\n"
+	r := bufio.NewReaderSize(strings.NewReader(data), 8)
+
+	if _, err := readBoundedLine(r, max); !errors.Is(err, errTranscriptLineTooLong) {
+		t.Fatalf("first call: err = %v; want errTranscriptLineTooLong", err)
+	}
+
+	line, err := readBoundedLine(r, max)
+	if err != nil {
+		t.Fatalf("second call: unexpected err %v", err)
+	}
+	if string(line) != "second\n" {
+		t.Errorf("second call: line = %q; want %q", line, "second\n")
 	}
 }
