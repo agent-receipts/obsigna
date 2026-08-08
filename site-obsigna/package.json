@@ -30,7 +30,10 @@
       "sharp"
     ],
     "overrides": {
-      "esbuild": "^0.28.1"
+      "esbuild": "^0.28.1",
+      "dompurify": "^3.4.13",
+      "mermaid": "^11.16.1",
+      "nanoid": "^3.3.17"
     }
   },
   "devDependencies": {
