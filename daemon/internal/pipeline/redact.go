@@ -138,11 +138,16 @@ func NewRedactor(custom []*regexp.Regexp) *Redactor {
 // The url-param-token built-in uses a capture-group replacement to preserve
 // the key name (e.g. "token=") while replacing only the value.
 func (r *Redactor) Redact(raw string) string {
-	// 1. JSON-aware key redaction. Only bytes belonging to a sensitive key's
-	// value are ever rewritten; everything else — key order, number
-	// formatting, string escaping, whitespace — is passed through verbatim
-	// from the original raw bytes, so non-matching JSON round-trips
-	// byte-for-byte.
+	// 1. JSON-aware key redaction. Key order and the exact bytes of every
+	// untouched value (including number formatting, so no float64
+	// precision loss) are always preserved, regardless of whether a
+	// sensitive key is found. When raw contains no sensitive key at any
+	// level, the output is byte-for-byte identical to raw. When a
+	// sensitive key is found, only the containers on the path from the
+	// root to that key are re-encoded (compact punctuation, keys
+	// re-escaped via the standard encoder) — their key order and sibling
+	// values are still preserved exactly, but the surrounding whitespace
+	// and key-escaping style on that path may differ from the input.
 	if json.Valid([]byte(raw)) {
 		if out, changed, err := redactJSONBytes(json.RawMessage(raw)); err == nil && changed {
 			raw = string(out)
@@ -183,10 +188,12 @@ var redactedJSONString = json.RawMessage(`"` + redacted + `"`)
 // redactJSONBytes walks raw (a single, already-validated JSON value) and
 // replaces the value of every object key matched by sensitiveKeys with
 // [REDACTED]. It returns changed=true only if a replacement was made; when
-// nothing matches, the original bytes are returned unmodified — untouched
-// values are decoded as json.RawMessage rather than into Go types, so key
-// order, exact number formatting, and string escaping are preserved exactly
-// rather than round-tripped through float64/map[string]any.
+// nothing matches, raw is returned unmodified. Values are decoded as
+// json.RawMessage rather than into Go types, so an untouched value's exact
+// bytes — including number formatting — are never disturbed, even when a
+// sibling in the same object is redacted and the object has to be
+// re-encoded (see redactJSONObject). This avoids the float64/map[string]any
+// round-trip that caused precision loss and key reordering.
 func redactJSONBytes(raw json.RawMessage) (out json.RawMessage, changed bool, err error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
