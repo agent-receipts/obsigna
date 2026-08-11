@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`hash_receipt` no longer fabricates a `chain` object on chainless dict input** ([#1005](https://github.com/agent-receipts/obsigna/issues/1005)) — a plain-dict receipt missing `credentialSubject.chain` entirely (schema-invalid, but reachable via hand-built dicts) previously had `chain: {previous_receipt_hash: null}` injected via `setdefault`, inventing structure that was never on the wire and diverging from the TS SDK's `pluckChain` (which only restores the field when a chain object already exists). `previous_receipt_hash` is now restored only when the input already has a `chain` object.
+
 ## [0.15.0] - 2026-07-17
 
 ### Added

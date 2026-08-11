@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign, verify } from "node:crypto";
-import { canonicalize } from "./hash.js";
+import { canonicalize, normalizeForCanonicalization } from "./hash.js";
 import type { AgentReceipt, Proof, UnsignedAgentReceipt } from "./types.js";
 
 export interface KeyPair {
@@ -33,9 +33,16 @@ export function generateKeyPair(): KeyPair {
 
 /**
  * Serialize an unsigned receipt to bytes using RFC 8785 canonicalization.
+ *
+ * Applies ADR-0009 Rule 2 (optional-null normalisation) via the same
+ * normalizeForCanonicalization() helper hashReceipt() uses, so a receipt's
+ * signature and its chain hash always commit to identical canonical bytes.
  */
 function canonicalizeReceipt(receipt: UnsignedAgentReceipt): Buffer {
-	return Buffer.from(canonicalize(receipt), "utf-8");
+	return Buffer.from(
+		canonicalize(normalizeForCanonicalization(receipt)),
+		"utf-8",
+	);
 }
 
 /**
