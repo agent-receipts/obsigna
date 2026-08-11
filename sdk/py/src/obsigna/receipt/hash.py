@@ -175,7 +175,9 @@ def hash_receipt(receipt: AgentReceipt | dict[str, Any]) -> str:
     Applies ADR-0009 Rule 2 before canonicalising:
     - Optional fields with null values are normalised to absent.
     - ``previous_receipt_hash`` (required-nullable) is always emitted as
-      ``null`` when absent/None.
+      ``null`` when absent/None, but only if the input already has a
+      ``chain`` object — a dict input missing ``chain`` entirely is
+      schema-invalid, and this function does not fabricate one.
     """
     from obsigna.receipt.types import AgentReceipt
 
@@ -189,13 +191,20 @@ def hash_receipt(receipt: AgentReceipt | dict[str, Any]) -> str:
 
     d.pop("proof", None)
 
-    # Ensure previous_receipt_hash is preserved as null when None.
-    # Use setdefault so an injected nested dict actually attaches to `d` —
-    # `.get(key, {})` returns a temporary that mutations would discard.
-    cs: dict[str, Any] = d.setdefault("credentialSubject", {})
-    chain: dict[str, Any] = cs.setdefault("chain", {})
-    if "previous_receipt_hash" not in chain:
-        chain["previous_receipt_hash"] = None
+    # Restore previous_receipt_hash (required-nullable) only when a chain
+    # object is already present in the input — mirrors the TS SDK's
+    # pluckChain, which restores the field without fabricating a chain that
+    # wasn't there. A receipt missing `chain` entirely is schema-invalid
+    # regardless of this step; the point is just not to invent structure
+    # that was never on the wire (see issue #1005).
+    cs = d.get("credentialSubject")
+    if isinstance(cs, dict):
+        cs = cast("dict[str, Any]", cs)
+        chain = cs.get("chain")
+        if isinstance(chain, dict):
+            chain = cast("dict[str, Any]", chain)
+            if "previous_receipt_hash" not in chain:
+                chain["previous_receipt_hash"] = None
 
     canonical = canonicalize(d)
     return sha256(canonical)

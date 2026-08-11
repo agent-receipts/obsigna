@@ -77,16 +77,30 @@ function canonicalizeNumber(n: number): string {
  */
 export function hashReceipt(receipt: AgentReceipt): string {
 	const { proof: _proof, ...unsigned } = receipt;
-	const stripped = stripOptionalNulls(unsigned);
+	return sha256(canonicalize(normalizeForCanonicalization(unsigned)));
+}
+
+/**
+ * Apply ADR-0009 Rule 2 to an unsigned receipt (or any receipt-shaped value)
+ * ahead of canonicalisation: optional fields whose value is null are
+ * normalised to absent, while the sole required-nullable field,
+ * chain.previous_receipt_hash, is preserved (including as JSON null).
+ *
+ * Shared by hashReceipt and signing.ts's canonicalizeReceipt so that a
+ * receipt's signature and its chain hash always commit to the same
+ * normalised byte form of the document.
+ */
+export function normalizeForCanonicalization(value: unknown): unknown {
+	const stripped = stripOptionalNulls(value);
 	// stripOptionalNulls drops null-valued keys, including
 	// previous_receipt_hash when it is null. previous_receipt_hash is the sole
 	// required-nullable field per ADR-0009; restore it so it is always emitted.
 	const chain = pluckChain(stripped);
 	if (chain) {
 		chain.previous_receipt_hash =
-			receipt.credentialSubject?.chain?.previous_receipt_hash ?? null;
+			pluckChain(value)?.previous_receipt_hash ?? null;
 	}
-	return sha256(canonicalize(stripped));
+	return stripped;
 }
 
 function pluckChain(stripped: unknown): Record<string, unknown> | null {
