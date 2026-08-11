@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -137,11 +138,19 @@ func NewRedactor(custom []*regexp.Regexp) *Redactor {
 // The url-param-token built-in uses a capture-group replacement to preserve
 // the key name (e.g. "token=") while replacing only the value.
 func (r *Redactor) Redact(raw string) string {
-	// 1. JSON-aware key redaction.
-	var parsed any
-	if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
-		if b, err := json.Marshal(redactJSONValue(parsed)); err == nil {
-			raw = string(b)
+	// 1. JSON-aware key redaction. Key order and the exact bytes of every
+	// untouched value (including number formatting, so no float64
+	// precision loss) are always preserved, regardless of whether a
+	// sensitive key is found. When raw contains no sensitive key at any
+	// level, the output is byte-for-byte identical to raw. When a
+	// sensitive key is found, only the containers on the path from the
+	// root to that key are re-encoded (compact punctuation, keys
+	// re-escaped via the standard encoder) — their key order and sibling
+	// values are still preserved exactly, but the surrounding whitespace
+	// and key-escaping style on that path may differ from the input.
+	if json.Valid([]byte(raw)) {
+		if out, changed, err := redactJSONBytes(json.RawMessage(raw)); err == nil && changed {
+			raw = string(out)
 		}
 	}
 
@@ -172,27 +181,163 @@ func (r *Redactor) RedactIfSet(raw string) string {
 	return r.Redact(raw)
 }
 
-func redactJSONValue(v any) any {
-	switch val := v.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(val))
-		for k, child := range val {
-			if sensitiveKeys[strings.ToLower(k)] {
-				out[k] = redacted
-			} else {
-				out[k] = redactJSONValue(child)
-			}
-		}
-		return out
-	case []any:
-		out := make([]any, len(val))
-		for i, item := range val {
-			out[i] = redactJSONValue(item)
-		}
-		return out
-	default:
-		return v
+// redactedJSONString is the JSON-string-encoded form of the [REDACTED]
+// placeholder, used to replace sensitive-key values in place.
+var redactedJSONString = json.RawMessage(`"` + redacted + `"`)
+
+// redactJSONBytes walks raw (a single, already-validated JSON value) and
+// replaces the value of every object key matched by sensitiveKeys with
+// [REDACTED]. It returns changed=true only if a replacement was made; when
+// nothing matches, raw is returned unmodified. Values are decoded as
+// json.RawMessage rather than into Go types, so an untouched value's exact
+// bytes — including number formatting — are never disturbed, even when a
+// sibling in the same object is redacted and the object has to be
+// re-encoded (see redactJSONObject). This avoids the float64/map[string]any
+// round-trip that caused precision loss and key reordering.
+func redactJSONBytes(raw json.RawMessage) (out json.RawMessage, changed bool, err error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return raw, false, fmt.Errorf("empty JSON value")
 	}
+	switch trimmed[0] {
+	case '{':
+		return redactJSONObject(raw)
+	case '[':
+		return redactJSONArray(raw)
+	default:
+		// Scalar (string, number, bool, null): never contains a redactable
+		// key, so it is returned byte-for-byte unchanged.
+		return raw, false, nil
+	}
+}
+
+func redactJSONObject(raw json.RawMessage) (json.RawMessage, bool, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if tok, err := dec.Token(); err != nil {
+		return raw, false, err
+	} else if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return raw, false, fmt.Errorf("expected '{', got %v", tok)
+	}
+
+	type pair struct {
+		key string
+		val json.RawMessage
+	}
+	var pairs []pair
+	for dec.More() {
+		// Object keys are always JSON strings; Token() decodes escapes for
+		// us, which is fine — the decoded string is only used for the
+		// sensitiveKeys lookup and (on the changed path) re-encoded below.
+		keyTok, err := dec.Token()
+		if err != nil {
+			return raw, false, err
+		}
+		keyStr, ok := keyTok.(string)
+		if !ok {
+			return raw, false, fmt.Errorf("object key is not a string: %v", keyTok)
+		}
+		var val json.RawMessage
+		if err := dec.Decode(&val); err != nil {
+			return raw, false, err
+		}
+		pairs = append(pairs, pair{keyStr, val})
+	}
+	if _, err := dec.Token(); err != nil { // consume '}'
+		return raw, false, err
+	}
+
+	changed := false
+	for i, p := range pairs {
+		if sensitiveKeys[strings.ToLower(p.key)] {
+			pairs[i].val = redactedJSONString
+			changed = true
+			continue
+		}
+		newVal, subChanged, err := redactJSONBytes(p.val)
+		if err != nil {
+			return raw, false, err
+		}
+		if subChanged {
+			pairs[i].val = newVal
+			changed = true
+		}
+	}
+	if !changed {
+		return raw, false, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	for i, p := range pairs {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		buf.Write(encodeJSONString(p.key))
+		buf.WriteByte(':')
+		buf.Write(p.val)
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), true, nil
+}
+
+// encodeJSONString encodes s as a JSON string without HTML-escaping
+// ('<', '>', '&'), matching how those characters would appear unescaped in
+// ordinary hand-written or emitter-produced JSON. Used only when
+// reconstructing an object that had at least one redacted field.
+func encodeJSONString(s string) []byte {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	// Encode never fails for a plain string.
+	_ = enc.Encode(s)
+	return bytes.TrimRight(buf.Bytes(), "\n")
+}
+
+func redactJSONArray(raw json.RawMessage) (json.RawMessage, bool, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if tok, err := dec.Token(); err != nil {
+		return raw, false, err
+	} else if d, ok := tok.(json.Delim); !ok || d != '[' {
+		return raw, false, fmt.Errorf("expected '[', got %v", tok)
+	}
+
+	var items []json.RawMessage
+	for dec.More() {
+		var item json.RawMessage
+		if err := dec.Decode(&item); err != nil {
+			return raw, false, err
+		}
+		items = append(items, item)
+	}
+	if _, err := dec.Token(); err != nil { // consume ']'
+		return raw, false, err
+	}
+
+	changed := false
+	for i, item := range items {
+		newItem, subChanged, err := redactJSONBytes(item)
+		if err != nil {
+			return raw, false, err
+		}
+		if subChanged {
+			items[i] = newItem
+			changed = true
+		}
+	}
+	if !changed {
+		return raw, false, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteByte('[')
+	for i, item := range items {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		buf.Write(item)
+	}
+	buf.WriteByte(']')
+	return buf.Bytes(), true, nil
 }
 
 // patternFile is the YAML structure for the redact-patterns file.

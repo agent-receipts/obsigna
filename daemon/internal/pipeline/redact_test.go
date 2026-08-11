@@ -95,6 +95,109 @@ func TestRedactor_BuiltinPatternsRedactKnownSecretShapes(t *testing.T) {
 	}
 }
 
+// TestRedactor_JSONRoundTripPreservesIntegerPrecision verifies that integers
+// too large to fit in a float64 without loss (issue #1022) survive Redact
+// byte-for-byte when no sensitive key is present.
+func TestRedactor_JSONRoundTripPreservesIntegerPrecision(t *testing.T) {
+	r := NewRedactor(nil)
+
+	input := `{"account_number":123456789012345678}`
+	out := r.Redact(input)
+	if out != input {
+		t.Errorf("Redact(%q) = %q, want unchanged (no sensitive keys present)", input, out)
+	}
+	if !strings.Contains(out, "123456789012345678") {
+		t.Errorf("integer precision lost: got %q", out)
+	}
+}
+
+// TestRedactor_JSONRoundTripPreservesKeyOrder verifies that object key order
+// is preserved when no sensitive key is present (issue #1022) — the old
+// implementation reordered keys alphabetically via map[string]any + Marshal.
+func TestRedactor_JSONRoundTripPreservesKeyOrder(t *testing.T) {
+	r := NewRedactor(nil)
+
+	input := `{"note":"hello world","b":1}`
+	out := r.Redact(input)
+	if out != input {
+		t.Errorf("Redact(%q) = %q, want unchanged (byte-for-byte, key order preserved)", input, out)
+	}
+}
+
+// TestRedactor_JSONRoundTripByteForByteStable pins byte-for-byte stability
+// for a variety of valid-JSON shapes that contain no sensitive keys — the
+// regression test requested in issue #1022.
+func TestRedactor_JSONRoundTripByteForByteStable(t *testing.T) {
+	r := NewRedactor(nil)
+
+	cases := []string{
+		`{"z":1,"a":2,"m":3}`,
+		`[3,1,2]`,
+		`{"nested":{"z":1,"a":2},"list":[{"b":1,"a":2}]}`,
+		`"just a string"`,
+		`42`,
+		`123456789012345678`,
+		`true`,
+		`null`,
+		`{"unicode":"café","escaped":"a\"b\\c"}`,
+		`{"empty_obj":{},"empty_arr":[]}`,
+		`  {"a":1}  `,
+	}
+	for _, input := range cases {
+		t.Run(input, func(t *testing.T) {
+			out := r.Redact(input)
+			if out != input {
+				t.Errorf("Redact(%q) = %q, want byte-for-byte unchanged", input, out)
+			}
+		})
+	}
+}
+
+// TestRedactor_JSONNestedSensitiveKeyPreservesSiblingsAndPrecision verifies
+// that redacting a nested sensitive key leaves sibling fields — including
+// large integers and key order — untouched.
+func TestRedactor_JSONNestedSensitiveKeyPreservesSiblingsAndPrecision(t *testing.T) {
+	r := NewRedactor(nil)
+
+	input := `{"z_first":123456789012345678,"auth":{"password":"hunter2","user":"alice"},"a_last":true}`
+	out := r.Redact(input)
+
+	if !strings.Contains(out, "123456789012345678") {
+		t.Errorf("sibling large integer corrupted: got %q", out)
+	}
+	if strings.Contains(out, "hunter2") {
+		t.Errorf("password not redacted: got %q", out)
+	}
+	if !strings.Contains(out, `"[REDACTED]"`) {
+		t.Errorf("expected redacted placeholder in output: got %q", out)
+	}
+	// Sibling and non-sensitive nested keys must keep their original order
+	// and content.
+	if strings.Index(out, `"z_first"`) > strings.Index(out, `"auth"`) ||
+		strings.Index(out, `"auth"`) > strings.Index(out, `"a_last"`) {
+		t.Errorf("top-level key order changed: got %q", out)
+	}
+	if !strings.Contains(out, `"user":"alice"`) {
+		t.Errorf("non-sensitive nested key corrupted: got %q", out)
+	}
+}
+
+// TestRedactor_JSONArrayOfObjectsSensitiveKeyRedacted verifies sensitive-key
+// redaction reaches into objects nested inside arrays.
+func TestRedactor_JSONArrayOfObjectsSensitiveKeyRedacted(t *testing.T) {
+	r := NewRedactor(nil)
+
+	input := `[{"name":"a","token":"secret1"},{"name":"b","token":"secret2"}]`
+	out := r.Redact(input)
+
+	if strings.Contains(out, "secret1") || strings.Contains(out, "secret2") {
+		t.Errorf("token values not redacted: got %q", out)
+	}
+	if !strings.Contains(out, `"name":"a"`) || !strings.Contains(out, `"name":"b"`) {
+		t.Errorf("non-sensitive fields corrupted: got %q", out)
+	}
+}
+
 // TestRedactor_CustomPatternsApplied verifies that patterns loaded from a YAML
 // file are applied in addition to the built-ins.
 func TestRedactor_CustomPatternsApplied(t *testing.T) {
