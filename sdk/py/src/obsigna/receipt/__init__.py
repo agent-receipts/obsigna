@@ -4,7 +4,7 @@ from obsigna.receipt.chain import (
     verify_chain,
 )
 from obsigna.receipt.create import CreateReceiptInput, create_receipt
-from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
+from obsigna.receipt.hash import canonicalize, hash_raw_receipt, hash_receipt, sha256
 from obsigna.receipt.key_provider import (
     GeneratingKeyProvider,
     KeyProvider,
@@ -14,6 +14,7 @@ from obsigna.receipt.signing import (
     KeyPair,
     generate_key_pair,
     sign_receipt,
+    verify_raw,
     verify_receipt,
 )
 from obsigna.receipt.types import (
@@ -71,12 +72,14 @@ __all__ = [
     "create_receipt",
     # Hashing
     "canonicalize",
+    "hash_raw_receipt",
     "hash_receipt",
     "sha256",
     # Signing
     "KeyPair",
     "generate_key_pair",
     "sign_receipt",
+    "verify_raw",
     "verify_receipt",
     # Key providers (ADR-0018; production guard per ADR-0019 §S2)
     "GeneratingKeyProvider",

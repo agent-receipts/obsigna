@@ -166,6 +166,73 @@ def _strip_optional_nulls(obj: Any) -> Any:  # noqa: ANN401
     return obj
 
 
+def normalize_receipt_dict(obj: dict[str, Any]) -> dict[str, Any]:
+    """Apply ADR-0009 Rule 2 and strip ``proof`` from a receipt dict.
+
+    - Optional fields with null values are normalised to absent.
+    - ``proof`` is removed, matching the "unsigned receipt" hashing/signing
+      scheme.
+    - ``previous_receipt_hash`` (required-nullable) is always re-inserted as
+      ``null`` when absent, since ``_strip_optional_nulls`` would otherwise
+      drop it along with genuinely optional fields.
+
+    Shared by ``hash_receipt``'s plain-dict path and ``hash_raw_receipt`` /
+    ``verify_raw``: any caller handing in a dict instead of a validated
+    ``AgentReceipt`` model needs the same normalisation a model's
+    ``model_dump(exclude_none=True)`` gets for free.
+    """
+    d = _strip_optional_nulls(obj)
+    d.pop("proof", None)
+
+    # Use setdefault so an injected nested dict actually attaches to `d` —
+    # `.get(key, {})` returns a temporary that mutations would discard.
+    cs: dict[str, Any] = d.setdefault("credentialSubject", {})
+    chain: dict[str, Any] = cs.setdefault("chain", {})
+    if "previous_receipt_hash" not in chain:
+        chain["previous_receipt_hash"] = None
+    return d
+
+
+def parse_raw_object(raw: bytes | str | dict[str, Any]) -> dict[str, Any]:
+    """Decode ``raw`` to a JSON object, or raise if it does not decode to one.
+
+    Accepts raw JSON bytes/str (verbatim wire data) or an already-parsed
+    dict. A top-level JSON array, number, string, or ``null`` decodes
+    without error but is not an object, so it is rejected here too.
+    """
+    if isinstance(raw, dict):
+        parsed: Any = raw
+    else:
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, ValueError) as exc:
+            msg = "raw receipt is not valid JSON"
+            raise ValueError(msg) from exc
+    if not isinstance(parsed, dict):
+        msg = "raw receipt is not a JSON object"
+        raise ValueError(msg)
+    return cast("dict[str, Any]", parsed)
+
+
+def hash_raw_receipt(raw: bytes | str | dict[str, Any]) -> str:
+    """Compute the canonical SHA-256 hash of a receipt's verbatim wire JSON.
+
+    ``hash_receipt`` reconstructs canonical bytes from ``model_dump()`` of
+    the ``AgentReceipt`` Pydantic model, so any field the installed model
+    does not know about is silently dropped before hashing (Pydantic's
+    default ``extra="ignore"``). This function instead canonicalizes the
+    on-wire JSON object directly, so every field present on the wire —
+    including ones added by a newer SDK version — contributes to the hash.
+    It is the Python counterpart to the Go SDK's ``HashRawReceipt``.
+
+    Accepts raw JSON bytes/str or an already-parsed dict. Raises
+    ``ValueError`` if ``raw`` does not decode to a JSON object.
+    """
+    d = normalize_receipt_dict(parse_raw_object(raw))
+    canonical = canonicalize(d)
+    return sha256(canonical)
+
+
 def hash_receipt(receipt: AgentReceipt | dict[str, Any]) -> str:
     """Compute SHA-256 hash of a receipt, excluding the proof field.
 
@@ -182,22 +249,9 @@ def hash_receipt(receipt: AgentReceipt | dict[str, Any]) -> str:
     if isinstance(receipt, AgentReceipt):
         d: dict[str, Any] = receipt.model_dump(by_alias=True, exclude_none=True)
     else:
-        # Strip optional nulls from plain-dict receipts. _strip_optional_nulls
-        # also drops previous_receipt_hash when its value is None; the
-        # re-insertion below restores it as the required-nullable field.
-        d = _strip_optional_nulls(dict(receipt))
+        d = dict(receipt)
 
-    d.pop("proof", None)
-
-    # Ensure previous_receipt_hash is preserved as null when None.
-    # Use setdefault so an injected nested dict actually attaches to `d` —
-    # `.get(key, {})` returns a temporary that mutations would discard.
-    cs: dict[str, Any] = d.setdefault("credentialSubject", {})
-    chain: dict[str, Any] = cs.setdefault("chain", {})
-    if "previous_receipt_hash" not in chain:
-        chain["previous_receipt_hash"] = None
-
-    canonical = canonicalize(d)
+    canonical = canonicalize(normalize_receipt_dict(d))
     return sha256(canonical)
 
 

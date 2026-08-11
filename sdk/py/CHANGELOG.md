@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Added
+
+- **`verify_raw` / `hash_raw_receipt`** ([#1006](https://github.com/agent-receipts/obsigna/issues/1006)) — verification and hashing over a receipt's verbatim on-wire JSON, bypassing the `AgentReceipt` Pydantic model. `verify_receipt` / `hash_receipt` reconstruct canonical bytes via `model_dump()`, so a field a newer SDK signed over but the installed model does not know about is silently dropped (Pydantic's default `extra="ignore"`), turning a genuinely valid signature into a false negative. `verify_raw` / `hash_raw_receipt` accept raw JSON bytes/str/dict, apply the same ADR-0009 Rule 2 normalisation `sign_receipt` applies before signing, and preserve every field present on the wire. Python counterpart to the Go SDK's `VerifyRaw` / `HashRawReceipt`. camelCase aliases `verifyRaw` / `hashRawReceipt` exported from the package root.
+
 ## [0.15.0] - 2026-07-17
 
 ### Added
