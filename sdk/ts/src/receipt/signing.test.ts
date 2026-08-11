@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { hashReceipt } from "./hash.js";
 import { generateKeyPair, signReceipt, verifyReceipt } from "./signing.js";
-import type { UnsignedAgentReceipt } from "./types.js";
+import type { AgentReceipt, UnsignedAgentReceipt } from "./types.js";
 import { CONTEXT, CREDENTIAL_TYPE, VERSION } from "./types.js";
 
 function makeUnsignedReceipt(): UnsignedAgentReceipt {
@@ -143,5 +144,65 @@ describe("verifyReceipt", () => {
 		expect(() =>
 			signReceipt(unsigned, privateKey, "did:agent:test#key-1"),
 		).toThrow(/terminal/);
+	});
+});
+
+describe("ADR-0009 optional-null normalisation (issue #1005)", () => {
+	// Ed25519 signing is deterministic (RFC 8032): the same key and message
+	// always produce the same signature. That makes proofValue equality a
+	// precise probe for "these two calls signed identical canonical bytes".
+	it("signs identical bytes whether an optional field is null or absent", () => {
+		const { privateKey } = generateKeyPair();
+
+		const withNull = makeUnsignedReceipt();
+		// Bypass the type system the way an `as UnsignedAgentReceipt` cast or
+		// untyped JSON consumer would.
+		(withNull.credentialSubject.outcome as { error: unknown }).error = null;
+		const withAbsent = makeUnsignedReceipt();
+
+		const signedWithNull = signReceipt(
+			withNull,
+			privateKey,
+			"did:agent:test#key-1",
+		);
+		const signedWithAbsent = signReceipt(
+			withAbsent,
+			privateKey,
+			"did:agent:test#key-1",
+		);
+
+		expect(signedWithNull.proof.proofValue).toBe(
+			signedWithAbsent.proof.proofValue,
+		);
+	});
+
+	it("verifies a receipt carrying an explicit null on an optional field", () => {
+		const { publicKey, privateKey } = generateKeyPair();
+		const unsigned = makeUnsignedReceipt();
+		(unsigned.credentialSubject.outcome as { error: unknown }).error = null;
+
+		const signed = signReceipt(unsigned, privateKey, "did:agent:test#key-1");
+
+		expect(verifyReceipt(signed, publicKey)).toBe(true);
+	});
+
+	it("signs over the same canonical bytes hashReceipt commits to", () => {
+		const { privateKey } = generateKeyPair();
+		const unsigned = makeUnsignedReceipt();
+		(unsigned.credentialSubject.outcome as { error: unknown }).error = null;
+
+		const signed = signReceipt(unsigned, privateKey, "did:agent:test#key-1");
+		const signedWithoutNull: AgentReceipt = {
+			...signed,
+			credentialSubject: {
+				...signed.credentialSubject,
+				outcome: { status: "success" },
+			},
+		};
+
+		// The proof differs (created timestamp), but the hash — which also
+		// excludes proof — must be identical, since both signReceipt and
+		// hashReceipt normalise `error: null` to absent before committing.
+		expect(hashReceipt(signed)).toBe(hashReceipt(signedWithoutNull));
 	});
 });

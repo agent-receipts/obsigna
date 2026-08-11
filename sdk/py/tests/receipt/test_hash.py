@@ -111,6 +111,52 @@ class TestHashReceipt:
         r2.proof.proofValue = "udifferent"
         assert hash_receipt(r1) == hash_receipt(r2)
 
+    def test_dict_input_without_chain_does_not_fabricate_chain(self) -> None:
+        """Regression test for issue #1005.
+
+        A dict receipt missing `credentialSubject.chain` entirely is
+        schema-invalid, but hash_receipt must not fabricate
+        `chain: {previous_receipt_hash: null}` out of nothing — that
+        invents structure that was never on the wire and diverges from the
+        TS SDK's pluckChain, which only restores the field when a chain
+        object already exists. If nothing was fabricated, the hash equals
+        hashing the input completely unchanged (there are no nulls to strip
+        and no proof to pop here).
+        """
+        receipt: dict[str, object] = {
+            "credentialSubject": {
+                "principal": {"id": "did:user:test"},
+            },
+        }
+
+        assert hash_receipt(receipt) == sha256(canonicalize(receipt))
+
+    def test_dict_input_with_chain_still_preserves_null_previous_hash(self) -> None:
+        """The fabrication fix must not regress the required-nullable rule
+        when a chain object is genuinely present.
+        """
+        receipt: dict[str, object] = {
+            "credentialSubject": {
+                "chain": {"sequence": 1, "chain_id": "chain_test"},
+            },
+        }
+
+        expected = sha256(
+            canonicalize(
+                {
+                    "credentialSubject": {
+                        "chain": {
+                            "sequence": 1,
+                            "chain_id": "chain_test",
+                            "previous_receipt_hash": None,
+                        },
+                    },
+                }
+            )
+        )
+
+        assert hash_receipt(receipt) == expected
+
 
 class TestHashRawReceipt:
     def test_matches_hash_receipt_for_known_fields(self) -> None:

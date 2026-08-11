@@ -16,6 +16,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 - **`verify_raw` / `hash_raw_receipt`** ([#1006](https://github.com/agent-receipts/obsigna/issues/1006)) — verification and hashing over a receipt's verbatim on-wire JSON, bypassing the `AgentReceipt` Pydantic model. `verify_receipt` / `hash_receipt` reconstruct canonical bytes via `model_dump()`, so a field a newer SDK signed over but the installed model does not know about is silently dropped (Pydantic's default `extra="ignore"`), turning a genuinely valid signature into a false negative. `verify_raw` / `hash_raw_receipt` accept raw JSON bytes/str/dict, apply the same ADR-0009 Rule 2 normalisation `sign_receipt` applies before signing, and preserve every field present on the wire. Python counterpart to the Go SDK's `VerifyRaw` / `HashRawReceipt`. camelCase aliases `verifyRaw` / `hashRawReceipt` exported from the package root.
 
+### Fixed
+
+- **`hash_receipt` no longer fabricates a `chain` object on chainless dict input** ([#1005](https://github.com/agent-receipts/obsigna/issues/1005)) — a plain-dict receipt missing `credentialSubject.chain` entirely (schema-invalid, but reachable via hand-built dicts) previously had `chain: {previous_receipt_hash: null}` injected via `setdefault`, inventing structure that was never on the wire and diverging from the TS SDK's `pluckChain` (which only restores the field when a chain object already exists). `previous_receipt_hash` is now restored only when the input already has a `chain` object. `hash_raw_receipt` / `verify_raw` share this corrected normalisation via `normalize_receipt_dict`.
+
 ## [0.15.0] - 2026-07-17
 
 ### Added

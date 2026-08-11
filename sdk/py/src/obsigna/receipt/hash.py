@@ -172,9 +172,11 @@ def normalize_receipt_dict(obj: dict[str, Any]) -> dict[str, Any]:
     - Optional fields with null values are normalised to absent.
     - ``proof`` is removed, matching the "unsigned receipt" hashing/signing
       scheme.
-    - ``previous_receipt_hash`` (required-nullable) is always re-inserted as
-      ``null`` when absent, since ``_strip_optional_nulls`` would otherwise
-      drop it along with genuinely optional fields.
+    - ``previous_receipt_hash`` (required-nullable) is restored as ``null``
+      when absent, but only when a ``chain`` object is already present —
+      mirrors the TS SDK's ``pluckChain``, which does not fabricate
+      structure that was never on the wire (see issue #1005). A receipt
+      missing ``chain`` entirely is schema-invalid regardless of this step.
 
     Shared by ``hash_receipt``'s plain-dict path and ``hash_raw_receipt`` /
     ``verify_raw``: any caller handing in a dict instead of a validated
@@ -184,12 +186,14 @@ def normalize_receipt_dict(obj: dict[str, Any]) -> dict[str, Any]:
     d = _strip_optional_nulls(obj)
     d.pop("proof", None)
 
-    # Use setdefault so an injected nested dict actually attaches to `d` —
-    # `.get(key, {})` returns a temporary that mutations would discard.
-    cs: dict[str, Any] = d.setdefault("credentialSubject", {})
-    chain: dict[str, Any] = cs.setdefault("chain", {})
-    if "previous_receipt_hash" not in chain:
-        chain["previous_receipt_hash"] = None
+    cs = d.get("credentialSubject")
+    if isinstance(cs, dict):
+        cs = cast("dict[str, Any]", cs)
+        chain = cs.get("chain")
+        if isinstance(chain, dict):
+            chain = cast("dict[str, Any]", chain)
+            if "previous_receipt_hash" not in chain:
+                chain["previous_receipt_hash"] = None
     return d
 
 
@@ -242,7 +246,9 @@ def hash_receipt(receipt: AgentReceipt | dict[str, Any]) -> str:
     Applies ADR-0009 Rule 2 before canonicalising:
     - Optional fields with null values are normalised to absent.
     - ``previous_receipt_hash`` (required-nullable) is always emitted as
-      ``null`` when absent/None.
+      ``null`` when absent/None, but only if the input already has a
+      ``chain`` object — a dict input missing ``chain`` entirely is
+      schema-invalid, and this function does not fabricate one.
     """
     from obsigna.receipt.types import AgentReceipt
 
