@@ -179,10 +179,10 @@ def verify_raw(raw: bytes | str | dict[str, Any], public_key: str) -> bool:
 
     Accepts raw JSON bytes/str or an already-parsed dict. Raises
     ``ValueError`` if ``raw`` does not decode to a JSON object, carries no
-    usable ``proof`` object, ``proof.type`` or ``proof.proofValue`` is
-    present but not a string, or ``proof.type`` is not
-    ``Ed25519Signature2020``. Returns ``False`` when the signature is
-    well-formed but does not verify against ``public_key``.
+    usable ``proof`` object, ``proof.proofValue`` is missing or not a
+    string, ``proof.type`` is present but not a string, or ``proof.type``
+    is not ``Ed25519Signature2020``. Returns ``False`` when the signature
+    is well-formed but does not verify against ``public_key``.
     """
     generic = parse_raw_object(raw)
 
@@ -197,7 +197,10 @@ def verify_raw(raw: bytes | str | dict[str, Any], public_key: str) -> bool:
         msg = "raw receipt proof.type is not a string"
         raise ValueError(msg)
     proof_value = proof.get("proofValue")
-    if proof_value is not None and not isinstance(proof_value, str):
+    if proof_value is None:
+        msg = "raw receipt proof.proofValue is missing"
+        raise ValueError(msg)
+    if not isinstance(proof_value, str):
         msg = "raw receipt proof.proofValue is not a string"
         raise ValueError(msg)
 
@@ -215,4 +218,4 @@ def verify_raw(raw: bytes | str | dict[str, Any], public_key: str) -> bool:
     d = normalize_receipt_dict(generic)
     data = canonicalize(d).encode("utf-8")
 
-    return _verify_ed25519(data, proof_value or "", public_key)
+    return _verify_ed25519(data, proof_value, public_key)

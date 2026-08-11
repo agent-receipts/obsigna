@@ -156,6 +156,7 @@ class TestVerifyRaw:
             '{"id":"urn:r:1","proof":"u-AAA"}',
             '{"id":"urn:r:1","proof":{"type":123,"proofValue":"uAAA"}}',
             '{"id":"urn:r:1","proof":{"type":"Ed25519Signature2020","proofValue":123}}',
+            '{"id":"urn:r:1","proof":{"type":"Ed25519Signature2020"}}',
         ],
     )
     def test_rejects_malformed_input(self, body: str) -> None:
