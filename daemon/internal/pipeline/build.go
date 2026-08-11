@@ -1100,9 +1100,10 @@ func ptrUint32(v uint32) *uint32 { return &v }
 var lookupUID = user.LookupId
 
 // principalFromPeer derives the receipt Principal from kernel-attested peer
-// credentials. Absent an emitter-supplied principal, the OS user that ran the
-// emitting process is the best attested stand-in for "on whose authority": it is
-// the same LOCAL_PEERCRED/SO_PEERCRED identity the daemon already vouches for in
+// credentials. Emitters cannot supply their own principal — the frame format
+// has no such field — so the OS user that ran the emitting process is the
+// best attested stand-in for "on whose authority": it is the same
+// LOCAL_PEERCRED/SO_PEERCRED identity the daemon already vouches for in
 // action.peer_credential, so the principal inherits that field's tamper-evidence
 // instead of trusting an emitter self-report.
 //
