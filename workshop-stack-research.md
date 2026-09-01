@@ -589,6 +589,108 @@ carry no attribute resembling a signature or hash-chain field.
 
 ---
 
+## 7. Addendum: is AGT's Python SDK a feasible alternative?
+
+Follow-up question, not in the original brief: since §2 found the Python
+leg has the full stack (real MCP gateway, real policy engine) that
+TypeScript lacks, is routing through Python instead — for the AGT-specific
+pieces, or as a shared backend the TS exercises call into — actually
+usable on ~20 unknown, mixed-OS laptops? Checked against the same
+`microsoft/agent-governance-toolkit` clone at the same commit
+(`359a2332f57d9000924baba269ed24e4e15ad8b0`) used for §2.
+
+**Verdict: not feasible as a smooth path for a mixed-laptop room, and
+making it feasible would be real engineering work, not a quick swap.**
+
+### What's fine
+
+`agent-governance-toolkit-core` (PyPI, `5.0.0`) is itself a pure-Python
+wheel — `agent_governance_toolkit_core-5.0.0-py3-none-any.whl` — with an
+ordinary, broadly-installable dependency list (`pydantic`, `cryptography`,
+`pynacl`, `httpx`, `click`, `structlog`, `aiohttp`, `jsonschema`,
+`python-dateutil`, `rich`; none of these lack wheels for common platforms).
+Its own `agentrust-trace` dependency (PyPI, `0.9.0`) is pure Python too
+(`agentrust_trace-0.9.0-py3-none-any.whl`). The `[full]`/`[mcp]` extras pull
+the real, official `mcp` PyPI package (the MCP Python SDK), pure Python.
+None of that is a blocker.
+
+### What isn't
+
+The actual policy-*decision* engine is not pure Python.
+`agent-governance-python/agent-os/src/agent_os/providers.py`'s
+`get_governance_runtime()` — the function that constructs the real "is
+this action allowed" runtime, used when no other provider is registered —
+does:
+
+```python
+from agent_control_specification import AgentControl
+```
+
+`agent_control_specification` is a `PyO3`/`maturin`-built native extension
+wrapping the same Rust ACS core §2 already flagged for TypeScript
+(`policy-engine/sdk/python/Cargo.toml`: `crate-type = ["cdylib"]`,
+`pyo3 = "0.29"`, `features = ["extension-module", "abi3-py311"]`; built via
+`[build-system] requires = ["maturin==1.8.7"]` in
+`policy-engine/sdk/python/pyproject.toml`). Checked directly against the
+PyPI JSON API for both published versions:
+
+| Version | Files published |
+|---|---|
+| `0.3.1b0` | `agent_control_specification-0.3.1b0-cp311-abi3-manylinux_2_28_x86_64.whl`, `.tar.gz` (sdist) |
+| `0.3.1b1` | `agent_control_specification-0.3.1b1-cp311-abi3-manylinux_2_28_x86_64.whl`, `.tar.gz` (sdist) |
+
+**Exactly one wheel has ever been published — `manylinux_2_28_x86_64`
+(Linux x86_64, glibc ≥2.28). No macOS wheel (Intel or Apple Silicon), no
+Windows wheel, no linux-arm64 wheel.** Off that one platform, `pip install`
+falls back to the sdist, which needs a Rust toolchain plus `maturin` to
+build locally — the same "compile step disqualifying for the core path"
+scenario the hard constraints ruled out on the JS side (§1, constraint 1),
+except here there is no WASM fallback the way there was for Cedar (§3).
+
+Two things make this worse for a 7-week runway:
+
+- `agent-governance-toolkit-core`/`[full]` on PyPI does **not** declare
+  `agent_control_specification` as a dependency at all (checked its
+  `requires_dist` directly) — it's an easy-to-miss transitive requirement
+  that only surfaces as an `ImportError` the first time
+  `get_governance_runtime()` actually runs.
+- `CHANGELOG.md`'s `[Unreleased]` section (already reflected in the
+  source at the inspected commit) says *"Python policy runtime now uses
+  native ACS only... Removed the compatibility bridge, pre-ACS rule and
+  result types, runtime folder resolution, local framework policy
+  interpreters, and legacy policy generators."* Consistent with that:
+  `agent_os/policies/__init__.py`'s own docstring at this commit reads
+  *"Surviving Agent-OS context and rate-limit primitives"* — what's left
+  in that module is rate-limiting/context-envelope helpers, not a policy
+  evaluator. **There is no pure-Python fallback left to reach for** if the
+  native wheel isn't available on an attendee's machine, and this ACS-only
+  cutover is itself one of the breaking changes already queued for the
+  next release (relevant to §2's release-cadence risk assessment).
+
+One narrower positive: `agent_os/mcp_gateway.py` does not itself import
+`agent_control_specification` — grepped directly, no match — so the
+MCP-interception/scanning behavior that TypeScript lacks (§2) would likely
+still work cross-platform in pure Python. It's specifically **policy
+evaluation** that's Linux-x86_64-only right now, not the whole Python SDK.
+
+### What it would take to actually use it in the workshop
+
+- **Restrict the room to Linux laptops** — technically trivial, not
+  realistic for a paid, self-selected, mixed-experience audience.
+- **Build and host macOS + Windows wheels ahead of time** — real,
+  nontrivial work: standing up a `maturin` build matrix for a third
+  party's pre-1.0 (`0.3.1-beta`) Rust crate, against an API surface that,
+  per §2, has changed on a roughly monthly cadence. Would need
+  re-verifying against a possibly-different ACS version by workshop time.
+- **Run it as one shared service** (Docker, HTTP) instead of a per-laptop
+  install — sidesteps the wheel problem entirely, but reintroduces a live
+  network dependency for the whole room, cutting against the
+  offline/self-contained approach the rest of this audit was built around
+  (§1), and it means attendees call an API rather than run the SDK
+  themselves.
+
+---
+
 ## Unknowns
 
 - **AGT `.NET` MCP gateway internals** — the README's `.NET` code sample
@@ -627,6 +729,14 @@ carry no attribute resembling a signature or hash-chain field.
   these conventions lives in a third repo
   (`open-telemetry/opentelemetry-js`) that wasn't cloned. If exact commit
   provenance for that package matters, it would need its own clone.
+- **Whether AGT's Python policy layer has a non-ACS path** (§7) — e.g.
+  registering a custom `governance_runtime` provider backed only by the
+  pure-Python `OPABackend`-style HTTP call the TS SDK already uses (§2),
+  bypassing `agent_control_specification` entirely. `get_governance_runtime()`
+  does check `_discover_provider()` before falling back to native ACS, so
+  a registered provider is plausible in principle — not evaluated here,
+  would need reading `PROVIDER_GROUPS`/`_discover_provider` and confirming
+  a documented way to register one without the native package.
 
 ---
 
@@ -641,7 +751,11 @@ carry no attribute resembling a signature or hash-chain field.
   unverified). A workshop built "on AGT" for MCP tool-call instrumentation
   in TypeScript would be building on the toolkit's least-covered corner
   language-wise for exactly the two capabilities (MCP interception, Cedar
-  evaluation) most central to the workshop's stated topic.
+  evaluation) most central to the workshop's stated topic. Reaching for
+  Python instead doesn't cleanly close that gap either (§7): its policy
+  engine is Linux-x86_64-only right now, for the same underlying reason
+  TypeScript's Cedar story is thin — the shared Rust core isn't packaged
+  as something that installs cleanly everywhere in either language yet.
 - Every MCP/GenAI OTel attribute relevant to this workshop is
   `stability: development` — none has graduated. That's not necessarily
   disqualifying for a workshop (development conventions are still usable
