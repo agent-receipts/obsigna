@@ -3,7 +3,7 @@ module obsigna.dev/collector
 go 1.26.1
 
 require (
-	modernc.org/sqlite v1.56.0
+	modernc.org/sqlite v1.57.0
 	obsigna.dev/sdk/go v0.22.0
 )
 
