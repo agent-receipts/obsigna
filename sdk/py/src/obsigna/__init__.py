@@ -60,7 +60,7 @@ from obsigna.receipt.grant_resolver import (
     GroundedPrincipalViolation,
     verify_grounded_principal_tier,
 )
-from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
+from obsigna.receipt.hash import canonicalize, hash_raw_receipt, hash_receipt, sha256
 from obsigna.receipt.key_provider import (
     GeneratingKeyProvider,
     KeyProvider,
@@ -70,6 +70,7 @@ from obsigna.receipt.signing import (
     KeyPair,
     generate_key_pair,
     sign_receipt,
+    verify_raw,
     verify_receipt,
 )
 from obsigna.receipt.types import (
@@ -123,7 +124,9 @@ createReceipt = create_receipt
 generateKeyPair = generate_key_pair
 signReceipt = sign_receipt
 verifyReceipt = verify_receipt
+verifyRaw = verify_raw
 hashReceipt = hash_receipt
+hashRawReceipt = hash_raw_receipt
 verifyChain = verify_chain
 openStore = open_store
 verifyStoredChain = verify_stored_chain
@@ -230,6 +233,8 @@ __all__ = [
     "ReceiptChain",
     # Hashing
     "canonicalize",
+    "hash_raw_receipt",
+    "hashRawReceipt",
     "hash_receipt",
     "hashReceipt",
     "sha256",
@@ -239,6 +244,8 @@ __all__ = [
     "generateKeyPair",
     "sign_receipt",
     "signReceipt",
+    "verify_raw",
+    "verifyRaw",
     "verify_receipt",
     "verifyReceipt",
     # Key providers (ADR-0018; production guard per ADR-0019 §S2)

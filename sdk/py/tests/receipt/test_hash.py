@@ -1,9 +1,12 @@
 """Tests for RFC 8785 canonicalization and SHA-256 hashing."""
 
+import json
+
 import pytest
 
-from obsigna.receipt.hash import canonicalize, hash_receipt, sha256
-from tests.conftest import make_receipt
+from obsigna.receipt.hash import canonicalize, hash_raw_receipt, hash_receipt, sha256
+from obsigna.receipt.signing import sign_receipt
+from tests.conftest import TEST_PRIVATE_KEY, make_receipt, make_unsigned
 
 
 class TestCanonicalize:
@@ -153,3 +156,64 @@ class TestHashReceipt:
         )
 
         assert hash_receipt(receipt) == expected
+
+
+class TestHashRawReceipt:
+    def test_matches_hash_receipt_for_known_fields(self) -> None:
+        # Use the real wire serialization the emitters send (no
+        # exclude_none): Pydantic writes absent optional fields as literal
+        # `null`, so this also exercises hash_raw_receipt's ADR-0009 Rule 2
+        # normalisation, not just the "no nulls present" case.
+        unsigned = make_unsigned(1, None, chain_id="chain-eq")
+        signed = sign_receipt(unsigned, TEST_PRIVATE_KEY, "did:agent:test#key-1")
+
+        want = hash_receipt(signed)
+        raw = signed.model_dump_json(by_alias=True)
+        got = hash_raw_receipt(raw)
+
+        assert got == want
+
+    def test_preserves_unknown_fields(self) -> None:
+        unsigned = make_unsigned(1, None, chain_id="chain-fc")
+        signed = sign_receipt(unsigned, TEST_PRIVATE_KEY, "did:agent:test#key-1")
+        raw = signed.model_dump_json(by_alias=True)
+        base_hash = hash_raw_receipt(raw)
+
+        # Splice in a forward-compat top-level field. hash_receipt would
+        # never see this (model_dump drops unknown fields); hash_raw_receipt
+        # operates on the raw JSON and must observe the change.
+        enriched = raw.replace('"id":', '"_future_field":"v2","id":', 1)
+        assert '"_future_field":"v2"' in enriched
+
+        enriched_hash = hash_raw_receipt(enriched)
+        assert enriched_hash != base_hash
+
+    def test_strips_proof(self) -> None:
+        base = """{
+            "id": "urn:r:1",
+            "issuer": {"id": "did:example:a"},
+            "credentialSubject": {"x": 1},
+            "proof": {"type": "Ed25519Signature2020", "proofValue": "u-AAA"}
+        }"""
+        alt = """{
+            "id": "urn:r:1",
+            "issuer": {"id": "did:example:a"},
+            "credentialSubject": {"x": 1},
+            "proof": {"type": "Ed25519Signature2020", "proofValue": "u-ZZZ"}
+        }"""
+        assert hash_raw_receipt(base) == hash_raw_receipt(alt)
+
+    def test_accepts_dict_input(self) -> None:
+        raw_dict = {
+            "id": "urn:r:1",
+            "issuer": {"id": "did:example:a"},
+            "credentialSubject": {"x": 1},
+            "proof": {"type": "Ed25519Signature2020", "proofValue": "u-AAA"},
+        }
+        raw_json = json.dumps(raw_dict)
+        assert hash_raw_receipt(raw_dict) == hash_raw_receipt(raw_json)
+
+    @pytest.mark.parametrize("body", ["[1,2,3]", "42", '"string"', "", "null"])
+    def test_rejects_non_object(self, body: str) -> None:
+        with pytest.raises(ValueError, match="raw receipt"):
+            hash_raw_receipt(body)

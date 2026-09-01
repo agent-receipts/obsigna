@@ -348,6 +348,28 @@ if not result.valid:
     print(f"Broken at index: {result.broken_at}")
 ```
 
+### Verifying against raw wire bytes
+
+`verify_receipt` and `hash_receipt` validate a receipt through the
+`AgentReceipt` Pydantic model, so a field a newer SDK version added — but this
+model doesn't know about — is silently dropped before verification, which can
+turn a genuinely valid signature into a false negative. `verify_raw` and
+`hash_raw_receipt` instead operate on the verbatim on-wire JSON, so every
+field present contributes to the verified/hashed payload:
+
+<!-- snippet-check: continues -->
+```python
+from obsigna import hash_raw_receipt, verify_raw
+
+raw = receipt.model_dump_json(by_alias=True)  # or bytes/dict from the wire
+valid = verify_raw(raw, keys.public_key)
+receipt_hash = hash_raw_receipt(raw)
+```
+
+Prefer these when you hold the verbatim bytes a collector or auditor
+received, and only need to trust the schema for cryptographic verification —
+not the installed SDK's model coverage.
+
 ## What is an Agent Receipt?
 
 A [W3C Verifiable Credential](https://www.w3.org/TR/vc-data-model-2.0/) signed with Ed25519, recording:
@@ -373,6 +395,7 @@ from obsigna import (
     generate_key_pair,  # Ed25519 key pair (PEM-encoded)
     sign_receipt,  # Sign with Ed25519Signature2020 proof
     verify_receipt,  # Verify a receipt's signature
+    verify_raw,  # Verify a signature against verbatim wire JSON
 )
 ```
 
@@ -382,6 +405,7 @@ from obsigna import (
 from obsigna import (
     canonicalize,  # RFC 8785 JSON canonicalization
     hash_receipt,  # Hash receipt (excluding proof) -> "sha256:<hex>"
+    hash_raw_receipt,  # Hash verbatim wire JSON -> "sha256:<hex>"
     sha256,  # Hash arbitrary data -> "sha256:<hex>"
 )
 ```
@@ -436,7 +460,9 @@ from obsigna import (
     generateKeyPair,  # = generate_key_pair
     signReceipt,  # = sign_receipt
     verifyReceipt,  # = verify_receipt
+    verifyRaw,  # = verify_raw
     hashReceipt,  # = hash_receipt
+    hashRawReceipt,  # = hash_raw_receipt
     verifyChain,  # = verify_chain
 )
 ```
