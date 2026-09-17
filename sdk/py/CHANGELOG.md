@@ -12,6 +12,8 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-17
+
 ### Added
 
 - **`sign_receipt` / `ReceiptChain` accept a `Signer` (ADR-0018)** ([#1086](https://github.com/agent-receipts/obsigna/issues/1086)) — `sign_receipt(unsigned, private_key, verification_method)` and `ReceiptChain(private_key=...)` now take `private_key: str | Signer`, so KMS/HSM-backed keys sign receipts through the same canonicalization + proof-construction pipeline as a local PEM key instead of every adopter hand-rolling it. The `Signer` protocol (`sign(bytes) -> bytes`, `get_public_key() -> bytes`) moves to `obsigna.receipt.signing` (re-exported from `obsigna.aws.kms` unchanged for existing imports); `obsigna.aws.kms.KMSSigner` implements it, closing the gap where it had no consumer. New `public_key_to_pem` (and `publicKeyToPem` alias) converts a `Signer.get_public_key()` raw 32-byte key to the SPKI PEM `verify_receipt` / `verify_raw` expect — it delegates to the existing `obsigna.receipt.rotation.ed25519_raw_to_pem` (ADR-0015) rather than a second raw-to-PEM implementation.
