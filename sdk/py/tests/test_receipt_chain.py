@@ -8,6 +8,8 @@ import time
 from typing import TYPE_CHECKING
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from obsigna import (
     ChainEmitInput,
@@ -18,6 +20,7 @@ from obsigna import (
     verify_chain,
 )
 from obsigna.receipt.create import ActionInput
+from obsigna.receipt.signing import public_key_to_pem, verify_receipt
 from obsigna.receipt.types import AgentReceipt, Issuer, Outcome, Principal
 
 if TYPE_CHECKING:
@@ -123,6 +126,34 @@ def test_builds_signs_links_and_delivers_sequentially() -> None:
     result = verify_chain(list(emitter.received), _KEYS.public_key)
     assert result.valid
     assert result.length == 3
+
+
+def test_accepts_a_signer_in_place_of_a_pem_private_key() -> None:
+    # ReceiptChain forwards private_key straight to sign_receipt, which
+    # accepts str | Signer (ADR-0018) — a KMS/HSM-backed Signer must work
+    # here too, not just at the low-level sign_receipt() call.
+    class _FakeSigner:
+        def __init__(self) -> None:
+            self._key = Ed25519PrivateKey.generate()
+
+        def sign(self, message: bytes) -> bytes:
+            return self._key.sign(message)
+
+        def get_public_key(self) -> bytes:
+            return self._key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+    signer = _FakeSigner()
+    emitter = InMemoryEmitter()
+    chain = ReceiptChain(
+        chain_id="chain_test",
+        private_key=signer,
+        verification_method=_VERIFICATION_METHOD,
+        emitter=emitter,
+    )
+
+    receipt = chain.emit(_make_input("/a"))
+
+    assert verify_receipt(receipt, public_key_to_pem(signer.get_public_key()))
 
 
 def test_no_warning_when_called_sequentially(

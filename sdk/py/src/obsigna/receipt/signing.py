@@ -26,6 +26,7 @@ from obsigna.receipt.hash import (
     normalize_receipt_dict,
     parse_raw_object,
 )
+from obsigna.receipt.rotation import ed25519_raw_to_pem
 from obsigna.receipt.types import (
     AgentReceipt,
     Proof,
@@ -52,7 +53,11 @@ class Signer(Protocol):
     returns the raw 32-byte Ed25519 public key (RFC 8032 §5.1.5); use
     ``public_key_to_pem`` to bridge it to ``verify_receipt``/``verify_raw``,
     which take PEM strings. ``obsigna.aws.kms.KMSSigner`` implements this
-    protocol.
+    protocol — pass the ``KMSSigner`` itself to ``sign_receipt``, never the
+    raw ``boto3``/``KMSClient`` it wraps: ``@runtime_checkable`` only checks
+    method *names*, and a raw KMS client happens to expose ``sign`` and
+    ``get_public_key`` too, just with an incompatible (keyword-only) call
+    signature.
     """
 
     def sign(self, message: bytes) -> bytes:
@@ -90,12 +95,12 @@ def public_key_to_pem(raw_public_key: bytes) -> str:
 
     Bridges ``Signer.get_public_key()`` (raw bytes) to ``verify_receipt`` and
     ``verify_raw``, which take PEM-encoded keys — e.g.
-    ``public_key_to_pem(kms_signer.get_public_key())``.
+    ``public_key_to_pem(kms_signer.get_public_key())``. Delegates to
+    ``obsigna.receipt.rotation.ed25519_raw_to_pem`` (ADR-0015), which performs
+    the identical raw-to-SPKI-PEM conversion, so the two call sites cannot
+    diverge.
     """
-    key = Ed25519PublicKey.from_public_bytes(raw_public_key)
-    return key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
-        "ascii"
-    )
+    return ed25519_raw_to_pem(raw_public_key)
 
 
 @dataclass
