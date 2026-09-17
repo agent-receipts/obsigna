@@ -35,7 +35,7 @@ from obsigna.receipt.create import (
     create_receipt,
 )
 from obsigna.receipt.hash import hash_receipt
-from obsigna.receipt.signing import sign_receipt
+from obsigna.receipt.signing import Signer, sign_receipt
 from obsigna.receipt.types import (
     Authorization,
     Chain,
@@ -92,7 +92,7 @@ class ReceiptChain:
         self,
         *,
         chain_id: str,
-        private_key: str,
+        private_key: str | Signer,
         verification_method: str,
         emitter: Emitter,
         start_sequence: int = 1,

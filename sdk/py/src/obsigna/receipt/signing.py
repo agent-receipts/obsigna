@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, Protocol, cast, runtime_checkable
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -26,6 +26,7 @@ from obsigna.receipt.hash import (
     normalize_receipt_dict,
     parse_raw_object,
 )
+from obsigna.receipt.rotation import ed25519_raw_to_pem
 from obsigna.receipt.types import (
     AgentReceipt,
     Proof,
@@ -40,6 +41,69 @@ PROOF_TYPE_ED25519_SIGNATURE_2020 = "Ed25519Signature2020"
 value so that consumers cannot be tricked into believing a receipt was
 signed under a different scheme.
 """
+
+_ED25519_SIGNATURE_SIZE = 64
+"""Fixed Ed25519 signature length (RFC 8032 §5.1.6)."""
+
+
+@runtime_checkable
+class Signer(Protocol):
+    """The Agent Receipts signing abstraction (ADR-0018).
+
+    Implementations sign canonical receipt bytes without exposing the
+    private key, so KMS/HSM/TPM-backed keys can sign receipts through the
+    same ``sign_receipt`` pipeline as a local PEM key. ``get_public_key``
+    returns the raw 32-byte Ed25519 public key (RFC 8032 §5.1.5); use
+    ``public_key_to_pem`` to bridge it to ``verify_receipt``/``verify_raw``,
+    which take PEM strings. ``obsigna.aws.kms.KMSSigner`` implements this
+    protocol — pass the ``KMSSigner`` itself to ``sign_receipt``, never the
+    raw ``boto3``/``KMSClient`` it wraps: ``@runtime_checkable`` only checks
+    method *names*, and a raw KMS client happens to expose ``sign`` and
+    ``get_public_key`` too, just with an incompatible (keyword-only) call
+    signature.
+    """
+
+    def sign(self, message: bytes) -> bytes:
+        """Return the raw Ed25519 signature over ``message``."""
+        raise NotImplementedError
+
+    def get_public_key(self) -> bytes:
+        """Return the raw 32-byte Ed25519 public key (RFC 8032 §5.1.5)."""
+        raise NotImplementedError
+
+
+class _PemSigner:
+    """Adapts a PEM-encoded Ed25519 private key to the ``Signer`` protocol.
+
+    Backs the ``str`` branch of ``sign_receipt``'s ``private_key`` parameter,
+    so the local-key and KMS/HSM code paths share one signing pipeline.
+    """
+
+    def __init__(self, private_key_pem: str) -> None:
+        key = load_pem_private_key(private_key_pem.encode("ascii"), password=None)
+        if not isinstance(key, Ed25519PrivateKey):
+            msg = "Expected Ed25519 private key"
+            raise TypeError(msg)
+        self._key = key
+
+    def sign(self, message: bytes) -> bytes:
+        return self._key.sign(message)
+
+    def get_public_key(self) -> bytes:
+        return self._key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+
+def public_key_to_pem(raw_public_key: bytes) -> str:
+    """Encode a raw 32-byte Ed25519 public key as SPKI PEM.
+
+    Bridges ``Signer.get_public_key()`` (raw bytes) to ``verify_receipt`` and
+    ``verify_raw``, which take PEM-encoded keys — e.g.
+    ``public_key_to_pem(kms_signer.get_public_key())``. Delegates to
+    ``obsigna.receipt.rotation.ed25519_raw_to_pem`` (ADR-0015), which performs
+    the identical raw-to-SPKI-PEM conversion, so the two call sites cannot
+    diverge.
+    """
+    return ed25519_raw_to_pem(raw_public_key)
 
 
 @dataclass
@@ -79,18 +143,32 @@ def _canonicalize_receipt(receipt: UnsignedAgentReceipt) -> bytes:
 
 def sign_receipt(
     unsigned: UnsignedAgentReceipt,
-    private_key: str,
+    private_key: str | Signer,
     verification_method: str,
 ) -> AgentReceipt:
-    """Sign an unsigned receipt, returning a complete AgentReceipt with proof."""
+    """Sign an unsigned receipt, returning a complete AgentReceipt with proof.
+
+    ``private_key`` accepts a PEM-encoded Ed25519 private key, or anything
+    satisfying the ``Signer`` protocol (e.g. ``obsigna.aws.kms.KMSSigner``)
+    for KMS/HSM-backed signing where the raw private key never enters this
+    process.
+
+    Raises ``ValueError`` if a ``Signer`` returns a signature that isn't
+    exactly 64 bytes (RFC 8032 §5.1.6) — this is a trust boundary: an
+    external ``Signer`` (e.g. a misconfigured KMS key or a buggy adapter)
+    must not be able to produce a receipt carrying a malformed proof.
+    """
     data = _canonicalize_receipt(unsigned)
 
-    key = load_pem_private_key(private_key.encode("ascii"), password=None)
-    if not isinstance(key, Ed25519PrivateKey):
-        msg = "Expected Ed25519 private key"
-        raise TypeError(msg)
-
-    signature = key.sign(data)
+    signer: Signer
+    signer = private_key if isinstance(private_key, Signer) else _PemSigner(private_key)
+    signature = signer.sign(data)
+    if len(signature) != _ED25519_SIGNATURE_SIZE:
+        msg = (
+            f"Signer returned a {len(signature)}-byte signature, want "
+            f"{_ED25519_SIGNATURE_SIZE} (Ed25519, RFC 8032 §5.1.6)"
+        )
+        raise ValueError(msg)
     sig_b64 = base64.urlsafe_b64encode(signature).rstrip(b"=").decode("ascii")
 
     now = datetime.now(UTC)
