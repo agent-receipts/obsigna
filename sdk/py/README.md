@@ -244,6 +244,26 @@ and `MessageType=RAW` (pure Ed25519); the public key is fetched once via
 process memory, and revocable via IAM — the production answer to the *"Not for
 production"* caveat below.
 
+**Limitations** (shared with the Go SDK's `aws` module):
+
+- **Use a key ARN (or key ID) for production signing, not an alias.**
+  `get_public_key()` caches the public key on first use, but `sign()` always
+  targets the live `key_id`. If `key_id` is an *alias* and the alias is
+  repointed to a different key during the signer's lifetime, signatures are
+  produced under the new key while the cached/published public key is the
+  old one — so receipts fail verification. This fails closed (verifiers
+  reject; no forged receipt is accepted), but a key ARN avoids the
+  divergence entirely. Aliases remain fine for dev and for resolving the key
+  once at startup.
+- **Receipts must canonicalize to ≤ 4096 bytes.** `kms:Sign` with
+  `MessageType=RAW` caps the message at 4096 bytes, and pure Ed25519
+  (`ED25519_SHA_512`) cannot use the `DIGEST` pre-hash path. A receipt whose
+  canonical form exceeds 4 KB — typically from large `parameters_disclosure`
+  envelopes or long prompt previews — cannot be signed by this adapter, even
+  though the core SDK signs arbitrary-length bytes locally. The call fails
+  loudly with an AWS error (the audit gap is visible, never silent); keep
+  disclosed payloads hashed rather than inlined to stay under the limit.
+
 ## Sequential receipt construction (parallel tool calls)
 
 Hash chaining is inherently sequential: receipt *N* must be fully signed and its

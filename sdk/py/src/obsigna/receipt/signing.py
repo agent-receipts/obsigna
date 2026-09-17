@@ -42,6 +42,9 @@ value so that consumers cannot be tricked into believing a receipt was
 signed under a different scheme.
 """
 
+_ED25519_SIGNATURE_SIZE = 64
+"""Fixed Ed25519 signature length (RFC 8032 §5.1.6)."""
+
 
 @runtime_checkable
 class Signer(Protocol):
@@ -62,11 +65,11 @@ class Signer(Protocol):
 
     def sign(self, message: bytes) -> bytes:
         """Return the raw Ed25519 signature over ``message``."""
-        ...
+        raise NotImplementedError
 
     def get_public_key(self) -> bytes:
         """Return the raw 32-byte Ed25519 public key (RFC 8032 §5.1.5)."""
-        ...
+        raise NotImplementedError
 
 
 class _PemSigner:
@@ -149,12 +152,23 @@ def sign_receipt(
     satisfying the ``Signer`` protocol (e.g. ``obsigna.aws.kms.KMSSigner``)
     for KMS/HSM-backed signing where the raw private key never enters this
     process.
+
+    Raises ``ValueError`` if a ``Signer`` returns a signature that isn't
+    exactly 64 bytes (RFC 8032 §5.1.6) — this is a trust boundary: an
+    external ``Signer`` (e.g. a misconfigured KMS key or a buggy adapter)
+    must not be able to produce a receipt carrying a malformed proof.
     """
     data = _canonicalize_receipt(unsigned)
 
     signer: Signer
     signer = private_key if isinstance(private_key, Signer) else _PemSigner(private_key)
     signature = signer.sign(data)
+    if len(signature) != _ED25519_SIGNATURE_SIZE:
+        msg = (
+            f"Signer returned a {len(signature)}-byte signature, want "
+            f"{_ED25519_SIGNATURE_SIZE} (Ed25519, RFC 8032 §5.1.6)"
+        )
+        raise ValueError(msg)
     sig_b64 = base64.urlsafe_b64encode(signature).rstrip(b"=").decode("ascii")
 
     now = datetime.now(UTC)

@@ -43,6 +43,21 @@ class _FakeSigner:
         return self._key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
 
 
+class _MalformedSigner:
+    """A ``Signer`` that returns a wrong-length signature.
+
+    Stands in for a buggy adapter or a misconfigured KMS key — sign_receipt
+    must reject this at the trust boundary rather than emit an unverifiable
+    receipt.
+    """
+
+    def sign(self, message: bytes) -> bytes:
+        return b"\x00" * 63
+
+    def get_public_key(self) -> bytes:
+        return b"\x00" * 32
+
+
 class TestGenerateKeyPair:
     def test_returns_pem_keys(self) -> None:
         keys = generate_key_pair()
@@ -127,6 +142,11 @@ class TestSignReceiptWithSigner:
         unsigned = make_unsigned(1, None)
         signed = sign_receipt(unsigned, TEST_PRIVATE_KEY, "did:agent:test#key-1")
         assert verify_receipt(signed, TEST_PUBLIC_KEY) is True
+
+    def test_rejects_malformed_signature_length(self) -> None:
+        unsigned = make_unsigned(1, None)
+        with pytest.raises(ValueError, match="64"):
+            sign_receipt(unsigned, _MalformedSigner(), "did:agent:test#key-1")
 
 
 class TestPublicKeyToPem:
