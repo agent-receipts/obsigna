@@ -12,7 +12,7 @@ when building the default client; an injected client needs no AWS SDK.
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, cast
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import (
@@ -21,9 +21,20 @@ from cryptography.hazmat.primitives.serialization import (
     load_der_public_key,
 )
 
+from obsigna.receipt.signing import Signer
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any
+
+__all__ = [
+    "KMSClient",
+    "KMSSigner",
+    "KMSSignerError",
+    "MESSAGE_TYPE",
+    "SIGNING_ALGORITHM",
+    "Signer",
+]
 
 SIGNING_ALGORITHM = "ED25519_SHA_512"
 """Pure Ed25519 (RFC 8032): KMS performs the SHA-512 hash internally, so the
@@ -31,25 +42,6 @@ signature verifies with a standard Ed25519 verifier. Do not switch to
 ``ED25519_PH_SHA_512`` (pre-hashed)."""
 
 MESSAGE_TYPE = "RAW"
-
-
-@runtime_checkable
-class Signer(Protocol):
-    """The Agent Receipts signing abstraction from ADR-0018.
-
-    Implementations sign canonical receipt bytes without exposing the private
-    key. ``get_public_key`` returns the raw 32-byte Ed25519 public key (RFC 8032
-    §5.1.5) used by verifiers. The core package does not yet define this
-    protocol; it is declared here so adapters satisfy a single contract.
-    """
-
-    def sign(self, message: bytes) -> bytes:
-        """Return the raw Ed25519 signature over ``message``."""
-        raise NotImplementedError
-
-    def get_public_key(self) -> bytes:
-        """Return the raw 32-byte Ed25519 public key (RFC 8032 §5.1.5)."""
-        raise NotImplementedError
 
 
 class KMSClient(Protocol):

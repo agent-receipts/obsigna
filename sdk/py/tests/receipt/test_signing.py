@@ -3,16 +3,44 @@
 import json
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PublicFormat,
+)
 
 from obsigna.receipt.signing import (
     PROOF_TYPE_ED25519_SIGNATURE_2020,
     generate_key_pair,
+    public_key_to_pem,
     sign_receipt,
     verify_raw,
     verify_receipt,
 )
 from obsigna.receipt.types import AgentReceipt
 from tests.conftest import TEST_PRIVATE_KEY, TEST_PUBLIC_KEY, make_unsigned
+
+
+class _FakeSigner:
+    """Minimal ``Signer`` implementation: signs in-process, never via PEM.
+
+    Stands in for a KMS/HSM adapter to exercise the ``Signer`` branch of
+    ``sign_receipt`` without a real KMS dependency.
+    """
+
+    def __init__(self) -> None:
+        self._key = Ed25519PrivateKey.generate()
+        self.sign_calls: list[bytes] = []
+
+    def sign(self, message: bytes) -> bytes:
+        self.sign_calls.append(message)
+        return self._key.sign(message)
+
+    def get_public_key(self) -> bytes:
+        return self._key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
 
 
 class TestGenerateKeyPair:
@@ -54,6 +82,72 @@ class TestSignReceipt:
         signed = sign_receipt(unsigned, TEST_PRIVATE_KEY, "did:agent:test#key-1")
         assert signed.id == unsigned.id
         assert signed.credentialSubject.chain.sequence == 1
+
+
+class TestSignReceiptWithSigner:
+    """``sign_receipt`` accepts anything satisfying the ``Signer`` protocol,
+    not just a PEM string, so KMS/HSM-backed keys reuse the same
+    canonicalization + proof-construction pipeline."""
+
+    def test_returns_agent_receipt(self) -> None:
+        unsigned = make_unsigned(1, None)
+        signed = sign_receipt(unsigned, _FakeSigner(), "did:agent:test#key-1")
+        assert isinstance(signed, AgentReceipt)
+
+    def test_signs_over_canonical_receipt_bytes(self) -> None:
+        # The Signer branch must receive exactly one call, with the same
+        # canonicalized payload the PEM branch signs (verified below via
+        # round-trip verification rather than reimplementing
+        # canonicalization here).
+        signer = _FakeSigner()
+        unsigned = make_unsigned(1, None)
+        sign_receipt(unsigned, signer, "did:agent:test#key-1")
+        assert len(signer.sign_calls) == 1
+
+    def test_verify_via_public_key_to_pem(self) -> None:
+        signer = _FakeSigner()
+        unsigned = make_unsigned(1, None)
+        signed = sign_receipt(unsigned, signer, "did:agent:test#key-1")
+
+        public_pem = public_key_to_pem(signer.get_public_key())
+        assert verify_receipt(signed, public_pem) is True
+
+    def test_wrong_signer_key_fails_verification(self) -> None:
+        signer = _FakeSigner()
+        unsigned = make_unsigned(1, None)
+        signed = sign_receipt(unsigned, signer, "did:agent:test#key-1")
+
+        other = _FakeSigner()
+        other_pem = public_key_to_pem(other.get_public_key())
+        assert verify_receipt(signed, other_pem) is False
+
+    def test_pem_string_still_works_unchanged(self) -> None:
+        # The str branch (existing behavior) must be untouched by adding
+        # the Signer branch.
+        unsigned = make_unsigned(1, None)
+        signed = sign_receipt(unsigned, TEST_PRIVATE_KEY, "did:agent:test#key-1")
+        assert verify_receipt(signed, TEST_PUBLIC_KEY) is True
+
+
+class TestPublicKeyToPem:
+    def test_returns_spki_pem(self) -> None:
+        priv = Ed25519PrivateKey.generate()
+        raw_pub = priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+        pem = public_key_to_pem(raw_pub)
+        assert pem.startswith("-----BEGIN PUBLIC KEY-----")
+
+    def test_matches_generate_key_pair_public_pem(self) -> None:
+        # public_key_to_pem(raw) must produce the same PEM verify_receipt
+        # already accepts from generate_key_pair()'s public_key field.
+        from cryptography.hazmat.primitives.serialization import load_pem_public_key
+
+        pair = generate_key_pair()
+        loaded = load_pem_public_key(pair.public_key.encode("ascii"))
+        assert isinstance(loaded, Ed25519PublicKey)
+        raw = loaded.public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+        assert public_key_to_pem(raw) == pair.public_key
 
 
 class TestVerifyReceipt:

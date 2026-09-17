@@ -199,27 +199,50 @@ pip install "obsigna[aws]"
 
 <!-- snippet-check: no-run -->
 ```python
+from obsigna import (
+    ActionInput,
+    Chain,
+    CreateReceiptInput,
+    Issuer,
+    Outcome,
+    Principal,
+    create_receipt,
+)
 from obsigna.aws import KMSSigner
+from obsigna.receipt import public_key_to_pem, sign_receipt, verify_receipt
 
 # keyId: a key ID, key ARN, alias name, or alias ARN. The key must be an
 # ECC_NIST_EDWARDS25519 (Ed25519) key with SIGN_VERIFY usage. Credentials come
 # from the ambient AWS provider chain (instance role, IRSA, env, profile).
 signer = KMSSigner("arn:aws:kms:us-east-1:111122223333:key/abc…", timeout=5.0)
 
-public_key = signer.get_public_key()  # raw 32 bytes (RFC 8032 §5.1.5)
+unsigned = create_receipt(
+    CreateReceiptInput(
+        issuer=Issuer(id="did:agent:my-agent"),
+        principal=Principal(id="did:user:alice"),
+        action=ActionInput(type="filesystem.file.read", risk_level="low"),
+        outcome=Outcome(status="success"),
+        chain=Chain(sequence=1, previous_receipt_hash=None, chain_id="chain_session-1"),
+    )
+)
 
-# `sign` operates on the canonical (RFC 8785) bytes of a receipt.
-canonical_receipt_bytes = b"...canonicalised AgentReceipt..."
-signature = signer.sign(canonical_receipt_bytes)
+# `KMSSigner` implements the `Signer` protocol, so it drops straight into
+# `sign_receipt` in place of a PEM string — the raw private key never enters
+# this process.
+receipt = sign_receipt(unsigned, signer, "did:agent:my-agent#key-1")
+
+# `Signer.get_public_key()` returns raw 32 bytes (RFC 8032 §5.1.5);
+# `verify_receipt`/`verify_raw` take PEM, so bridge with `public_key_to_pem`.
+public_key_pem = public_key_to_pem(signer.get_public_key())
+assert verify_receipt(receipt, public_key_pem)
 ```
 
-`sign` delegates to `kms:Sign` with `SigningAlgorithm=ED25519_SHA_512` and
-`MessageType=RAW` (pure Ed25519); the public key is fetched once via
-`kms:GetPublicKey` and cached. The key is not extractable, not present in process
-memory, and revocable via IAM — the production answer to the *"Not for
-production"* caveat below. (Wiring the `Signer` into `sign_receipt` so it signs
-canonical receipts end-to-end is tracked separately; this ships the key-custody
-half.)
+`sign_receipt` calls `signer.sign()` with the canonical (RFC 8785) bytes of the
+receipt, which delegates to `kms:Sign` with `SigningAlgorithm=ED25519_SHA_512`
+and `MessageType=RAW` (pure Ed25519); the public key is fetched once via
+`kms:GetPublicKey` and cached. The key is not extractable, not present in
+process memory, and revocable via IAM — the production answer to the *"Not for
+production"* caveat below.
 
 ## Sequential receipt construction (parallel tool calls)
 

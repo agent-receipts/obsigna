@@ -68,7 +68,9 @@ from obsigna.receipt.key_provider import (
 )
 from obsigna.receipt.signing import (
     KeyPair,
+    Signer,
     generate_key_pair,
+    public_key_to_pem,
     sign_receipt,
     verify_raw,
     verify_receipt,
@@ -125,6 +127,7 @@ generateKeyPair = generate_key_pair
 signReceipt = sign_receipt
 verifyReceipt = verify_receipt
 verifyRaw = verify_raw
+publicKeyToPem = public_key_to_pem
 hashReceipt = hash_receipt
 hashRawReceipt = hash_raw_receipt
 verifyChain = verify_chain
@@ -240,8 +243,11 @@ __all__ = [
     "sha256",
     # Signing
     "KeyPair",
+    "Signer",
     "generate_key_pair",
     "generateKeyPair",
+    "public_key_to_pem",
+    "publicKeyToPem",
     "sign_receipt",
     "signReceipt",
     "verify_raw",
