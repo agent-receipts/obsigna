@@ -33,11 +33,11 @@
 	},
 	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
-		"@aws-sdk/client-kms": "^3.1133.0"
+		"@aws-sdk/client-kms": "^3.1138.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",
-		"@types/node": "^26.6.1",
+		"@types/node": "^26.6.2",
 		"typescript": "~7.0.2",
 		"vite": "^8.3.0",
 		"vitest": "^5.0.1"
