@@ -18,7 +18,6 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Obsigna",
-      tagline: "Tooling for the Agent Receipts protocol",
       favicon: "/favicon.svg",
       plugins: [starlightThemeFlexoki({ accentColor: "orange" })],
       head: [
