@@ -25,6 +25,11 @@ safe-outputs:
   report-failed-jobs: false
   missing-tool: false
   report-incomplete: false
+  threat-detection:
+    continue-on-error: false
+    engine:
+      id: claude
+      model: claude-haiku-5-5
   add-comment:
     max: 1
   add-labels:
