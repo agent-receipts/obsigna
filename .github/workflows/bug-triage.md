@@ -4,6 +4,8 @@ on:
   slash_command:
     name: bug-triage
     events: [issues, issue_comment]
+  reaction: none
+  status-comment: false
 permissions:
   contents: read
   issues: read
@@ -20,6 +22,7 @@ tools:
 safe-outputs:
   staged: true
   report-failure-as-issue: false
+  report-failed-jobs: false
   missing-tool: false
   report-incomplete: false
   add-comment:
