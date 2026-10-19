@@ -13,16 +13,21 @@ timeout-minutes: 10
 tools:
   bash: false
   cli-proxy: false
+  edit: false
   github:
     toolsets: [repos, issues]
     min-integrity: none
 safe-outputs:
   staged: true
+  report-failure-as-issue: false
+  missing-tool: false
+  report-incomplete: false
   add-comment:
     max: 1
   add-labels:
     allowed: [bug, question, duplicate, go, python, typescript, mcp-proxy, cross-sdk, protocol, spec, sdk]
-    max: 4
+    max: 1
+    max-labels: 4
 ---
 
 # Bug Triage
