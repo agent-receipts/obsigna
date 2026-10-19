@@ -1,3 +1,5 @@
 spec/** linguist-documentation
 *.md linguist-documentation
 cross-sdk-tests/** linguist-vendored
+
+.github/workflows/*.lock.yml linguist-generated=true
