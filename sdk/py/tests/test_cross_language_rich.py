@@ -43,3 +43,22 @@ class TestRichReceiptVector:
         receipt = AgentReceipt(**rich["signed"])
         receipt.credentialSubject.action.target.resource = "payments/pay_other"
         assert verify_receipt(receipt, vectors["keys"]["publicKey"]) is False
+
+
+TS_RICH_VECTORS = Path(__file__).parents[3] / "cross-sdk-tests" / "ts_rich_vectors.json"
+
+
+class TestTSRichReceiptVector:
+    """The receipt TypeScript signed must verify here and carry the same proof."""
+
+    def test_ts_signed_rich_receipt_verifies(self) -> None:
+        ts = json.loads(TS_RICH_VECTORS.read_text())
+        receipt = AgentReceipt(**ts["signed"])
+        assert verify_receipt(receipt, ts["keys"]["publicKey"]) is True
+
+    def test_ts_and_python_produce_the_same_proof_value(self) -> None:
+        ts = json.loads(TS_RICH_VECTORS.read_text())
+        py = _load_rich()
+        assert (
+            ts["signed"]["proof"]["proofValue"] == py["signed"]["proof"]["proofValue"]
+        )
