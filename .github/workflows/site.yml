@@ -14,10 +14,11 @@ on:
     branches: [main]
     paths: [site/**]
 
+# Least privilege at workflow level: pull_request builds run PR code and need only
+# read access. The Pages permissions are granted to the deploy job, which runs on
+# push only.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -68,6 +69,9 @@ jobs:
     if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
