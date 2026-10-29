@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -665,5 +665,192 @@ describe("openStoreReadOnly", () => {
 		} finally {
 			ro.close();
 		}
+	});
+});
+
+describe("journal mode (ADR-0004 shared contract)", () => {
+	let tmpDir: string;
+	let dbPath: string;
+
+	beforeEach(() => {
+		tmpDir = mkdtempSync(join(tmpdir(), "ar-store-wal-test-"));
+		dbPath = join(tmpDir, "receipts.db");
+	});
+
+	afterEach(() => {
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	function journalMode(db: DatabaseSync): unknown {
+		const row = db.prepare("PRAGMA journal_mode").get();
+		return row?.journal_mode;
+	}
+
+	it("enables WAL on a file-backed store (observed via a second connection)", () => {
+		const store = openStore(dbPath);
+		const observer = new DatabaseSync(dbPath);
+		try {
+			expect(journalMode(observer)).toBe("wal");
+		} finally {
+			observer.close();
+			store.close();
+		}
+	});
+
+	it("keeps WAL after the store is closed and reopened", () => {
+		openStore(dbPath).close();
+		const reopened = openStore(dbPath);
+		reopened.close();
+
+		const observer = new DatabaseSync(dbPath);
+		try {
+			expect(journalMode(observer)).toBe("wal");
+		} finally {
+			observer.close();
+		}
+	});
+
+	it("in-memory stores still open and work", () => {
+		const store = openStore(":memory:");
+		try {
+			const receipt = makeReceipt({ id: "urn:receipt:mem-1" });
+			store.insert(receipt, "sha256:mem");
+			expect(store.getById(receipt.id)).toEqual(receipt);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("a reader is not blocked while another connection holds a write transaction", () => {
+		const rw = openStore(dbPath);
+		const seeded = makeReceipt({ id: "urn:receipt:busy-1", sequence: 1 });
+		rw.insert(seeded, "sha256:busy1");
+
+		const writer = new DatabaseSync(dbPath);
+		writer.exec("BEGIN EXCLUSIVE");
+		writer.exec("UPDATE receipts SET status = status WHERE id = 'urn:none'");
+		const ro = openStoreReadOnly(dbPath);
+		try {
+			expect(rw.getById(seeded.id)).toEqual(seeded);
+			expect(ro.query({}).map((r) => r.id)).toEqual([seeded.id]);
+		} finally {
+			ro.close();
+			writer.exec("ROLLBACK");
+			writer.close();
+			rw.close();
+		}
+	});
+
+	it("a store write succeeds while another connection holds a read transaction", () => {
+		const rw = openStore(dbPath);
+		rw.insert(
+			makeReceipt({ id: "urn:receipt:rd-1", sequence: 1 }),
+			"sha256:rd1",
+		);
+
+		const reader = new DatabaseSync(dbPath);
+		reader.exec("BEGIN");
+		reader.prepare("SELECT count(*) AS n FROM receipts").get();
+		try {
+			const next = makeReceipt({ id: "urn:receipt:rd-2", sequence: 2 });
+			expect(() => rw.insert(next, "sha256:rd2")).not.toThrow();
+			expect(rw.getById(next.id)).toEqual(next);
+		} finally {
+			reader.exec("COMMIT");
+			reader.close();
+			rw.close();
+		}
+	});
+
+	it("reads a WAL database written by another SDK with uncheckpointed frames", () => {
+		// Emulate the Python/Go writer: same shared schema, WAL mode, and a
+		// connection that stays open so the row lives only in the -wal file.
+		const foreign = new DatabaseSync(dbPath);
+		foreign.exec("PRAGMA journal_mode=WAL");
+		foreign.exec(`
+			CREATE TABLE receipts (
+			  id TEXT PRIMARY KEY,
+			  chain_id TEXT NOT NULL,
+			  sequence INTEGER NOT NULL,
+			  action_type TEXT NOT NULL,
+			  tool_name TEXT NOT NULL DEFAULT '',
+			  risk_level TEXT NOT NULL,
+			  status TEXT NOT NULL,
+			  timestamp TEXT NOT NULL,
+			  issuer_id TEXT NOT NULL,
+			  principal_id TEXT,
+			  receipt_json TEXT NOT NULL,
+			  receipt_hash TEXT NOT NULL,
+			  previous_receipt_hash TEXT,
+			  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE UNIQUE INDEX idx_receipts_chain ON receipts(chain_id, sequence);
+			CREATE INDEX idx_receipts_status ON receipts(status);
+		`);
+		const receipt = makeReceipt({ id: "urn:receipt:foreign-1" });
+		const subject = receipt.credentialSubject;
+		foreign
+			.prepare(
+				`INSERT INTO receipts
+				(id, chain_id, sequence, action_type, tool_name, risk_level, status,
+				 timestamp, issuer_id, principal_id, receipt_json, receipt_hash,
+				 previous_receipt_hash)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.run(
+				receipt.id,
+				subject.chain.chain_id,
+				subject.chain.sequence,
+				subject.action.type,
+				subject.action.tool_name ?? "",
+				subject.action.risk_level,
+				subject.outcome.status,
+				subject.action.timestamp,
+				receipt.issuer.id,
+				subject.principal.id,
+				JSON.stringify(receipt),
+				"sha256:foreign",
+				subject.chain.previous_receipt_hash,
+			);
+
+		const ro = openStoreReadOnly(dbPath);
+		const rw = openStore(dbPath);
+		try {
+			expect(ro.getById(receipt.id)).toEqual(receipt);
+			expect(rw.getById(receipt.id)).toEqual(receipt);
+			expect(journalMode(foreign)).toBe("wal");
+		} finally {
+			rw.close();
+			ro.close();
+			foreign.close();
+		}
+	});
+
+	it("openStoreReadOnly does not change the journal mode or write", () => {
+		// A database left in rollback-journal mode (e.g. by an older SDK).
+		const legacy = openStore(dbPath);
+		legacy.insert(
+			makeReceipt({ id: "urn:receipt:legacy-1", sequence: 1 }),
+			"sha256:legacy",
+		);
+		legacy.close();
+		const reset = new DatabaseSync(dbPath);
+		reset.exec("PRAGMA journal_mode=DELETE");
+		reset.close();
+
+		const ro = openStoreReadOnly(dbPath);
+		try {
+			expect(ro.query({}).map((r) => r.id)).toEqual(["urn:receipt:legacy-1"]);
+		} finally {
+			ro.close();
+		}
+
+		const observer = new DatabaseSync(dbPath);
+		try {
+			expect(journalMode(observer)).toBe("delete");
+		} finally {
+			observer.close();
+		}
+		expect(existsSync(`${dbPath}-wal`)).toBe(false);
 	});
 });
