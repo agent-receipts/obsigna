@@ -118,6 +118,8 @@ export class ReceiptStore {
 	constructor(dbPath: string, options?: { skipInit?: boolean }) {
 		this.db = new DatabaseSync(dbPath);
 		if (!options?.skipInit) {
+			// Enable WAL mode and set busy timeout for concurrent access.
+			this.db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
 			this.db.exec(SCHEMA);
 			this.migrateToolName();
 		}
@@ -302,6 +304,10 @@ export class ReceiptStore {
  * Open (or create) a receipt store at the given path.
  *
  * Use ":memory:" for an in-memory database.
+ *
+ * File-backed stores are opened in WAL mode with a 5s busy timeout, so
+ * readers (including `openStoreReadOnly`) can query while a writer holds
+ * a transaction. In-memory stores keep SQLite's memory journal.
  */
 export function openStore(dbPath: string): ReceiptStore {
 	return new ReceiptStore(dbPath);

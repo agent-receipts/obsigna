@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Changed
+
+- **Receipt store opens file-backed databases in WAL mode** ([#729](https://github.com/agent-receipts/obsigna/issues/729)) — `openStore` now sets `PRAGMA journal_mode = WAL` and `PRAGMA busy_timeout = 5000` on open, matching the Go SDK, so readers (including `openStoreReadOnly`) can query while another connection holds a write transaction. `openStoreReadOnly` does not change the journal mode. In-memory stores keep SQLite's memory journal. ADR-0004 now documents WAL as part of the shared cross-SDK schema contract.
+
 ### Fixed
 
 - **`signReceipt`/`verifyReceipt` now normalise optional-null fields before canonicalising** ([#1005](https://github.com/agent-receipts/obsigna/issues/1005)) — `canonicalizeReceipt` previously canonicalised the caller's object verbatim, so an explicit `null` on an optional field (reachable via an `as UnsignedAgentReceipt` cast or untyped JSON) was signed/verified as `"field":null`, while `hashReceipt` on the same object normalised it to absent per ADR-0009 Rule 2 — producing a different byte form for the signature than for the chain hash. Both now share `normalizeForCanonicalization()`, so a receipt's signature and its chain hash always commit to identical canonical bytes.

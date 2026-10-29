@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Changed
+
+- **Receipt store opens file-backed databases in WAL mode** ([#729](https://github.com/agent-receipts/obsigna/issues/729)) — `ReceiptStore` / `open_store` now set `PRAGMA journal_mode=WAL` and `PRAGMA busy_timeout=5000` on open, matching the Go SDK, so readers can query while another connection holds a write transaction. In-memory stores keep SQLite's memory journal. ADR-0004 now documents WAL as part of the shared cross-SDK schema contract.
+
 ## [0.16.0] - 2026-09-17
 
 ### Added

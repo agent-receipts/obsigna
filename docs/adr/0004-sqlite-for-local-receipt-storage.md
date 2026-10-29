@@ -33,7 +33,7 @@ Use SQLite as the default local storage backend in all three SDK implementations
 - **Python:** `sqlite3` from the standard library.
 - **TypeScript:** `node:sqlite` (`DatabaseSync`) from the Node.js built-in API.
 
-All three implementations share a common schema: a `receipts` table with columns for chain ID, sequence number, action type, tool name, risk level, status, timestamp, issuer/principal IDs, the full receipt JSON, receipt hash, and previous receipt hash, plus indexes on the most common query dimensions. The Go implementation enables WAL (Write-Ahead Logging) mode for concurrent read access; the Python and TypeScript implementations currently use SQLite's default journal mode.
+All three implementations share a common schema: a `receipts` table with columns for chain ID, sequence number, action type, tool name, risk level, status, timestamp, issuer/principal IDs, the full receipt JSON, receipt hash, and previous receipt hash, plus indexes on the most common query dimensions. The journal mode is part of this shared contract: every SDK sets `PRAGMA journal_mode=WAL` (Write-Ahead Logging) and a 5-second `busy_timeout` when opening a file-backed store for writing. Readers — including read-only openers such as Go's `store.OpenReadOnly` and TypeScript's `openStoreReadOnly` — can therefore query while a writer holds an open transaction, and a database written by any SDK stays in WAL mode and remains readable by the others. In-memory (`:memory:`) stores keep SQLite's memory journal.
 
 Key reasons:
 
@@ -49,6 +49,7 @@ Key reasons:
 
 - All SDK users get local receipt persistence with no setup beyond importing the library.
 - The identical schema across SDKs means databases are interchangeable — a database written by the Python SDK can be read by the Go CLI or the web dashboard.
+- Because every SDK opens file-backed stores in WAL mode, read-while-write safety (relied on by the daemon/CLI split in ADR-0010) holds regardless of which SDK writes or reads. WAL adds `-wal` and `-shm` sidecar files next to the database; copying only the main file while a writer is open can miss recent writes, and read-only openers need the sidecars to exist or a writable directory to create them.
 - SQLite's single-writer model is sufficient for the expected workload (one agent process writing receipts), but would bottleneck under high-concurrency multi-writer scenarios. This is acceptable because the spec envisions receipts as a local-first artifact; high-throughput multi-writer use cases would warrant a different backend, which the storage-agnostic protocol design permits.
 - Schema migrations must be coordinated across three SDK implementations. The project already handles this (e.g., the `tool_name` column migration exists in all three SDKs).
 - Users who need a different backend (Postgres for a shared ledger, S3 for archival) can export receipts as portable W3C VCs — the protocol does not couple verification to any storage layer.
