@@ -666,4 +666,264 @@ describe("openStoreReadOnly", () => {
 			ro.close();
 		}
 	});
+
+	it("reads a WAL database without changing its journal mode", () => {
+		const rw = openStore(dbPath);
+		rw.insert(
+			makeReceipt({ id: "urn:receipt:wal-ro", sequence: 1 }),
+			"sha256:walro",
+		);
+		rw.close();
+		expect(journalMode(dbPath)).toBe("wal");
+
+		const ro = openStoreReadOnly(dbPath);
+		try {
+			expect(ro.query({}).map((r) => r.id)).toEqual(["urn:receipt:wal-ro"]);
+			expect(() =>
+				ro.insert(
+					makeReceipt({ id: "urn:receipt:wal-ro-fail", sequence: 2 }),
+					"sha256:fail",
+				),
+			).toThrow(/readonly/i);
+		} finally {
+			ro.close();
+		}
+		expect(journalMode(dbPath)).toBe("wal");
+	});
+
+	it("reads a WAL database while the writer store is still open", () => {
+		const rw = openStore(dbPath);
+		try {
+			rw.insert(
+				makeReceipt({ id: "urn:receipt:live-1", sequence: 1 }),
+				"sha256:live1",
+			);
+			expect(journalMode(dbPath)).toBe("wal");
+
+			const ro = openStoreReadOnly(dbPath);
+			try {
+				expect(ro.getById("urn:receipt:live-1")?.id).toBe("urn:receipt:live-1");
+				rw.insert(
+					makeReceipt({ id: "urn:receipt:live-2", sequence: 2 }),
+					"sha256:live2",
+				);
+				expect(ro.query({})).toHaveLength(2);
+			} finally {
+				ro.close();
+			}
+		} finally {
+			rw.close();
+		}
+	});
+});
+
+/** Read the persistent journal mode through an independent connection. */
+function journalMode(dbPath: string): string {
+	const db = new DatabaseSync(dbPath);
+	try {
+		const row = db.prepare("PRAGMA journal_mode").get();
+		const mode = row?.journal_mode;
+		return typeof mode === "string" ? mode.toLowerCase() : String(mode);
+	} finally {
+		db.close();
+	}
+}
+
+describe("journal mode (WAL)", () => {
+	let tmpDir: string;
+	let dbPath: string;
+
+	beforeEach(() => {
+		tmpDir = mkdtempSync(join(tmpdir(), "ar-store-wal-test-"));
+		dbPath = join(tmpDir, "receipts.db");
+	});
+
+	afterEach(() => {
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("openStore enables WAL on a file-backed database", () => {
+		const store = openStore(dbPath);
+		try {
+			expect(journalMode(dbPath)).toBe("wal");
+		} finally {
+			store.close();
+		}
+	});
+
+	it("reopening an existing WAL database is idempotent", () => {
+		const first = openStore(dbPath);
+		first.insert(
+			makeReceipt({ id: "urn:receipt:reopen", sequence: 1 }),
+			"sha256:reopen",
+		);
+		first.close();
+		expect(journalMode(dbPath)).toBe("wal");
+
+		const second = openStore(dbPath);
+		try {
+			expect(journalMode(dbPath)).toBe("wal");
+			expect(second.getById("urn:receipt:reopen")?.id).toBe(
+				"urn:receipt:reopen",
+			);
+		} finally {
+			second.close();
+		}
+
+		openStore(dbPath).close();
+		expect(journalMode(dbPath)).toBe("wal");
+	});
+
+	it("in-memory stores still open and work", () => {
+		const store = openStore(":memory:");
+		try {
+			store.insert(makeReceipt({ id: "urn:receipt:mem" }), "sha256:mem");
+			expect(store.query({}).map((r) => r.id)).toEqual(["urn:receipt:mem"]);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("reader is not blocked by another connection's open write transaction", () => {
+		const store = openStore(dbPath);
+		const writer = new DatabaseSync(dbPath);
+		try {
+			store.insert(makeReceipt({ id: "urn:receipt:seed" }), "sha256:seed");
+
+			writer.exec("BEGIN EXCLUSIVE");
+			writer
+				.prepare("DELETE FROM receipts WHERE id = ?")
+				.run("urn:receipt:seed");
+
+			expect(store.query({}).map((r) => r.id)).toEqual(["urn:receipt:seed"]);
+			expect(store.getById("urn:receipt:seed")?.id).toBe("urn:receipt:seed");
+
+			writer.exec("ROLLBACK");
+		} finally {
+			writer.close();
+			store.close();
+		}
+	});
+
+	it("writer is not blocked by another connection's open read transaction", () => {
+		const store = openStore(dbPath);
+		const reader = new DatabaseSync(dbPath);
+		try {
+			store.insert(
+				makeReceipt({ id: "urn:receipt:seed", sequence: 1 }),
+				"sha256:seed",
+			);
+
+			reader.exec("BEGIN");
+			expect(
+				reader.prepare("SELECT COUNT(*) AS n FROM receipts").get()?.n,
+			).toBe(1);
+
+			store.insert(
+				makeReceipt({ id: "urn:receipt:next", sequence: 2 }),
+				"sha256:next",
+			);
+			expect(store.getById("urn:receipt:next")?.id).toBe("urn:receipt:next");
+
+			reader.exec("COMMIT");
+		} finally {
+			reader.close();
+			store.close();
+		}
+	});
+
+	it("reads a WAL database created with another SDK's schema", () => {
+		// Python SDK schema: includes idx_receipts_status, which TS does not create.
+		const receipt = makeReceipt({ id: "urn:receipt:foreign" });
+		const foreign = new DatabaseSync(dbPath);
+		try {
+			expect(
+				foreign.prepare("PRAGMA journal_mode=WAL").get()?.journal_mode,
+			).toBe("wal");
+			foreign.exec(`
+				CREATE TABLE IF NOT EXISTS receipts (
+				  id TEXT PRIMARY KEY,
+				  chain_id TEXT NOT NULL,
+				  sequence INTEGER NOT NULL,
+				  action_type TEXT NOT NULL,
+				  tool_name TEXT NOT NULL DEFAULT '',
+				  risk_level TEXT NOT NULL,
+				  status TEXT NOT NULL,
+				  timestamp TEXT NOT NULL,
+				  issuer_id TEXT NOT NULL,
+				  principal_id TEXT,
+				  receipt_json TEXT NOT NULL,
+				  receipt_hash TEXT NOT NULL,
+				  previous_receipt_hash TEXT,
+				  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+				);
+				CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_chain ON receipts(chain_id, sequence);
+				CREATE INDEX IF NOT EXISTS idx_receipts_action ON receipts(action_type);
+				CREATE INDEX IF NOT EXISTS idx_receipts_risk ON receipts(risk_level);
+				CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
+				CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
+			`);
+			const subject = receipt.credentialSubject;
+			foreign
+				.prepare(
+					`INSERT INTO receipts
+					(id, chain_id, sequence, action_type, tool_name, risk_level, status,
+					 timestamp, issuer_id, principal_id, receipt_json, receipt_hash,
+					 previous_receipt_hash)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				)
+				.run(
+					receipt.id,
+					subject.chain.chain_id,
+					subject.chain.sequence,
+					subject.action.type,
+					"",
+					subject.action.risk_level,
+					subject.outcome.status,
+					subject.action.timestamp,
+					receipt.issuer.id,
+					null,
+					JSON.stringify(receipt),
+					"sha256:foreign",
+					null,
+				);
+		} finally {
+			foreign.close();
+		}
+
+		const store = openStore(dbPath);
+		try {
+			expect(store.getById("urn:receipt:foreign")).toEqual(receipt);
+			expect(journalMode(dbPath)).toBe("wal");
+		} finally {
+			store.close();
+		}
+		const ro = openStoreReadOnly(dbPath);
+		try {
+			expect(ro.getById("urn:receipt:foreign")).toEqual(receipt);
+		} finally {
+			ro.close();
+		}
+	});
+
+	it("a database written here is a WAL database another reader can open", () => {
+		const store = openStore(dbPath);
+		store.insert(makeReceipt({ id: "urn:receipt:ts" }), "sha256:ts");
+		store.close();
+
+		const other = new DatabaseSync(dbPath, { readOnly: true });
+		try {
+			expect(other.prepare("PRAGMA journal_mode").get()?.journal_mode).toBe(
+				"wal",
+			);
+			const row = other
+				.prepare("SELECT receipt_json FROM receipts WHERE id = ?")
+				.get("urn:receipt:ts");
+			const json = row?.receipt_json;
+			expect(typeof json).toBe("string");
+			expect(JSON.parse(String(json)).id).toBe("urn:receipt:ts");
+		} finally {
+			other.close();
+		}
+	});
 });
