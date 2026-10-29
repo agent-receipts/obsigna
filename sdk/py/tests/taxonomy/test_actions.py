@@ -14,13 +14,14 @@ from obsigna.taxonomy.actions import (
 
 class TestActionCounts:
     def test_filesystem_actions_count(self) -> None:
-        assert len(FILESYSTEM_ACTIONS) == 7
+        assert len(FILESYSTEM_ACTIONS) == 8
 
     def test_system_actions_count(self) -> None:
-        assert len(SYSTEM_ACTIONS) == 7
+        assert len(SYSTEM_ACTIONS) == 10
 
     def test_all_actions_count(self) -> None:
-        assert len(ALL_ACTIONS) == 18
+        # 8 filesystem + 10 system + 3 data + 1 network + 1 unknown
+        assert len(ALL_ACTIONS) == 23
 
 
 class TestUnknownAction:
