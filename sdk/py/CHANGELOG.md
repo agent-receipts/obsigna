@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Changed
+
+- **`ReceiptStore` now opens the database in WAL mode with `busy_timeout=5000`** ([#729](https://github.com/agent-receipts/obsigna/issues/729)) — matching the Go SDK, so readers can run alongside a writer without `SQLITE_BUSY`. Existing rollback-journal databases are converted to WAL on open; `:memory:` stores are unaffected. WAL adds `-wal`/`-shm` sibling files next to the database while it is open.
+
 ## [0.16.0] - 2026-09-17
 
 ### Added

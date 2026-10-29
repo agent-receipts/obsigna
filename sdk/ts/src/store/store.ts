@@ -112,12 +112,19 @@ export class ReceiptStore {
 	 * an in-memory database. May also be a SQLite URI (e.g. for read-only
 	 * mode); in that case pass `{ skipInit: true }` to suppress schema
 	 * creation and migration.
-	 * @param options.skipInit When true, skip schema creation and
+	 *
+	 * Read-write opens enable WAL journal mode, matching the Go and Python
+	 * SDKs, so readers can run alongside a writer. Every open sets a 5s
+	 * busy timeout.
+	 *
+	 * @param options.skipInit When true, skip WAL setup, schema creation and
 	 * `tool_name` migration. Used by `openStoreReadOnly`.
 	 */
 	constructor(dbPath: string, options?: { skipInit?: boolean }) {
 		this.db = new DatabaseSync(dbPath);
+		this.db.exec("PRAGMA busy_timeout=5000");
 		if (!options?.skipInit) {
+			this.db.exec("PRAGMA journal_mode=WAL");
 			this.db.exec(SCHEMA);
 			this.migrateToolName();
 		}
@@ -313,6 +320,8 @@ export function openStore(dbPath: string): ReceiptStore {
  * The database is opened with the SQLite URI `file:<abs-path>?mode=ro`,
  * so no schema creation or migration writes are performed. This makes it
  * safe to use alongside a running daemon that holds the write lock.
+ * The journal mode is left as the writer set it (WAL for stores created
+ * by any SDK).
  *
  * The returned {@link ReceiptStore} supports all read operations
  * (query, getById, getChain, stats). Calling insert() will throw a

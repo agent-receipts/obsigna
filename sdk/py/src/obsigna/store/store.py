@@ -68,9 +68,15 @@ class ReceiptStore:
     """SQLite-backed store for Agent Receipts."""
 
     def __init__(self, db_path: str) -> None:
-        """Open the database and ensure the schema exists."""
+        """Open the database in WAL mode and ensure the schema exists.
+
+        WAL matches the Go and TypeScript SDKs and lets readers run alongside
+        a writer. ``:memory:`` databases stay in memory journal mode.
+        """
         self._conn = sqlite3.connect(db_path)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_SCHEMA)
         self._migrate_tool_name()
 
