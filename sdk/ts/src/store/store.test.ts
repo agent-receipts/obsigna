@@ -667,3 +667,169 @@ describe("openStoreReadOnly", () => {
 		}
 	});
 });
+
+describe("journal mode", () => {
+	let tmpDir: string;
+	let dbPath: string;
+
+	beforeEach(() => {
+		tmpDir = mkdtempSync(join(tmpdir(), "ar-store-wal-test-"));
+		dbPath = join(tmpDir, "receipts.db");
+	});
+
+	afterEach(() => {
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	/** Read the journal mode through a separate connection to the same file. */
+	function journalMode(path: string): unknown {
+		const db = new DatabaseSync(path);
+		try {
+			return db.prepare("PRAGMA journal_mode").get()?.journal_mode;
+		} finally {
+			db.close();
+		}
+	}
+
+	it("uses WAL for a file-backed store", () => {
+		const store = openStore(dbPath);
+		try {
+			expect(journalMode(dbPath)).toBe("wal");
+		} finally {
+			store.close();
+		}
+	});
+
+	it("reopens a WAL database and round-trips its receipts", () => {
+		const receipt = makeReceipt({ id: "urn:receipt:wal-reopen" });
+		const store = openStore(dbPath);
+		store.insert(receipt, "sha256:wal-reopen");
+		store.close();
+
+		expect(journalMode(dbPath)).toBe("wal");
+
+		const reopened = openStore(dbPath);
+		try {
+			expect(reopened.getById(receipt.id)).toEqual(receipt);
+		} finally {
+			reopened.close();
+		}
+	});
+
+	it("converts a pre-existing rollback-journal database to WAL", () => {
+		const receipt = makeReceipt({ id: "urn:receipt:legacy-journal" });
+		const seed = openStore(dbPath);
+		seed.insert(receipt, "sha256:legacy");
+		seed.close();
+
+		// Force the file back to the classic rollback journal, as an older SDK
+		// version would have left it.
+		const raw = new DatabaseSync(dbPath);
+		raw.exec("PRAGMA journal_mode=DELETE");
+		raw.close();
+		expect(journalMode(dbPath)).toBe("delete");
+
+		const store = openStore(dbPath);
+		try {
+			expect(journalMode(dbPath)).toBe("wal");
+			expect(store.getById(receipt.id)).toEqual(receipt);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("openStoreReadOnly reads a WAL database while the writer is open", () => {
+		const receipt = makeReceipt({ id: "urn:receipt:wal-ro" });
+		const rw = openStore(dbPath);
+		try {
+			rw.insert(receipt, "sha256:wal-ro");
+			expect(journalMode(dbPath)).toBe("wal");
+
+			const ro = openStoreReadOnly(dbPath);
+			try {
+				expect(ro.query({}).map((r) => r.id)).toEqual([receipt.id]);
+				expect(ro.getById(receipt.id)).toEqual(receipt);
+			} finally {
+				ro.close();
+			}
+		} finally {
+			rw.close();
+		}
+	});
+
+	it("openStoreReadOnly opens a closed WAL database without changing its mode", () => {
+		const receipt = makeReceipt({ id: "urn:receipt:wal-ro-closed" });
+		const rw = openStore(dbPath);
+		rw.insert(receipt, "sha256:wal-ro-closed");
+		rw.close();
+		const raw = new DatabaseSync(dbPath);
+		raw.exec("PRAGMA journal_mode=WAL");
+		raw.close();
+
+		const ro = openStoreReadOnly(dbPath);
+		try {
+			expect(ro.getById(receipt.id)).toEqual(receipt);
+		} finally {
+			ro.close();
+		}
+		expect(journalMode(dbPath)).toBe("wal");
+	});
+
+	it("works on :memory: without requiring WAL", () => {
+		const store = openStore(":memory:");
+		try {
+			const receipt = makeReceipt({ id: "urn:receipt:memory" });
+			store.insert(receipt, "sha256:memory");
+			expect(store.getById(receipt.id)).toEqual(receipt);
+		} finally {
+			store.close();
+		}
+	});
+
+	// In rollback-journal mode an EXCLUSIVE lock blocks all readers and the
+	// read fails with SQLITE_BUSY ("database is locked"); in WAL mode readers
+	// proceed and see the last committed snapshot.
+	it("reads while another connection holds an open write transaction", () => {
+		const committed = makeReceipt({ id: "urn:receipt:committed" });
+		const store = openStore(dbPath);
+		store.insert(committed, "sha256:committed");
+
+		const pending = makeReceipt({ id: "urn:receipt:pending", sequence: 2 });
+		const writer = new DatabaseSync(dbPath);
+		try {
+			writer.exec("BEGIN EXCLUSIVE");
+			writer
+				.prepare(
+					`INSERT INTO receipts
+					(id, chain_id, sequence, action_type, tool_name, risk_level, status,
+					 timestamp, issuer_id, principal_id, receipt_json, receipt_hash,
+					 previous_receipt_hash)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				)
+				.run(
+					pending.id,
+					"chain_test",
+					2,
+					"filesystem.file.read",
+					"",
+					"low",
+					"success",
+					"2026-03-29T14:00:01Z",
+					"did:agent:test",
+					"did:user:test",
+					JSON.stringify(pending),
+					"sha256:pending",
+					null,
+				);
+
+			expect(store.query({}).map((r) => r.id)).toEqual([committed.id]);
+			expect(store.getById(pending.id)).toBeUndefined();
+		} finally {
+			if (writer.isTransaction) {
+				writer.exec("ROLLBACK");
+			}
+			writer.close();
+			store.close();
+		}
+	});
+});

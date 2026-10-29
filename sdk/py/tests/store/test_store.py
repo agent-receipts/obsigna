@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import sqlite3
+from typing import TYPE_CHECKING
+
 import pytest
 
 from obsigna.receipt.hash import hash_receipt
 from obsigna.store.store import ReceiptQuery, ReceiptStore, open_store
 from tests.conftest import make_receipt
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+def _journal_mode(db_path: str) -> str:
+    """Read the journal mode through a separate connection to the same file."""
+    conn = sqlite3.connect(db_path)
+    try:
+        return str(conn.execute("PRAGMA journal_mode").fetchone()[0])
+    finally:
+        conn.close()
 
 
 def test_open_store_creates_db() -> None:
@@ -433,3 +448,115 @@ def test_close() -> None:
     store.close()
     with pytest.raises(Exception):  # noqa: B017
         store.get_by_id("test")
+
+
+def test_file_store_uses_wal_journal_mode(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "receipts.db")
+    store = open_store(db_path)
+    try:
+        assert _journal_mode(db_path) == "wal"
+    finally:
+        store.close()
+
+
+def test_wal_store_reopen_round_trips_receipts(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "receipts.db")
+    receipt = make_receipt(id="urn:receipt:wal-reopen")
+    store = open_store(db_path)
+    store.insert(receipt, hash_receipt(receipt))
+    store.close()
+
+    assert _journal_mode(db_path) == "wal"
+
+    reopened = open_store(db_path)
+    try:
+        result = reopened.get_by_id(receipt.id)
+        assert result is not None
+        assert result.model_dump() == receipt.model_dump()
+        assert hash_receipt(result) == hash_receipt(receipt)
+    finally:
+        reopened.close()
+
+
+def test_rollback_journal_db_is_converted_to_wal(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "receipts.db")
+    receipt = make_receipt(id="urn:receipt:legacy-journal")
+    seed = open_store(db_path)
+    seed.insert(receipt, hash_receipt(receipt))
+    seed.close()
+
+    # Force the file back to the classic rollback journal, as an older SDK
+    # version would have left it.
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=DELETE")
+    conn.close()
+    assert _journal_mode(db_path) == "delete"
+
+    store = open_store(db_path)
+    try:
+        assert _journal_mode(db_path) == "wal"
+        result = store.get_by_id(receipt.id)
+        assert result is not None
+        assert result.id == receipt.id
+    finally:
+        store.close()
+
+
+def test_memory_store_works_without_wal() -> None:
+    store = open_store(":memory:")
+    try:
+        receipt = make_receipt(id="urn:receipt:memory")
+        store.insert(receipt, hash_receipt(receipt))
+        result = store.get_by_id(receipt.id)
+        assert result is not None
+        assert result.id == receipt.id
+    finally:
+        store.close()
+
+
+def test_read_while_write_transaction_open(tmp_path: Path) -> None:
+    """A reader is not blocked by another connection's open write transaction.
+
+    In rollback-journal mode an EXCLUSIVE lock blocks all readers and the
+    read fails with SQLITE_BUSY ("database is locked"); in WAL mode readers
+    proceed and see the last committed snapshot.
+    """
+    db_path = str(tmp_path / "receipts.db")
+    committed = make_receipt(id="urn:receipt:committed", sequence=1)
+    store = open_store(db_path)
+    store.insert(committed, hash_receipt(committed))
+
+    pending = make_receipt(id="urn:receipt:pending", sequence=2)
+    writer = sqlite3.connect(db_path, timeout=0, isolation_level=None)
+    try:
+        writer.execute("BEGIN EXCLUSIVE")
+        writer.execute(
+            """INSERT INTO receipts
+               (id, chain_id, sequence, action_type, tool_name, risk_level, status,
+                timestamp, issuer_id, principal_id, receipt_json, receipt_hash,
+                previous_receipt_hash)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                pending.id,
+                "chain_test",
+                2,
+                "filesystem.file.read",
+                "",
+                "low",
+                "success",
+                "2026-03-29T14:00:01Z",
+                "did:agent:test",
+                "did:user:test",
+                pending.model_dump_json(),
+                "sha256:pending",
+                None,
+            ),
+        )
+
+        results = store.query(ReceiptQuery())
+        assert [r.id for r in results] == [committed.id]
+        assert store.get_by_id(pending.id) is None
+    finally:
+        writer.execute("ROLLBACK")
+        writer.close()
+        store.close()
