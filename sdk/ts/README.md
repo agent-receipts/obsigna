@@ -254,7 +254,7 @@ import {
 import {
   classifyToolCall,    // Map tool names → action types + risk levels
   loadTaxonomyConfig,  // Load tool→action mappings from a JSON config file
-  ALL_ACTIONS,         // All 15 built-in action types
+  ALL_ACTIONS,         // All built-in action types
   resolveActionType,   // Look up action type with fallback to "unknown"
 } from "@obsigna/sdk-ts";
 ```

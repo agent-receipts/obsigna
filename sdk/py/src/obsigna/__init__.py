@@ -108,6 +108,7 @@ from obsigna.store.verify import verify_stored_chain
 from obsigna.taxonomy.actions import (
     ALL_ACTIONS,
     FILESYSTEM_ACTIONS,
+    NETWORK_ACTIONS,
     SYSTEM_ACTIONS,
     UNKNOWN_ACTION,
     get_action_type,
@@ -276,6 +277,7 @@ __all__ = [
     "ActionTypeEntry",
     "ClassificationResult",
     "FILESYSTEM_ACTIONS",
+    "NETWORK_ACTIONS",
     "SYSTEM_ACTIONS",
     "TaxonomyMapping",
     "UNKNOWN_ACTION",
