@@ -9,16 +9,16 @@ import {
 } from "./actions.js";
 
 describe("action taxonomy", () => {
-	it("has 7 filesystem actions", () => {
-		expect(FILESYSTEM_ACTIONS).toHaveLength(7);
+	it("has 8 filesystem actions", () => {
+		expect(FILESYSTEM_ACTIONS).toHaveLength(8);
 	});
 
-	it("has 7 system actions", () => {
-		expect(SYSTEM_ACTIONS).toHaveLength(7);
+	it("has 10 system actions", () => {
+		expect(SYSTEM_ACTIONS).toHaveLength(10);
 	});
 
-	it("has 18 total actions (filesystem + system + data + unknown)", () => {
-		expect(ALL_ACTIONS).toHaveLength(18);
+	it("has 23 total actions (filesystem + system + network + data + unknown)", () => {
+		expect(ALL_ACTIONS).toHaveLength(23);
 	});
 
 	it("all action types are unique", () => {
@@ -51,6 +51,19 @@ describe("getActionType", () => {
 
 	it("returns the unknown action entry for 'unknown'", () => {
 		expect(getActionType("unknown")).toEqual(UNKNOWN_ACTION);
+	});
+
+	it.each([
+		["filesystem.directory.list", "low"],
+		["system.code.execute", "high"],
+		["system.pty.open", "critical"],
+		["system.pty.close", "high"],
+		["network.egress.observed", "medium"],
+	])("returns %s with risk_level %s", (type, risk) => {
+		const entry = getActionType(type);
+		expect(entry).toBeDefined();
+		expect(entry?.type).toBe(type);
+		expect(entry?.risk_level).toBe(risk);
 	});
 });
 

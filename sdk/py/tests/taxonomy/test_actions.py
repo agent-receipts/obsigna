@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from obsigna.taxonomy.actions import (
     ALL_ACTIONS,
     FILESYSTEM_ACTIONS,
@@ -14,13 +16,14 @@ from obsigna.taxonomy.actions import (
 
 class TestActionCounts:
     def test_filesystem_actions_count(self) -> None:
-        assert len(FILESYSTEM_ACTIONS) == 7
+        assert len(FILESYSTEM_ACTIONS) == 8
 
     def test_system_actions_count(self) -> None:
-        assert len(SYSTEM_ACTIONS) == 7
+        assert len(SYSTEM_ACTIONS) == 10
 
     def test_all_actions_count(self) -> None:
-        assert len(ALL_ACTIONS) == 18
+        # filesystem + system + network + data + unknown
+        assert len(ALL_ACTIONS) == 23
 
 
 class TestUnknownAction:
@@ -38,6 +41,24 @@ class TestGetActionType:
 
     def test_get_action_type_not_found_returns_none(self) -> None:
         assert get_action_type("nonexistent.action") is None
+
+    @pytest.mark.parametrize(
+        ("action_type", "risk_level"),
+        [
+            ("filesystem.directory.list", "low"),
+            ("system.code.execute", "high"),
+            ("system.pty.open", "critical"),
+            ("system.pty.close", "high"),
+            ("network.egress.observed", "medium"),
+        ],
+    )
+    def test_get_action_type_spec_parity(
+        self, action_type: str, risk_level: str
+    ) -> None:
+        entry = get_action_type(action_type)
+        assert entry is not None
+        assert entry.type == action_type
+        assert entry.risk_level == risk_level
 
 
 class TestResolveActionType:

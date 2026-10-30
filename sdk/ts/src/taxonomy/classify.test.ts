@@ -34,6 +34,24 @@ describe("classifyToolCall", () => {
 		expect(result.risk_level).toBe("medium");
 	});
 
+	it.each([
+		["list_dir", "filesystem.directory.list", "low"],
+		["run_code", "system.code.execute", "high"],
+		["open_pty", "system.pty.open", "critical"],
+		["close_pty", "system.pty.close", "high"],
+		["egress", "network.egress.observed", "medium"],
+	])(
+		"classifies %s as %s (%s) instead of unknown",
+		(tool, actionType, risk) => {
+			const mappings: TaxonomyMapping[] = [
+				{ tool_name: tool, action_type: actionType },
+			];
+			const result = classifyToolCall(tool, mappings);
+			expect(result.action_type).toBe(actionType);
+			expect(result.risk_level).toBe(risk);
+		},
+	);
+
 	it("handles mapping to an unknown action type gracefully", () => {
 		const mappings: TaxonomyMapping[] = [
 			{ tool_name: "weird_tool", action_type: "nonexistent.domain.action" },
