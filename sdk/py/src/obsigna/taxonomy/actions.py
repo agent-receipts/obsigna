@@ -40,6 +40,11 @@ FILESYSTEM_ACTIONS: list[ActionTypeEntry] = [
         description="Delete a directory",
         risk_level="high",
     ),
+    ActionTypeEntry(
+        type="filesystem.directory.list",
+        description="List directory contents",
+        risk_level="low",
+    ),
 ]
 
 SYSTEM_ACTIONS: list[ActionTypeEntry] = [
@@ -61,6 +66,21 @@ SYSTEM_ACTIONS: list[ActionTypeEntry] = [
     ActionTypeEntry(
         type="system.command.execute",
         description="Execute a shell command",
+        risk_level="high",
+    ),
+    ActionTypeEntry(
+        type="system.code.execute",
+        description="Execute code in a sandbox code interpreter",
+        risk_level="high",
+    ),
+    ActionTypeEntry(
+        type="system.pty.open",
+        description="Open an interactive PTY session",
+        risk_level="critical",
+    ),
+    ActionTypeEntry(
+        type="system.pty.close",
+        description="Close a PTY session",
         risk_level="high",
     ),
     ActionTypeEntry(
@@ -98,6 +118,14 @@ DATA_ACTIONS: list[ActionTypeEntry] = [
     ),
 ]
 
+NETWORK_ACTIONS: list[ActionTypeEntry] = [
+    ActionTypeEntry(
+        type="network.egress.observed",
+        description="Observed outbound network connection crossing a sandbox boundary",
+        risk_level="medium",
+    ),
+]
+
 UNKNOWN_ACTION: ActionTypeEntry = ActionTypeEntry(
     type="unknown",
     description="Tool call that does not map to any known action type",
@@ -108,6 +136,7 @@ ALL_ACTIONS: list[ActionTypeEntry] = [
     *FILESYSTEM_ACTIONS,
     *SYSTEM_ACTIONS,
     *DATA_ACTIONS,
+    *NETWORK_ACTIONS,
     UNKNOWN_ACTION,
 ]
 

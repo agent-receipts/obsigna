@@ -36,6 +36,11 @@ const FILESYSTEM_ACTIONS: readonly ActionTypeEntry[] = [
 		description: "Delete a directory",
 		risk_level: "high",
 	},
+	{
+		type: "filesystem.directory.list",
+		description: "List directory contents",
+		risk_level: "low",
+	},
 ];
 
 const SYSTEM_ACTIONS: readonly ActionTypeEntry[] = [
@@ -57,6 +62,21 @@ const SYSTEM_ACTIONS: readonly ActionTypeEntry[] = [
 	{
 		type: "system.command.execute",
 		description: "Execute a shell command",
+		risk_level: "high",
+	},
+	{
+		type: "system.code.execute",
+		description: "Execute code in a sandbox code interpreter",
+		risk_level: "high",
+	},
+	{
+		type: "system.pty.open",
+		description: "Open an interactive PTY session",
+		risk_level: "critical",
+	},
+	{
+		type: "system.pty.close",
+		description: "Close a PTY session",
 		risk_level: "high",
 	},
 	{
@@ -94,6 +114,15 @@ const DATA_ACTIONS: readonly ActionTypeEntry[] = [
 	},
 ];
 
+const NETWORK_ACTIONS: readonly ActionTypeEntry[] = [
+	{
+		type: "network.egress.observed",
+		description:
+			"Observed outbound network connection crossing a sandbox boundary",
+		risk_level: "medium",
+	},
+];
+
 const UNKNOWN_ACTION: ActionTypeEntry = {
 	type: "unknown",
 	description: "Tool call that does not map to any known action type",
@@ -104,6 +133,7 @@ const ALL_ACTIONS: readonly ActionTypeEntry[] = [
 	...FILESYSTEM_ACTIONS,
 	...SYSTEM_ACTIONS,
 	...DATA_ACTIONS,
+	...NETWORK_ACTIONS,
 	UNKNOWN_ACTION,
 ];
 
@@ -123,6 +153,7 @@ export {
 	ALL_ACTIONS,
 	DATA_ACTIONS,
 	FILESYSTEM_ACTIONS,
+	NETWORK_ACTIONS,
 	SYSTEM_ACTIONS,
 	UNKNOWN_ACTION,
 };
