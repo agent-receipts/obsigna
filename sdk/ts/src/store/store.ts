@@ -31,6 +31,17 @@ CREATE INDEX IF NOT EXISTS idx_receipts_risk ON receipts(risk_level);
 CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
 `;
 
+// Bound on retrying SQLITE_BUSY during open; matches the 5000 ms busy timeout.
+const INIT_DEADLINE_MS = 5000;
+const INIT_RETRY_SLEEP_MS = 10;
+// Atomics.wait on a never-notified cell is a synchronous sleep; node:sqlite
+// is synchronous, so the constructor cannot await.
+const INIT_SLEEP_CELL = new Int32Array(new SharedArrayBuffer(4));
+
+function isBusyError(err: unknown): boolean {
+	return err instanceof Error && /database is locked/i.test(err.message);
+}
+
 /**
  * Filters for querying receipts.
  */
@@ -121,11 +132,41 @@ export class ReceiptStore {
 	 */
 	constructor(dbPath: string, options?: { skipInit?: boolean }) {
 		this.db = new DatabaseSync(dbPath);
-		this.db.exec("PRAGMA busy_timeout = 5000");
-		if (!options?.skipInit) {
-			this.db.exec("PRAGMA journal_mode = WAL");
-			this.db.exec(SCHEMA);
-			this.migrateToolName();
+		try {
+			this.db.exec("PRAGMA busy_timeout = 5000");
+			if (!options?.skipInit) {
+				this.initWithRetry();
+			}
+		} catch (err) {
+			this.db.close();
+			throw err;
+		}
+	}
+
+	/**
+	 * Enable WAL (ADR-0004) and ensure the schema, retrying SQLITE_BUSY.
+	 *
+	 * SQLite skips the busy handler in some lock-upgrade paths (e.g. the WAL
+	 * switch or a schema write racing another connection's first open), so
+	 * simultaneous first opens can fail immediately with "database is
+	 * locked". Retry until the same deadline the busy timeout allows.
+	 */
+	private initWithRetry(): void {
+		const deadline = Date.now() + INIT_DEADLINE_MS;
+		for (;;) {
+			try {
+				this.db.exec("PRAGMA journal_mode = WAL");
+				this.db.exec(SCHEMA);
+				this.migrateToolName();
+				return;
+			} catch (err) {
+				if (!isBusyError(err) || Date.now() >= deadline) {
+					throw err;
+				}
+				// Every init statement runs in autocommit, so a failed attempt
+				// leaves no open transaction to roll back.
+				Atomics.wait(INIT_SLEEP_CELL, 0, 0, INIT_RETRY_SLEEP_MS);
+			}
 		}
 	}
 

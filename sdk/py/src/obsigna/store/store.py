@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -33,6 +34,10 @@ CREATE INDEX IF NOT EXISTS idx_receipts_risk ON receipts(risk_level);
 CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
 CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
 """
+
+# Bound on retrying SQLITE_BUSY during open; matches the 5000 ms busy timeout.
+_INIT_DEADLINE_S = 5.0
+_INIT_RETRY_SLEEP_S = 0.01
 
 
 @dataclass
@@ -69,13 +74,38 @@ class ReceiptStore:
 
     def __init__(self, db_path: str) -> None:
         """Open the database and ensure the schema exists."""
+        # timeout=5.0 sets SQLite's busy timeout to 5000 ms, matching Go.
         self._conn = sqlite3.connect(db_path, timeout=5.0)
-        # Set busy timeout and enable WAL mode for concurrent access (ADR-0004).
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
-        self._migrate_tool_name()
+        try:
+            self._init_with_retry()
+        except BaseException:
+            self._conn.close()
+            raise
+
+    def _init_with_retry(self) -> None:
+        """Enable WAL (ADR-0004) and ensure the schema, retrying SQLITE_BUSY.
+
+        SQLite skips the busy handler in some lock-upgrade paths (e.g. the
+        WAL switch or a schema write racing another connection's first open),
+        so simultaneous first opens can fail immediately with "database is
+        locked". Retry until the same deadline the busy timeout allows.
+        """
+        deadline = time.monotonic() + _INIT_DEADLINE_S
+        while True:
+            try:
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.executescript(_SCHEMA)
+                self._migrate_tool_name()
+                return
+            except sqlite3.OperationalError as exc:
+                if "database is locked" not in str(exc).lower():
+                    raise
+                if time.monotonic() >= deadline:
+                    raise
+                if self._conn.in_transaction:
+                    self._conn.rollback()
+                time.sleep(_INIT_RETRY_SLEEP_S)
 
     def _migrate_tool_name(self) -> None:
         """Add tool_name column to pre-existing databases that lack it.
