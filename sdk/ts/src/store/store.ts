@@ -112,12 +112,18 @@ export class ReceiptStore {
 	 * an in-memory database. May also be a SQLite URI (e.g. for read-only
 	 * mode); in that case pass `{ skipInit: true }` to suppress schema
 	 * creation and migration.
-	 * @param options.skipInit When true, skip schema creation and
-	 * `tool_name` migration. Used by `openStoreReadOnly`.
+	 *
+	 * A 5000 ms busy timeout is always set. WAL journal mode is enabled
+	 * unless `skipInit` is set (ADR-0004).
+	 * @param options.skipInit When true, skip enabling WAL, schema creation
+	 * and `tool_name` migration; the persistent journal mode of the existing
+	 * database is left unchanged. Used by `openStoreReadOnly`.
 	 */
 	constructor(dbPath: string, options?: { skipInit?: boolean }) {
 		this.db = new DatabaseSync(dbPath);
+		this.db.exec("PRAGMA busy_timeout = 5000");
 		if (!options?.skipInit) {
+			this.db.exec("PRAGMA journal_mode = WAL");
 			this.db.exec(SCHEMA);
 			this.migrateToolName();
 		}

@@ -33,7 +33,7 @@ Use SQLite as the default local storage backend in all three SDK implementations
 - **Python:** `sqlite3` from the standard library.
 - **TypeScript:** `node:sqlite` (`DatabaseSync`) from the Node.js built-in API.
 
-All three implementations share a common schema: a `receipts` table with columns for chain ID, sequence number, action type, tool name, risk level, status, timestamp, issuer/principal IDs, the full receipt JSON, receipt hash, and previous receipt hash, plus indexes on the most common query dimensions. The Go implementation enables WAL (Write-Ahead Logging) mode for concurrent read access; the Python and TypeScript implementations currently use SQLite's default journal mode.
+All three implementations share a common schema: a `receipts` table with columns for chain ID, sequence number, action type, tool name, risk level, status, timestamp, issuer/principal IDs, the full receipt JSON, receipt hash, and previous receipt hash, plus indexes on the most common query dimensions. WAL (Write-Ahead Logging) journal mode and a 5000 ms busy timeout are part of this shared contract across the Go, Python and TypeScript implementations, so readers can read while a writer holds a write transaction. Writers enable WAL on open; read-only opens rely on the persistent WAL mode in the database file and do not change it. In-memory databases are exempt (SQLite reports `memory` for them).
 
 Key reasons:
 

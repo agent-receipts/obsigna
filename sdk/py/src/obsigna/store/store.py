@@ -69,7 +69,10 @@ class ReceiptStore:
 
     def __init__(self, db_path: str) -> None:
         """Open the database and ensure the schema exists."""
-        self._conn = sqlite3.connect(db_path)
+        self._conn = sqlite3.connect(db_path, timeout=5.0)
+        # Set busy timeout and enable WAL mode for concurrent access (ADR-0004).
+        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
         self._migrate_tool_name()

@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Changed
+
+- **`ReceiptStore` enables WAL journal mode and a 5 s busy timeout** ([#729](https://github.com/agent-receipts/obsigna/issues/729)) — matches the Go store (ADR-0004), so a reader can read while a writer holds a write transaction, and concurrent opens or inserts wait instead of failing immediately with `SQLITE_BUSY`. WAL persists in the database file; in-memory stores are unaffected.
+
 ## [0.16.0] - 2026-09-17
 
 ### Added
