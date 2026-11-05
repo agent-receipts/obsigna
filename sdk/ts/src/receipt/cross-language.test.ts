@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { verifyChain } from "./chain.js";
 import { canonicalize, hashReceipt, sha256 } from "./hash.js";
-import { generateKeyPair, verifyReceipt } from "./signing.js";
-import type { AgentReceipt } from "./types.js";
+import { generateKeyPair, signReceipt, verifyReceipt } from "./signing.js";
+import type { AgentReceipt, UnsignedAgentReceipt } from "./types.js";
 
 interface TestVectors {
 	keys: { publicKey: string; privateKey: string };
@@ -516,5 +516,53 @@ describe("cross-language: v0.5.0 vectors", () => {
 			v.rootAgentReceipt.expectedReceiptHash,
 		);
 		expect(v.rootAgentReceipt.receipt.issuer.runtime).toBeUndefined();
+	});
+});
+
+interface TsRichVectors {
+	keys: { publicKey: string; privateKey: string };
+	unsigned: UnsignedAgentReceipt;
+	signed: AgentReceipt;
+	verificationMethod: string;
+}
+
+function loadTsRichVectors(): TsRichVectors {
+	const path = resolve(
+		currentDir,
+		"../../../../cross-sdk-tests/ts_rich_vectors.json",
+	);
+	return JSON.parse(readFileSync(path, "utf-8"));
+}
+
+// A receipt with action.target and parameters_hash, signed by the TypeScript
+// SDK. Python signs the same unsigned receipt in py_vectors.json (signingRich),
+// so the two proofValues must match.
+describe("rich receipt signed by TypeScript", () => {
+	it("verifies in TypeScript", () => {
+		const v = loadTsRichVectors();
+		expect(verifyReceipt(v.signed, v.keys.publicKey)).toBe(true);
+	});
+
+	it("re-signing the unsigned receipt reproduces the committed proofValue", () => {
+		const v = loadTsRichVectors();
+		const resigned = signReceipt(
+			v.unsigned,
+			v.keys.privateKey,
+			v.verificationMethod,
+		);
+		expect(resigned.proof.proofValue).toBe(v.signed.proof.proofValue);
+	});
+
+	it("has the same proofValue as the Python SDK's signature", () => {
+		const v = loadTsRichVectors();
+		const py = JSON.parse(
+			readFileSync(
+				resolve(currentDir, "../../../../cross-sdk-tests/py_vectors.json"),
+				"utf-8",
+			),
+		) as { signingRich: { signed: AgentReceipt } };
+		expect(v.signed.proof.proofValue).toBe(
+			py.signingRich.signed.proof.proofValue,
+		);
 	});
 });

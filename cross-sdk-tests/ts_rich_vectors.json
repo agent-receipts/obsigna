@@ -1,0 +1,96 @@
+{
+  "keys": {
+    "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAZMzh2Qtdx/p40WlXhD+gKmaTDv3rLGm6TeY7TsJUKSQ=\n-----END PUBLIC KEY-----\n",
+    "privateKey": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIJqomA2cjqhLUYPhkMJyg4+A7hU8GiZtVzkN0Yz6jJPF\n-----END PRIVATE KEY-----\n"
+  },
+  "unsigned": {
+    "@context": [
+      "https://www.w3.org/ns/credentials/v2",
+      "https://agentreceipts.ai/context/v1"
+    ],
+    "id": "urn:receipt:550e8400-e29b-41d4-a716-446655440000",
+    "type": [
+      "VerifiableCredential",
+      "AgentReceipt"
+    ],
+    "version": "0.1.0",
+    "issuer": {
+      "id": "did:agent:test-agent"
+    },
+    "issuanceDate": "2026-03-29T14:00:00.000Z",
+    "credentialSubject": {
+      "principal": {
+        "id": "did:user:alice"
+      },
+      "action": {
+        "id": "act_7f3a1b2c-d4e5-46f7-a8b9-c0d1e2f3a4b5",
+        "type": "filesystem.file.read",
+        "risk_level": "low",
+        "timestamp": "2026-03-29T14:00:00.000Z",
+        "tool_name": "refund.create",
+        "target": {
+          "system": "razorpay",
+          "resource": "payments/pay_test_0001"
+        },
+        "parameters_hash": "sha256:6ba023816d9d42a243eada826a0a6ecb1d021f127887cc95b53650980e928e91"
+      },
+      "outcome": {
+        "status": "success"
+      },
+      "chain": {
+        "sequence": 1,
+        "previous_receipt_hash": null,
+        "chain_id": "chain_test_vectors"
+      }
+    }
+  },
+  "signed": {
+    "@context": [
+      "https://www.w3.org/ns/credentials/v2",
+      "https://agentreceipts.ai/context/v1"
+    ],
+    "id": "urn:receipt:550e8400-e29b-41d4-a716-446655440000",
+    "type": [
+      "VerifiableCredential",
+      "AgentReceipt"
+    ],
+    "version": "0.1.0",
+    "issuer": {
+      "id": "did:agent:test-agent"
+    },
+    "issuanceDate": "2026-03-29T14:00:00.000Z",
+    "credentialSubject": {
+      "principal": {
+        "id": "did:user:alice"
+      },
+      "action": {
+        "id": "act_7f3a1b2c-d4e5-46f7-a8b9-c0d1e2f3a4b5",
+        "type": "filesystem.file.read",
+        "risk_level": "low",
+        "timestamp": "2026-03-29T14:00:00.000Z",
+        "tool_name": "refund.create",
+        "target": {
+          "system": "razorpay",
+          "resource": "payments/pay_test_0001"
+        },
+        "parameters_hash": "sha256:6ba023816d9d42a243eada826a0a6ecb1d021f127887cc95b53650980e928e91"
+      },
+      "outcome": {
+        "status": "success"
+      },
+      "chain": {
+        "sequence": 1,
+        "previous_receipt_hash": null,
+        "chain_id": "chain_test_vectors"
+      }
+    },
+    "proof": {
+      "type": "Ed25519Signature2020",
+      "created": "2026-10-26T05:14:06.469Z",
+      "verificationMethod": "did:agent:test-agent#key-1",
+      "proofPurpose": "assertionMethod",
+      "proofValue": "unqC_eQ0o3iDL-n19PSoKl8iPsI8tsGepFI5565kbFY8Zhw3UY3Ole-0OVjhg0NyWcn91a3loGc-dtiGtWF5uAw"
+    }
+  },
+  "verificationMethod": "did:agent:test-agent#key-1"
+}

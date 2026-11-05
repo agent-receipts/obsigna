@@ -15,6 +15,7 @@ type testVectors struct {
 	Canonicalization vectorCanonicalization `json:"canonicalization"`
 	Hashing          vectorHashing          `json:"hashing"`
 	Signing          vectorSigning          `json:"signing"`
+	SigningRich      vectorSigning          `json:"signingRich"`
 }
 
 type vectorKeys struct {
@@ -172,6 +173,49 @@ func TestCrossLanguageTSSignatureFailsWhenTampered(t *testing.T) {
 }
 
 const pyVectorsPath = "../../cross-sdk-tests/py_vectors.json"
+
+// TestCrossLanguagePyRichSignature verifies, in Go, a receipt signed by the
+// Python SDK with action.target and parameters_hash set. The minimal Python
+// vector leaves both out.
+func TestCrossLanguagePyRichSignature(t *testing.T) {
+	v := loadVectors(t, pyVectorsPath)
+
+	valid, err := receipt.VerifyRaw([]byte(v.SigningRich.Signed), v.Keys.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !valid {
+		t.Error("Python-signed rich receipt should verify in Go")
+	}
+}
+
+// tsRichVectors is cross-sdk-tests/ts_rich_vectors.json: a rich receipt signed
+// by the TypeScript SDK.
+type tsRichVectors struct {
+	Keys   vectorKeys      `json:"keys"`
+	Signed json.RawMessage `json:"signed"`
+}
+
+// TestCrossLanguageTSRichSignature verifies, in Go, a rich receipt signed by
+// the TypeScript SDK.
+func TestCrossLanguageTSRichSignature(t *testing.T) {
+	data, err := os.ReadFile("../../cross-sdk-tests/ts_rich_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v tsRichVectors
+	if err := json.Unmarshal(data, &v); err != nil {
+		t.Fatal(err)
+	}
+
+	valid, err := receipt.VerifyRaw(v.Signed, v.Keys.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !valid {
+		t.Error("TypeScript-signed rich receipt should verify in Go")
+	}
+}
 
 // TestCrossLanguagePyCanonicalization verifies Go canonicalization matches
 // the Python SDK's canonicalization output.
