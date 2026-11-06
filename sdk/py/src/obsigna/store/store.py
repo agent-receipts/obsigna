@@ -76,19 +76,21 @@ class ReceiptStore:
     """SQLite-backed store for Agent Receipts."""
 
     def __init__(self, db_path: str, *, read_only: bool = False) -> None:
-        """Open the database and ensure the schema exists.
+        """Open the database and, unless ``read_only``, ensure the schema exists.
 
-        When ``read_only`` is True, ``db_path`` is treated as a SQLite URI
-        (e.g. ``file:/path/to/receipts.db?mode=ro``) and enabling WAL, schema
-        creation and the ``tool_name`` migration are skipped; the persistent
-        journal mode of the existing database is left unchanged. Used by
-        :func:`open_store_read_only`.
+        When ``read_only`` is True, the existing database at ``db_path`` is
+        opened through the SQLite URI ``file:<abs-path>?mode=ro``, so every
+        write fails, and enabling WAL, schema creation and the ``tool_name``
+        migration are skipped; the persistent journal mode of the database is
+        left unchanged. See :func:`open_store_read_only`.
         """
-        # timeout=5.0 sets SQLite's busy timeout to 5000 ms, matching Go.
-        self._conn = sqlite3.connect(db_path, timeout=5.0, uri=read_only)
-        self._conn.row_factory = sqlite3.Row
         if read_only:
+            # timeout=5.0 sets SQLite's busy timeout to 5000 ms, matching Go.
+            self._conn = sqlite3.connect(_read_only_uri(db_path), timeout=5.0, uri=True)
+            self._conn.row_factory = sqlite3.Row
             return
+        self._conn = sqlite3.connect(db_path, timeout=5.0)
+        self._conn.row_factory = sqlite3.Row
         try:
             self._init_with_retry()
         except BaseException:
@@ -288,7 +290,8 @@ def open_store_read_only(db_path: str) -> ReceiptStore:
     """Open an existing receipt store at the given path in read-only mode.
 
     The database is opened with the SQLite URI ``file:<abs-path>?mode=ro``,
-    so no schema creation or migration writes are performed. This makes it
+    so no WAL switch, schema creation or migration writes are performed. This
+    makes it
     safe to use alongside a running daemon that holds the write lock.
 
     The returned :class:`ReceiptStore` supports all read operations
@@ -297,14 +300,21 @@ def open_store_read_only(db_path: str) -> ReceiptStore:
 
     ``":memory:"`` is rejected — a fresh in-memory database has no rows to read.
     """
+    return ReceiptStore(db_path, read_only=True)
+
+
+def _read_only_uri(db_path: str) -> str:
+    """Build the ``file:<abs-path>?mode=ro`` URI for a filesystem path."""
     if db_path == ":memory:":
         raise ValueError(
             'open_store_read_only: ":memory:" is not supported — there is '
             "nothing to read in a fresh in-memory database"
         )
+    # POSIX-only, like the TypeScript SDK: a Windows path (backslashes, "C:"
+    # drive) would be percent-encoded into an invalid URI.
     abs_path = os.path.abspath(db_path)
     encoded_path = "/".join(quote(segment, safe="") for segment in abs_path.split("/"))
-    return ReceiptStore(f"file:{encoded_path}?mode=ro", read_only=True)
+    return f"file:{encoded_path}?mode=ro"
 
 
 def _parse_receipt(json_str: str) -> AgentReceipt:
