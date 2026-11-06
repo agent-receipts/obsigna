@@ -573,14 +573,14 @@ interface ClassificationResult {
 ### Built-in action registries
 
 ```typescript
-const FILESYSTEM_ACTIONS: readonly ActionTypeEntry[]  // 7 types
-const SYSTEM_ACTIONS: readonly ActionTypeEntry[]       // 7 types
+const FILESYSTEM_ACTIONS: readonly ActionTypeEntry[]  // 8 types
+const SYSTEM_ACTIONS: readonly ActionTypeEntry[]       // 10 types
 const ALL_ACTIONS: readonly ActionTypeEntry[]           // all + unknown
 const UNKNOWN_ACTION: ActionTypeEntry
 ```
 
-`DATA_ACTIONS` (3 data/API types) is exported from the `taxonomy` subpath, not the package root:
+`DATA_ACTIONS` (3 data/API types) and `NETWORK_ACTIONS` (1 network type) are exported from the `taxonomy` subpath, not the package root:
 
 ```typescript
-import { DATA_ACTIONS } from "@obsigna/sdk-ts/taxonomy";
+import { DATA_ACTIONS, NETWORK_ACTIONS } from "@obsigna/sdk-ts/taxonomy";
 ```

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { Worker } from "node:worker_threads";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeReceipt } from "../test-utils/receipts.js";
 import type { ReceiptStore } from "./store.js";
@@ -662,6 +663,191 @@ describe("openStoreReadOnly", () => {
 				sequence: 2,
 			});
 			expect(() => ro.insert(newReceipt, "sha256:fail")).toThrow();
+		} finally {
+			ro.close();
+		}
+	});
+});
+
+// ADR-0004: WAL journal mode is part of the shared store contract across the
+// Go, Python and TypeScript SDKs.
+describe("journal mode and busy timeout", () => {
+	let tmpDir: string;
+	let dbPath: string;
+
+	// Schema as written by the Python SDK (sdk/py/src/obsigna/store/store.py),
+	// which adds idx_receipts_status on top of the TS schema.
+	const PY_SCHEMA = `
+CREATE TABLE IF NOT EXISTS receipts (
+  id TEXT PRIMARY KEY,
+  chain_id TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  action_type TEXT NOT NULL,
+  tool_name TEXT NOT NULL DEFAULT '',
+  risk_level TEXT NOT NULL,
+  status TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  issuer_id TEXT NOT NULL,
+  principal_id TEXT,
+  receipt_json TEXT NOT NULL,
+  receipt_hash TEXT NOT NULL,
+  previous_receipt_hash TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_chain ON receipts(chain_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_receipts_action ON receipts(action_type);
+CREATE INDEX IF NOT EXISTS idx_receipts_risk ON receipts(risk_level);
+CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
+CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
+`;
+
+	function journalMode(path: string): string {
+		const db = new DatabaseSync(path);
+		try {
+			const row = db.prepare("PRAGMA journal_mode").get();
+			const mode = row?.journal_mode;
+			return typeof mode === "string" ? mode.toLowerCase() : String(mode);
+		} finally {
+			db.close();
+		}
+	}
+
+	beforeEach(() => {
+		tmpDir = mkdtempSync(join(tmpdir(), "ar-store-wal-test-"));
+		dbPath = join(tmpDir, "receipts.db");
+	});
+
+	afterEach(() => {
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("enables WAL on a file-backed store", () => {
+		const store = openStore(dbPath);
+		try {
+			// journal_mode=WAL is persistent in the file, so a separate
+			// connection observes it.
+			expect(journalMode(dbPath)).toBe("wal");
+		} finally {
+			store.close();
+		}
+	});
+
+	it("keeps WAL after the store is closed", () => {
+		const store = openStore(dbPath);
+		store.insert(makeReceipt({ id: "urn:receipt:wal-1" }), "sha256:w1");
+		store.close();
+
+		expect(journalMode(dbPath)).toBe("wal");
+	});
+
+	it("still opens and works in-memory", () => {
+		const store = openStore(":memory:");
+		try {
+			store.insert(makeReceipt({ id: "urn:receipt:mem-1" }), "sha256:m1");
+			expect(store.getById("urn:receipt:mem-1")?.id).toBe("urn:receipt:mem-1");
+		} finally {
+			store.close();
+		}
+	});
+
+	it("openStoreReadOnly reads an existing WAL db without changing its journal mode", () => {
+		const seed = new DatabaseSync(dbPath);
+		seed.exec("PRAGMA journal_mode=WAL");
+		seed.close();
+		const rw = openStore(dbPath);
+		rw.insert(makeReceipt({ id: "urn:receipt:ro-wal-1" }), "sha256:r1");
+		rw.close();
+
+		const ro = openStoreReadOnly(dbPath);
+		try {
+			expect(ro.query({}).map((r) => r.id)).toEqual(["urn:receipt:ro-wal-1"]);
+		} finally {
+			ro.close();
+		}
+		expect(journalMode(dbPath)).toBe("wal");
+	});
+
+	it("a reader is not blocked by an open write transaction", () => {
+		const store = openStore(dbPath);
+		store.insert(makeReceipt({ id: "urn:receipt:rw-1" }), "sha256:rw1");
+
+		const writer = new DatabaseSync(dbPath);
+		try {
+			// BEGIN EXCLUSIVE blocks every reader in rollback-journal mode; in
+			// WAL mode readers keep seeing the last committed snapshot.
+			writer.exec("BEGIN EXCLUSIVE");
+			writer.exec("DELETE FROM receipts");
+
+			const ro = openStoreReadOnly(dbPath);
+			try {
+				expect(ro.query({}).map((r) => r.id)).toEqual(["urn:receipt:rw-1"]);
+			} finally {
+				ro.close();
+			}
+			writer.exec("ROLLBACK");
+		} finally {
+			writer.close();
+			store.close();
+		}
+	});
+
+	it("insert waits for a competing writer instead of failing with SQLITE_BUSY", async () => {
+		const store = openStore(dbPath);
+		// A worker thread holds the write lock for a short time. node:sqlite
+		// is synchronous, so the lock must be released from another thread
+		// while the main thread is blocked inside insert().
+		const worker = new Worker(
+			`
+const { workerData, parentPort } = require("node:worker_threads");
+const { DatabaseSync } = require("node:sqlite");
+const db = new DatabaseSync(workerData.dbPath);
+db.exec("BEGIN IMMEDIATE");
+parentPort.postMessage("locked");
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+db.exec("COMMIT");
+db.close();
+`,
+			{ eval: true, workerData: { dbPath } },
+		);
+		const exited = new Promise<number>((resolve) => {
+			worker.once("exit", resolve);
+		});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				worker.once("message", () => resolve());
+				worker.once("error", reject);
+			});
+
+			// With a busy timeout comparable to Go's (5000 ms) this waits
+			// for the worker's COMMIT rather than throwing "database is locked".
+			store.insert(makeReceipt({ id: "urn:receipt:busy-1" }), "sha256:b1");
+			expect(store.getById("urn:receipt:busy-1")?.id).toBe(
+				"urn:receipt:busy-1",
+			);
+		} finally {
+			expect(await exited).toBe(0);
+			store.close();
+		}
+	});
+
+	it("opens a WAL db created with the Python schema", () => {
+		const seed = new DatabaseSync(dbPath);
+		seed.exec("PRAGMA journal_mode=WAL");
+		seed.exec(PY_SCHEMA);
+		seed.close();
+
+		const store = openStore(dbPath);
+		try {
+			store.insert(makeReceipt({ id: "urn:receipt:py-1" }), "sha256:p1");
+			expect(store.query({}).map((r) => r.id)).toEqual(["urn:receipt:py-1"]);
+		} finally {
+			store.close();
+		}
+		expect(journalMode(dbPath)).toBe("wal");
+
+		const ro = openStoreReadOnly(dbPath);
+		try {
+			expect(ro.getById("urn:receipt:py-1")?.id).toBe("urn:receipt:py-1");
 		} finally {
 			ro.close();
 		}

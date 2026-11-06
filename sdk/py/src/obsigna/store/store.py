@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 if TYPE_CHECKING:
     from obsigna.receipt.types import AgentReceipt
@@ -33,6 +36,11 @@ CREATE INDEX IF NOT EXISTS idx_receipts_risk ON receipts(risk_level);
 CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
 CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
 """
+
+# Total bound on retrying SQLITE_BUSY during open (SQLite's busy wait is off
+# while initialising); same budget as the 5000 ms busy timeout.
+_INIT_DEADLINE_S = 5.0
+_INIT_RETRY_SLEEP_S = 0.01
 
 
 @dataclass
@@ -67,12 +75,57 @@ class StoreStats:
 class ReceiptStore:
     """SQLite-backed store for Agent Receipts."""
 
-    def __init__(self, db_path: str) -> None:
-        """Open the database and ensure the schema exists."""
-        self._conn = sqlite3.connect(db_path)
+    def __init__(self, db_path: str, *, read_only: bool = False) -> None:
+        """Open the database and, unless ``read_only``, ensure the schema exists.
+
+        When ``read_only`` is True, the existing database at ``db_path`` is
+        opened through the SQLite URI ``file:<abs-path>?mode=ro``, so every
+        write fails, and enabling WAL, schema creation and the ``tool_name``
+        migration are skipped; the persistent journal mode of the database is
+        left unchanged. See :func:`open_store_read_only`.
+        """
+        if read_only:
+            # timeout=5.0 sets SQLite's busy timeout to 5000 ms, matching Go.
+            self._conn = sqlite3.connect(_read_only_uri(db_path), timeout=5.0, uri=True)
+            self._conn.row_factory = sqlite3.Row
+            return
+        self._conn = sqlite3.connect(db_path, timeout=5.0)
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
-        self._migrate_tool_name()
+        try:
+            self._init_with_retry()
+        except BaseException:
+            self._conn.close()
+            raise
+
+    def _init_with_retry(self) -> None:
+        """Enable WAL (ADR-0004) and ensure the schema, retrying SQLITE_BUSY.
+
+        SQLite skips the busy handler in some lock-upgrade paths (e.g. the
+        WAL switch or a schema write racing another connection's first open),
+        so simultaneous first opens can fail immediately with "database is
+        locked". Retry within a fixed 5 s window.
+        """
+        # SQLite's busy wait applies per statement, so leaving it on would let
+        # successive lock waits overrun the deadline. Poll instead, and restore
+        # the 5000 ms timeout once the store is initialised.
+        self._conn.execute("PRAGMA busy_timeout=0")
+        deadline = time.monotonic() + _INIT_DEADLINE_S
+        while True:
+            try:
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.executescript(_SCHEMA)
+                self._migrate_tool_name()
+                break
+            except sqlite3.OperationalError as exc:
+                if "database is locked" not in str(exc).lower():
+                    raise
+                if time.monotonic() + _INIT_RETRY_SLEEP_S >= deadline:
+                    raise
+                # Every init statement runs in autocommit (executescript commits
+                # first; PRAGMA and ALTER open no implicit transaction), so a
+                # failed attempt leaves nothing to roll back.
+                time.sleep(_INIT_RETRY_SLEEP_S)
+        self._conn.execute("PRAGMA busy_timeout=5000")
 
     def _migrate_tool_name(self) -> None:
         """Add tool_name column to pre-existing databases that lack it.
@@ -231,6 +284,37 @@ class ReceiptStore:
 def open_store(db_path: str) -> ReceiptStore:
     """Factory function to create a ReceiptStore."""
     return ReceiptStore(db_path)
+
+
+def open_store_read_only(db_path: str) -> ReceiptStore:
+    """Open an existing receipt store at the given path in read-only mode.
+
+    The database is opened with the SQLite URI ``file:<abs-path>?mode=ro``,
+    so no WAL switch, schema creation or migration writes are performed. This
+    makes it
+    safe to use alongside a running daemon that holds the write lock.
+
+    The returned :class:`ReceiptStore` supports all read operations
+    (query, get_by_id, get_chain, stats). Calling insert() raises
+    ``sqlite3.OperationalError`` ("attempt to write a readonly database").
+
+    ``":memory:"`` is rejected — a fresh in-memory database has no rows to read.
+    """
+    return ReceiptStore(db_path, read_only=True)
+
+
+def _read_only_uri(db_path: str) -> str:
+    """Build the ``file:<abs-path>?mode=ro`` URI for a filesystem path."""
+    if db_path == ":memory:":
+        raise ValueError(
+            'open_store_read_only: ":memory:" is not supported — there is '
+            "nothing to read in a fresh in-memory database"
+        )
+    # POSIX-only, like the TypeScript SDK: a Windows path (backslashes, "C:"
+    # drive) would be percent-encoded into an invalid URI.
+    abs_path = os.path.abspath(db_path)
+    encoded_path = "/".join(quote(segment, safe="") for segment in abs_path.split("/"))
+    return f"file:{encoded_path}?mode=ro"
 
 
 def _parse_receipt(json_str: str) -> AgentReceipt:

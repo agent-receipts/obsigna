@@ -12,6 +12,18 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Added
+
+- **`open_store_read_only`** ([#1173](https://github.com/agent-receipts/obsigna/issues/1173)) — opens an existing receipt store with the SQLite URI `file:<abs-path>?mode=ro` (each path segment percent-encoded), skipping schema creation, the `tool_name` migration and the WAL switch, so a read-only tool can run alongside the daemon. Python counterpart to Go's `OpenReadOnly` and TypeScript's `openStoreReadOnly`. `":memory:"` is rejected, a missing path raises without creating a file, and `insert()` raises `sqlite3.OperationalError`. Exported from `obsigna.store` and `obsigna`, with an `openStoreReadOnly` camelCase alias.
+
+### Changed
+
+- **`ReceiptStore` enables WAL journal mode** ([#729](https://github.com/agent-receipts/obsigna/issues/729)) — matches the Go store (ADR-0004), so a reader can read while a writer holds a write transaction. The 5 s busy timeout is unchanged (it was already `sqlite3.connect`'s default and is now passed explicitly). Opening the store also retries `SQLITE_BUSY` during the WAL switch and schema setup for up to 5 s, since SQLite can skip the busy handler when several processes open a fresh database at once. WAL persists in the database file; in-memory stores are unaffected.
+
+### Fixed
+
+- **Taxonomy now covers the spec's `filesystem.directory.list`, `system.code.execute`, `system.pty.open`, `system.pty.close` and `network.egress.observed` action types** ([#1004](https://github.com/agent-receipts/obsigna/issues/1004)) — these previously resolved to the `unknown` fallback, so a receipt for them was signed with `risk_level: "medium"` while the Go SDK signed the spec's value. They now carry the spec's risk level (`low`, `high`, `critical`, `high`, `medium`), which changes the signed `risk_level` for any tool mapped to them. `network.egress.observed` lives in a new `NETWORK_ACTIONS` list, exported (like `DATA_ACTIONS`) from `obsigna.taxonomy` rather than the package root. A new test pins the taxonomy against `spec/spec/taxonomy/action-types.json`.
+
 ## [0.16.0] - 2026-09-17
 
 ### Added

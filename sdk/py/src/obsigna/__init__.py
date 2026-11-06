@@ -103,6 +103,7 @@ from obsigna.store.store import (
     ReceiptStore,
     StoreStats,
     open_store,
+    open_store_read_only,
 )
 from obsigna.store.verify import verify_stored_chain
 from obsigna.taxonomy.actions import (
@@ -132,6 +133,7 @@ hashReceipt = hash_receipt
 hashRawReceipt = hash_raw_receipt
 verifyChain = verify_chain
 openStore = open_store
+openStoreReadOnly = open_store_read_only
 verifyStoredChain = verify_stored_chain
 classifyToolCall = classify_tool_call
 getActionType = get_action_type
@@ -269,6 +271,8 @@ __all__ = [
     "StoreStats",
     "open_store",
     "openStore",
+    "open_store_read_only",
+    "openStoreReadOnly",
     "verify_stored_chain",
     "verifyStoredChain",
     # Taxonomy
