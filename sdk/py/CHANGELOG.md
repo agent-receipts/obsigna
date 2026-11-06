@@ -22,7 +22,7 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ### Fixed
 
-- **Taxonomy now covers the spec's `filesystem.directory.list`, `system.code.execute`, `system.pty.open`, `system.pty.close` and `network.egress.observed` action types** ([#1004](https://github.com/agent-receipts/obsigna/issues/1004)) — these previously resolved to the `unknown` fallback, so a receipt for them was signed with `risk_level: "medium"` while the Go SDK signed the spec's value. They now carry the spec's risk level (`low`, `high`, `critical`, `high`, `medium`), which changes the signed `risk_level` for any tool mapped to them. `network.egress.observed` lives in a new exported `NETWORK_ACTIONS` list. A new test pins the taxonomy against `spec/spec/taxonomy/action-types.json`.
+- **Taxonomy now covers the spec's `filesystem.directory.list`, `system.code.execute`, `system.pty.open`, `system.pty.close` and `network.egress.observed` action types** ([#1004](https://github.com/agent-receipts/obsigna/issues/1004)) — these previously resolved to the `unknown` fallback, so a receipt for them was signed with `risk_level: "medium"` while the Go SDK signed the spec's value. They now carry the spec's risk level (`low`, `high`, `critical`, `high`, `medium`), which changes the signed `risk_level` for any tool mapped to them. `network.egress.observed` lives in a new `NETWORK_ACTIONS` list, exported (like `DATA_ACTIONS`) from `obsigna.taxonomy` rather than the package root. A new test pins the taxonomy against `spec/spec/taxonomy/action-types.json`.
 
 ## [0.16.0] - 2026-09-17
 
