@@ -675,16 +675,16 @@ class ClassificationResult:
 ### Built-in action registries
 
 ```python
-FILESYSTEM_ACTIONS: list[ActionTypeEntry]  # 7 types
-SYSTEM_ACTIONS: list[ActionTypeEntry]      # 7 types
+FILESYSTEM_ACTIONS: list[ActionTypeEntry]  # 8 types
+SYSTEM_ACTIONS: list[ActionTypeEntry]      # 10 types
 ALL_ACTIONS: list[ActionTypeEntry]         # all + unknown
 UNKNOWN_ACTION: ActionTypeEntry
 ```
 
-`DATA_ACTIONS` (3 data/API types) is exported from the `taxonomy` submodule, not the package root:
+`DATA_ACTIONS` (3 data/API types) and `NETWORK_ACTIONS` (1 network type) are exported from the `taxonomy` submodule, not the package root:
 
 ```python
-from obsigna.taxonomy import DATA_ACTIONS
+from obsigna.taxonomy import DATA_ACTIONS, NETWORK_ACTIONS
 ```
 
 ### Backwards compatibility aliases
