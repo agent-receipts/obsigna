@@ -6,11 +6,13 @@ on:
     paths:
       - "sdk/ts/**"
       - "cross-sdk-tests/**"
+      - "spec/**"
   pull_request:
     branches: [main]
     paths:
       - "sdk/ts/**"
       - "cross-sdk-tests/**"
+      - "spec/**"
 
 permissions:
   contents: read
