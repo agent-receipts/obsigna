@@ -35,7 +35,8 @@ CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
 CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
 """
 
-# Bound on retrying SQLITE_BUSY during open; matches the 5000 ms busy timeout.
+# Total bound on retrying SQLITE_BUSY during open (SQLite's busy wait is off
+# while initialising); same budget as the 5000 ms busy timeout.
 _INIT_DEADLINE_S = 5.0
 _INIT_RETRY_SLEEP_S = 0.01
 
@@ -89,23 +90,29 @@ class ReceiptStore:
         SQLite skips the busy handler in some lock-upgrade paths (e.g. the
         WAL switch or a schema write racing another connection's first open),
         so simultaneous first opens can fail immediately with "database is
-        locked". Retry until the same deadline the busy timeout allows.
+        locked". Retry within a fixed 5 s window.
         """
+        # SQLite's busy wait applies per statement, so leaving it on would let
+        # successive lock waits overrun the deadline. Poll instead, and restore
+        # the 5000 ms timeout once the store is initialised.
+        self._conn.execute("PRAGMA busy_timeout=0")
         deadline = time.monotonic() + _INIT_DEADLINE_S
         while True:
             try:
                 self._conn.execute("PRAGMA journal_mode=WAL")
                 self._conn.executescript(_SCHEMA)
                 self._migrate_tool_name()
-                return
+                break
             except sqlite3.OperationalError as exc:
                 if "database is locked" not in str(exc).lower():
                     raise
-                if time.monotonic() >= deadline:
+                if time.monotonic() + _INIT_RETRY_SLEEP_S >= deadline:
                     raise
-                if self._conn.in_transaction:
-                    self._conn.rollback()
+                # Every init statement runs in autocommit (executescript commits
+                # first; PRAGMA and ALTER open no implicit transaction), so a
+                # failed attempt leaves nothing to roll back.
                 time.sleep(_INIT_RETRY_SLEEP_S)
+        self._conn.execute("PRAGMA busy_timeout=5000")
 
     def _migrate_tool_name(self) -> None:
         """Add tool_name column to pre-existing databases that lack it.

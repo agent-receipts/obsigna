@@ -149,18 +149,25 @@ export class ReceiptStore {
 	 * SQLite skips the busy handler in some lock-upgrade paths (e.g. the WAL
 	 * switch or a schema write racing another connection's first open), so
 	 * simultaneous first opens can fail immediately with "database is
-	 * locked". Retry until the same deadline the busy timeout allows.
+	 * locked". Retry within a fixed 5 s window.
 	 */
 	private initWithRetry(): void {
-		const deadline = Date.now() + INIT_DEADLINE_MS;
+		// SQLite's busy wait applies per statement, so leaving it on would let
+		// successive lock waits overrun the deadline (and block the event loop).
+		// Poll instead, and restore the 5000 ms timeout once initialised.
+		this.db.exec("PRAGMA busy_timeout = 0");
+		const deadline = performance.now() + INIT_DEADLINE_MS;
 		for (;;) {
 			try {
 				this.db.exec("PRAGMA journal_mode = WAL");
 				this.db.exec(SCHEMA);
 				this.migrateToolName();
-				return;
+				break;
 			} catch (err) {
-				if (!isBusyError(err) || Date.now() >= deadline) {
+				if (
+					!isBusyError(err) ||
+					performance.now() + INIT_RETRY_SLEEP_MS >= deadline
+				) {
 					throw err;
 				}
 				// Every init statement runs in autocommit, so a failed attempt
@@ -168,10 +175,15 @@ export class ReceiptStore {
 				Atomics.wait(INIT_SLEEP_CELL, 0, 0, INIT_RETRY_SLEEP_MS);
 			}
 		}
+		this.db.exec("PRAGMA busy_timeout = 5000");
 	}
 
 	/**
 	 * Add tool_name column to pre-existing databases that lack it.
+	 *
+	 * The try/catch handles the race where concurrent processes both detect
+	 * the missing column and one ALTER succeeds before the other (matching
+	 * the Python store).
 	 */
 	private migrateToolName(): void {
 		const rows = this.db
@@ -185,9 +197,17 @@ export class ReceiptStore {
 				(r as Record<string, unknown>).name === "tool_name",
 		);
 		if (!hasColumn) {
-			this.db.exec(
-				"ALTER TABLE receipts ADD COLUMN tool_name TEXT NOT NULL DEFAULT ''",
-			);
+			try {
+				this.db.exec(
+					"ALTER TABLE receipts ADD COLUMN tool_name TEXT NOT NULL DEFAULT ''",
+				);
+			} catch (err) {
+				if (
+					!(err instanceof Error && /duplicate column name/i.test(err.message))
+				) {
+					throw err;
+				}
+			}
 		}
 	}
 
