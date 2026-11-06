@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 if TYPE_CHECKING:
     from obsigna.receipt.types import AgentReceipt
@@ -73,9 +75,20 @@ class StoreStats:
 class ReceiptStore:
     """SQLite-backed store for Agent Receipts."""
 
-    def __init__(self, db_path: str) -> None:
-        """Open the database and ensure the schema exists."""
-        # timeout=5.0 sets SQLite's busy timeout to 5000 ms, matching Go.
+    def __init__(self, db_path: str, *, read_only: bool = False) -> None:
+        """Open the database and, unless ``read_only``, ensure the schema exists.
+
+        When ``read_only`` is True, the existing database at ``db_path`` is
+        opened through the SQLite URI ``file:<abs-path>?mode=ro``, so every
+        write fails, and enabling WAL, schema creation and the ``tool_name``
+        migration are skipped; the persistent journal mode of the database is
+        left unchanged. See :func:`open_store_read_only`.
+        """
+        if read_only:
+            # timeout=5.0 sets SQLite's busy timeout to 5000 ms, matching Go.
+            self._conn = sqlite3.connect(_read_only_uri(db_path), timeout=5.0, uri=True)
+            self._conn.row_factory = sqlite3.Row
+            return
         self._conn = sqlite3.connect(db_path, timeout=5.0)
         self._conn.row_factory = sqlite3.Row
         try:
@@ -271,6 +284,37 @@ class ReceiptStore:
 def open_store(db_path: str) -> ReceiptStore:
     """Factory function to create a ReceiptStore."""
     return ReceiptStore(db_path)
+
+
+def open_store_read_only(db_path: str) -> ReceiptStore:
+    """Open an existing receipt store at the given path in read-only mode.
+
+    The database is opened with the SQLite URI ``file:<abs-path>?mode=ro``,
+    so no WAL switch, schema creation or migration writes are performed. This
+    makes it
+    safe to use alongside a running daemon that holds the write lock.
+
+    The returned :class:`ReceiptStore` supports all read operations
+    (query, get_by_id, get_chain, stats). Calling insert() raises
+    ``sqlite3.OperationalError`` ("attempt to write a readonly database").
+
+    ``":memory:"`` is rejected — a fresh in-memory database has no rows to read.
+    """
+    return ReceiptStore(db_path, read_only=True)
+
+
+def _read_only_uri(db_path: str) -> str:
+    """Build the ``file:<abs-path>?mode=ro`` URI for a filesystem path."""
+    if db_path == ":memory:":
+        raise ValueError(
+            'open_store_read_only: ":memory:" is not supported — there is '
+            "nothing to read in a fresh in-memory database"
+        )
+    # POSIX-only, like the TypeScript SDK: a Windows path (backslashes, "C:"
+    # drive) would be percent-encoded into an invalid URI.
+    abs_path = os.path.abspath(db_path)
+    encoded_path = "/".join(quote(segment, safe="") for segment in abs_path.split("/"))
+    return f"file:{encoded_path}?mode=ro"
 
 
 def _parse_receipt(json_str: str) -> AgentReceipt:
