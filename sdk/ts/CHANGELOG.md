@@ -12,6 +12,10 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Changed
+
+- **`ReceiptStore` enables WAL journal mode and a 5 s busy timeout** ([#729](https://github.com/agent-receipts/obsigna/issues/729)) — matches the Go store (ADR-0004), so a reader can read while a writer holds a write transaction, and concurrent opens or inserts wait instead of failing immediately with `SQLITE_BUSY`. Opening the store retries `SQLITE_BUSY` during the WAL switch and schema setup for up to 5 s, since SQLite can skip the busy handler when several processes open a fresh database at once. `openStoreReadOnly` sets only the busy timeout and leaves the database's persistent journal mode alone. In-memory stores are unaffected. Concurrent opens of a legacy database no longer fail when both try to add the `tool_name` column; the losing `ALTER`'s "duplicate column name" error is ignored, as in the Python store.
+
 ### Fixed
 
 - **`signReceipt`/`verifyReceipt` now normalise optional-null fields before canonicalising** ([#1005](https://github.com/agent-receipts/obsigna/issues/1005)) — `canonicalizeReceipt` previously canonicalised the caller's object verbatim, so an explicit `null` on an optional field (reachable via an `as UnsignedAgentReceipt` cast or untyped JSON) was signed/verified as `"field":null`, while `hashReceipt` on the same object normalised it to absent per ADR-0009 Rule 2 — producing a different byte form for the signature than for the chain hash. Both now share `normalizeForCanonicalization()`, so a receipt's signature and its chain hash always commit to identical canonical bytes.

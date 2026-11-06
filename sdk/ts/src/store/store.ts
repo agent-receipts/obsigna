@@ -31,6 +31,17 @@ CREATE INDEX IF NOT EXISTS idx_receipts_risk ON receipts(risk_level);
 CREATE INDEX IF NOT EXISTS idx_receipts_timestamp ON receipts(timestamp);
 `;
 
+// Bound on retrying SQLITE_BUSY during open; matches the 5000 ms busy timeout.
+const INIT_DEADLINE_MS = 5000;
+const INIT_RETRY_SLEEP_MS = 10;
+// Atomics.wait on a never-notified cell is a synchronous sleep; node:sqlite
+// is synchronous, so the constructor cannot await.
+const INIT_SLEEP_CELL = new Int32Array(new SharedArrayBuffer(4));
+
+function isBusyError(err: unknown): boolean {
+	return err instanceof Error && /database is locked/i.test(err.message);
+}
+
 /**
  * Filters for querying receipts.
  */
@@ -112,19 +123,67 @@ export class ReceiptStore {
 	 * an in-memory database. May also be a SQLite URI (e.g. for read-only
 	 * mode); in that case pass `{ skipInit: true }` to suppress schema
 	 * creation and migration.
-	 * @param options.skipInit When true, skip schema creation and
-	 * `tool_name` migration. Used by `openStoreReadOnly`.
+	 *
+	 * A 5000 ms busy timeout is always set. WAL journal mode is enabled
+	 * unless `skipInit` is set (ADR-0004).
+	 * @param options.skipInit When true, skip enabling WAL, schema creation
+	 * and `tool_name` migration; the persistent journal mode of the existing
+	 * database is left unchanged. Used by `openStoreReadOnly`.
 	 */
 	constructor(dbPath: string, options?: { skipInit?: boolean }) {
 		this.db = new DatabaseSync(dbPath);
-		if (!options?.skipInit) {
-			this.db.exec(SCHEMA);
-			this.migrateToolName();
+		try {
+			this.db.exec("PRAGMA busy_timeout = 5000");
+			if (!options?.skipInit) {
+				this.initWithRetry();
+			}
+		} catch (err) {
+			this.db.close();
+			throw err;
 		}
 	}
 
 	/**
+	 * Enable WAL (ADR-0004) and ensure the schema, retrying SQLITE_BUSY.
+	 *
+	 * SQLite skips the busy handler in some lock-upgrade paths (e.g. the WAL
+	 * switch or a schema write racing another connection's first open), so
+	 * simultaneous first opens can fail immediately with "database is
+	 * locked". Retry within a fixed 5 s window.
+	 */
+	private initWithRetry(): void {
+		// SQLite's busy wait applies per statement, so leaving it on would let
+		// successive lock waits overrun the deadline (and block the event loop).
+		// Poll instead, and restore the 5000 ms timeout once initialised.
+		this.db.exec("PRAGMA busy_timeout = 0");
+		const deadline = performance.now() + INIT_DEADLINE_MS;
+		for (;;) {
+			try {
+				this.db.exec("PRAGMA journal_mode = WAL");
+				this.db.exec(SCHEMA);
+				this.migrateToolName();
+				break;
+			} catch (err) {
+				if (
+					!isBusyError(err) ||
+					performance.now() + INIT_RETRY_SLEEP_MS >= deadline
+				) {
+					throw err;
+				}
+				// Every init statement runs in autocommit, so a failed attempt
+				// leaves no open transaction to roll back.
+				Atomics.wait(INIT_SLEEP_CELL, 0, 0, INIT_RETRY_SLEEP_MS);
+			}
+		}
+		this.db.exec("PRAGMA busy_timeout = 5000");
+	}
+
+	/**
 	 * Add tool_name column to pre-existing databases that lack it.
+	 *
+	 * The try/catch handles the race where concurrent processes both detect
+	 * the missing column and one ALTER succeeds before the other (matching
+	 * the Python store).
 	 */
 	private migrateToolName(): void {
 		const rows = this.db
@@ -138,9 +197,17 @@ export class ReceiptStore {
 				(r as Record<string, unknown>).name === "tool_name",
 		);
 		if (!hasColumn) {
-			this.db.exec(
-				"ALTER TABLE receipts ADD COLUMN tool_name TEXT NOT NULL DEFAULT ''",
-			);
+			try {
+				this.db.exec(
+					"ALTER TABLE receipts ADD COLUMN tool_name TEXT NOT NULL DEFAULT ''",
+				);
+			} catch (err) {
+				if (
+					!(err instanceof Error && /duplicate column name/i.test(err.message))
+				) {
+					throw err;
+				}
+			}
 		}
 	}
 
