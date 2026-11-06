@@ -18,6 +18,7 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ### Fixed
 
+- **Taxonomy now covers the spec's `filesystem.directory.list`, `system.code.execute`, `system.pty.open`, `system.pty.close` and `network.egress.observed` action types** ([#1004](https://github.com/agent-receipts/obsigna/issues/1004)) — these previously resolved to the `unknown` fallback, so a receipt for them was signed with `risk_level: "medium"` while the Go SDK signed the spec's value. They now carry the spec's risk level (`low`, `high`, `critical`, `high`, `medium`), which changes the signed `risk_level` for any tool mapped to them. `network.egress.observed` lives in a new exported `NETWORK_ACTIONS` list. A new test pins the taxonomy against `spec/spec/taxonomy/action-types.json`.
 - **`signReceipt`/`verifyReceipt` now normalise optional-null fields before canonicalising** ([#1005](https://github.com/agent-receipts/obsigna/issues/1005)) — `canonicalizeReceipt` previously canonicalised the caller's object verbatim, so an explicit `null` on an optional field (reachable via an `as UnsignedAgentReceipt` cast or untyped JSON) was signed/verified as `"field":null`, while `hashReceipt` on the same object normalised it to absent per ADR-0009 Rule 2 — producing a different byte form for the signature than for the chain hash. Both now share `normalizeForCanonicalization()`, so a receipt's signature and its chain hash always commit to identical canonical bytes.
 
 ## [0.17.0] - 2026-07-17
