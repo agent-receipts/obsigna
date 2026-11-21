@@ -40,7 +40,7 @@ jobs:
       # core. It is built fresh from source here (never committed) so the
       # deployed binary always matches the verifier the CLI<->WASM gate checks.
       - name: Setup Go (for the /verify WASM verifier)
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           # Pin to the patch recorded in web-verifier/go.mod (ADR-0035) so the
           # deployed verifier WASM does not silently change on a 1.26.x release.
