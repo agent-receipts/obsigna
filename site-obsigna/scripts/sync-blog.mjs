@@ -39,6 +39,14 @@ export function canonicalUrl(file) {
   return slug === "index" ? CANONICAL_BASE : `${CANONICAL_BASE}${slug}/`;
 }
 
+// Mirrored blog pages canonicalize to agentreceipts.ai, so obsigna.dev's
+// sitemap must not list them: a sitemap entry asks Google to index a URL that
+// the page itself says is not the canonical one.
+export function isMirroredBlogPage(page) {
+  const { pathname } = new URL(page);
+  return pathname === "/blog" || pathname.startsWith("/blog/");
+}
+
 // Inject a `rel="canonical"` link into the page's frontmatter `head`, unless the
 // source already declares one (some posts self-canonicalize to agentreceipts.ai
 // at the source, which is already correct once mirrored).

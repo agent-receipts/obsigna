@@ -15,6 +15,7 @@ import {
   withCanonical,
   syncImages,
   stripOgImage,
+  isMirroredBlogPage,
 } from "./sync-blog.mjs";
 
 test("canonicalUrl maps a post slug to its agentreceipts.ai URL", () => {
@@ -110,4 +111,21 @@ test("syncImages clears stale images when the source dir is absent", () => {
   } finally {
     rmSync(base, { recursive: true });
   }
+});
+
+test("isMirroredBlogPage matches the blog index and every mirrored post", () => {
+  assert.equal(isMirroredBlogPage("https://obsigna.dev/blog/"), true);
+  assert.equal(isMirroredBlogPage("https://obsigna.dev/blog"), true);
+  assert.equal(
+    isMirroredBlogPage("https://obsigna.dev/blog/daemon-process-separation/"),
+    true,
+  );
+});
+
+test("isMirroredBlogPage leaves obsigna's own pages in the sitemap", () => {
+  assert.equal(isMirroredBlogPage("https://obsigna.dev/"), false);
+  assert.equal(isMirroredBlogPage("https://obsigna.dev/getting-started/quick-start/"), false);
+  // Only the /blog path segment, not a prefix that happens to start with "blog".
+  assert.equal(isMirroredBlogPage("https://obsigna.dev/blogging-guide/"), false);
+  assert.equal(isMirroredBlogPage("https://obsigna.dev/docs/blog/"), false);
 });
