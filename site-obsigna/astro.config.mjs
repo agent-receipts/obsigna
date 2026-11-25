@@ -3,6 +3,7 @@ import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import starlightThemeFlexoki from "starlight-theme-flexoki";
 import rehypeMermaid from "rehype-mermaid";
+import { isMirroredBlogPage } from "./scripts/sync-blog.mjs";
 
 export default defineConfig({
   site: "https://obsigna.dev",
@@ -244,6 +245,6 @@ export default defineConfig({
         },
       ],
     }),
-    sitemap(),
+    sitemap({ filter: (page) => !isMirroredBlogPage(page) }),
   ],
 });
