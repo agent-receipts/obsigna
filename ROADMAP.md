@@ -45,7 +45,8 @@ out-of-band anchoring) stay `planned`; the heavy-and-substitutable items
 | RFC 3161 TSA timestamp anchoring (elevated from v2) | ADR-0019 § P3 | #482 | planned |
 | Regional TSA support (eIDAS, ICP-Brasil, etc.) — layers on #482 | new ADR needed | #492 | planned |
 | Revocation list format and reference implementation (elevated from v2) | ADR-0019 § O1 | #483 | planned |
-| `CheckpointPublisher` with object-lock reference backend — base checkpoint anchoring shipped (#889); production object-lock sink remains | ADR-0019 § O2 | #484 | planned |
+| `CheckpointPublisher` with object-lock reference backend — base checkpoint anchoring shipped (#889); production object-lock sink remains. Also the quantum-durable backstop for pre-migration Ed25519 chains (#32) | ADR-0019 § O2 | #484 | planned |
+| Hybrid Ed25519 + ML-DSA-65 signing profile (post-quantum, epic #32) | ADR-0040 (proposed) | #1211 | planned |
 | Content-addressed payload storage (GDPR erasure) | ADR-0019 § S3 (extends) | #731 | planned |
 | Downloadable conformance test suite (packaged suite extending the base vectors shipped in #474) | ADR-0019 § S1 (extends) | not filed | planned |
 | PKCS#11 / CloudHSM `Signer` adapter | ADR-0018 | #489 | deferred |
@@ -122,6 +123,16 @@ across workstreams they can be parallelised.
 |---|---|---|---|
 | Bound remaining inline plaintext fields — cap `error` / `prompt_preview` + truncation flag (hash-first model superseded the original `PayloadStrategy` framing; content-addressed/GDPR erasure split to #731, v1.5) | ADR-0019 § S3 | #478 | done |
 | `parameterDisclosure` Phase A — cross-SDK + OpenClaw migration (envelope, Python SDK, OpenClaw rename, cross-SDK tests all shipped) | ADR-0012 | #280 | done |
+
+### Post-quantum migration (epic #32)
+
+ADR-0001 makes signature algorithm agility a v1 prerequisite. Disclosure envelopes are exposed to harvest-now-decrypt-later, so the hybrid KEM suite is sequenced with it. Whether that suite moves ahead to Post 3 is an open ADR-0040 decision. Hybrid ML-DSA signing is v1.5 (above).
+
+| Item | ADR | Issue | Status |
+|---|---|---|---|
+| Phase 0 docs — ADR-0001 hash-claim correction, quantum threats in the threat model, `SECURITY.md` reporting line | ADR-0001 | #1208 | in-progress |
+| Hybrid X25519 + ML-KEM-768 HPKE suite for disclosure envelopes; X25519-only suite becomes decrypt-only | ADR-0012, ADR-0040 (proposed) | #1209 | planned |
+| Signature algorithm agility — `proof.type` allow-list, cross-algorithm rotation, one-way downgrade rule, Alloy model extension | ADR-0040 (proposed) | #1210 | planned |
 
 ### Cross-SDK parity
 

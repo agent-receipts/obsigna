@@ -44,7 +44,7 @@ The security of receipt signatures depends on RFC 8785 (JSON Canonicalization Sc
 
 ### Hash function scope
 
-This ADR covers only the signature algorithm. Receipt chain linkage uses SHA-256 for `previous_receipt_hash`, which has the same quantum-resistance limitations as Ed25519. The hash function choice should be addressed in a separate ADR or included when algorithm agility (#32) is designed.
+This ADR covers only the signature algorithm. Receipt chain linkage uses SHA-256 for `previous_receipt_hash` (and for `parameters_hash`, `response_hash`, and key fingerprints). SHA-256 does **not** share Ed25519's quantum exposure. Shor's algorithm breaks Ed25519 outright: a quantum adversary recovers the private key from the public key. Against SHA-256 the best known quantum attack is Grover's algorithm, which only roughly halves preimage security (about 2^128 work remains), and quantum collision search gives no practical advantage over classical. SHA-256 is retained. Post-quantum migration work (#32) covers the signature algorithm and the disclosure KEM, not the chain hash. (Corrected 2026-11-25; see *Amendments*.)
 
 ### Encoding
 
@@ -72,4 +72,10 @@ The Ed25519 algorithm is designed to facilitate constant-time implementations, a
 - Receipt chains benefit from compact signatures, reducing storage and bandwidth overhead.
 - Enterprise integrations that only support RSA will need a compatibility layer or must adopt Ed25519.
 - Cross-language canonicalization and encoding conformance testing is a hard requirement, not optional.
-- Algorithm agility (#32) is a prerequisite for v1.0 and should be the next cryptographic ADR, covering both the signature algorithm and chain hash function. Receipts signed today may need to remain trustworthy for years, making this a blocking concern for protocol stability.
+- Algorithm agility (#32) is a prerequisite for v1.0 and should be the next cryptographic ADR, covering the signature algorithm (the chain hash stays SHA-256; see *Hash function scope*). Receipts signed today may need to remain trustworthy for years, making this a blocking concern for protocol stability.
+
+## Amendments
+
+### 2026-11-25: Correction to *Hash function scope*
+
+The original text said SHA-256 "has the same quantum-resistance limitations as Ed25519" and suggested the hash function be revisited alongside algorithm agility. That was wrong. Shor's algorithm breaks elliptic-curve signatures completely. Grover's algorithm only roughly halves SHA-256 preimage security (to about 128 bits), and quantum collision search offers no practical speed-up over classical. The paragraph and the matching *Consequences* bullet have been corrected, and SHA-256 stays as the chain hash. Tracked in #1208, part of the post-quantum migration epic #32.

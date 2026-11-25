@@ -23,6 +23,10 @@ This policy covers the protocol specification, all SDK implementations (Go, Type
 - MCP proxy security (policy bypass, data leakage, redaction failures)
 - Injection attacks through tool parameters or taxonomy config
 
+### Known limitations vs. bypasses
+
+Long-term cryptographic limitations that are already documented are tracked publicly, so you don't need a private report to discuss them. One example is the exposure of Ed25519 signatures and X25519 disclosure envelopes to a future quantum computer (see [`docs/threat-model.md`](docs/threat-model.md#quantum-adversary) and [#32](https://github.com/agent-receipts/obsigna/issues/32)). A way to **bypass a mitigation** for such a limitation is a vulnerability, and should be reported privately as above. Examples: downgrading a chain that has migrated to a post-quantum algorithm, stripping a post-quantum proof or envelope component so that a receipt still verifies, or making an SDK seal new disclosures under a deprecated suite.
+
 ## Disclosure Policy
 
 - Reports are triaged within 48 hours
