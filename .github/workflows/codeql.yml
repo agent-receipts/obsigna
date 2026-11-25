@@ -100,7 +100,7 @@ jobs:
       # languages use build-mode: none and need no toolchain.
       - name: Set up Go
         if: needs.changes.outputs.run == 'true' && matrix.language == 'go'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: "1.26"
 
