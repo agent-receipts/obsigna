@@ -53,6 +53,7 @@ Use `0000-template.md` as the starting point for new ADRs. Name each new ADR fil
 | [ADR-0037](0037-vanity-go-module-path.md) | Vanity Go Module Path on obsigna.dev | Accepted |
 | [ADR-0038](0038-grounded-principal-conformance-tier.md) | Grounded-Principal Conformance Tier | Proposed |
 | [ADR-0039](0039-formal-verification-chain-invariants.md) | Formal Verification of Receipt-Chain Tamper-Evidence (Alloy) | Accepted |
+| [ADR-0040](0040-signature-algorithm-agility.md) | Signature Algorithm Agility and Post-Quantum Migration Path | Proposed (draft; three open decisions) |
 
 ## References
 
