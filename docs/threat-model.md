@@ -17,11 +17,14 @@ The **agent process is untrusted with respect to the receipt chain.** It cannot 
 - **The daemon binary.** Supply-chain integrity of the daemon binary itself is out of scope for this document; tracked separately (see [#151](https://github.com/agent-receipts/obsigna/issues/151)).
 - **User/group separation between emitter and daemon.** Emitters run as the agent user; the daemon runs as `agentreceipts`. The DB is `0640` owned `agentreceipts:agentreceipts-read`; the public key is `0644` world-readable. If those modes are violated by misconfiguration, the daemon's exclusivity property collapses.
 - **Honest system clock.** Replay detection via timestamps and the temporal ordering of rotation events both assume the host clock is honest. An attacker who controls the clock can backdate events; the chain hash protects ordering relative to other receipts but cannot, on its own, attest to wall-clock truth.
+- **Classical hardness of elliptic-curve discrete logarithms.** Ed25519 signatures and X25519 disclosure envelopes are sound only while no cryptographically relevant quantum computer exists. See [Quantum adversary](#quantum-adversary) for what changes when one does.
 - **The external anchor sink, when configured.** The post-compromise integrity guarantee (see [What we explicitly claim](#what-we-explicitly-claim)) is conditional on an operator-configured external sink that the daemon does not control. Without an anchor, post-compromise integrity remains aspirational.
 
 ## What we explicitly claim
 
 > Receipts are cryptographically tamper-evident. Mid-chain modifications, deletions, reorderings, and replays are detected by signature verification and hash-chain checks. The chain's historical integrity survives daemon-key compromise **if and only if rotation events and periodic checkpoints are anchored to a sink the daemon does not control.** Without that anchor, an attacker who compromises the daemon can forge a clean tail or a clean rotation history that is indistinguishable from a real one. With it, history is fixed and the worst the attacker can do is forge *future* receipts under the compromised key — which the next anchored rotation or checkpoint will surface.
+
+This claim is made against a classical adversary. Against a quantum adversary, Ed25519 signatures are forgeable, and the claim reduces to what the external anchor alone can prove (see [Quantum adversary](#quantum-adversary)).
 
 The conditional is load-bearing. ADR-0015 specifies the [`KeySource` interface](adr/0015-key-rotation-byok-anchoring.md), the rotation event schema, and the external anchor write contract that this guarantee depends on.
 
@@ -70,7 +73,38 @@ Action parameters are committed via `parameters_hash` by default (privacy-preser
 
 Tool **output/response is committed via `response_hash`**, and operators who enable response disclosure (`--response-disclosure`, ADR-0012, spec v0.6.0+) have the daemon seal elected responses into an `outcome.response_disclosure` HPKE envelope addressed to the same forensic key — the offline responder recovers them with `obsigna receipt disclose --response` (SDK `DecryptResponse`). **Both the daemon-side sealing and the responder-side decryption are shipped**, closing the input/output asymmetry previously tracked in [#819](https://github.com/agent-receipts/obsigna/issues/819). As with parameters, `response_hash` remains the authoritative tamper-evidence commitment, and the daemon cannot decrypt past disclosures (the forensic private key lives with the responder).
 
+Disclosure confidentiality rests on X25519 today, so envelopes are exposed to harvest-now-decrypt-later. See [Quantum adversary](#quantum-adversary).
+
 Plaintext secrets in receipts are forbidden by policy (see [AGENTS.md security section](../AGENTS.md)).
+
+## Quantum adversary
+
+A cryptographically relevant quantum computer (CRQC) breaks the elliptic-curve primitives the protocol uses today and leaves the hash and symmetric primitives essentially intact. None of the mitigations below has shipped yet. They are tracked in the post-quantum migration epic [#32](https://github.com/agent-receipts/obsigna/issues/32).
+
+### Forgery of Ed25519 receipt signatures
+
+Shor's algorithm recovers an Ed25519 private key from its public key, and public keys are by design distributed to verifiers (and carried inline in `key_rotated` events). Once that is possible, an adversary can sign arbitrary receipts under any existing issuer key. That includes back-dated history, a forged tail, and a forged `key_rotated` event that hands the chain to a key the adversary controls. Chain verification can't tell such a chain from the real one, because every signature verifies.
+
+**Mitigation status: not yet shipped.**
+
+- A signature-agility mechanism with a one-way downgrade rule (ADR-0040, proposed; [#1210](https://github.com/agent-receipts/obsigna/issues/1210)) and a hybrid Ed25519 + ML-DSA signing profile ([#1211](https://github.com/agent-receipts/obsigna/issues/1211)) protect receipts signed *after* a chain migrates.
+- Neither can protect history signed only with Ed25519. For pre-migration chains, the durable evidence is the **external anchor**: rotation events and checkpoints written, before a CRQC exists, to a sink whose integrity doesn't depend on a classical signature (S3 object-lock, a widely witnessed transparency log; [#484](https://github.com/agent-receipts/obsigna/issues/484)). An anchor entry is itself an Ed25519-signed checkpoint, so once a CRQC exists its signature proves nothing. What still holds is that the sink fixed the entry at a known time and nobody could rewrite it.
+- The shipped `file:` / `git:` / `syslog:` reference sinks are only as immutable as the host they live on. They don't provide this property against an adversary who can also write to the sink.
+
+### Harvest-now-decrypt-later against disclosure envelopes
+
+ADR-0012 parameter and response disclosure envelopes use HPKE with X25519 (`hpke-x25519-hkdf-sha256-aes-256-gcm`). The ciphertext lives inside signed receipts that are stored, exported, and shared with auditors. An adversary who keeps a copy today can decrypt it once a CRQC exists, without ever touching the forensic private key. This is the most time-sensitive quantum exposure in the protocol, because ciphertext that has left the store can't be recalled or re-sealed. The daemon can't decrypt past envelopes, by design.
+
+**Mitigation status: not yet shipped.** A hybrid X25519 + ML-KEM-768 HPKE suite is planned ([#1209](https://github.com/agent-receipts/obsigna/issues/1209)). When it ships, the X25519-only suite becomes decrypt-only. **Disclosures sealed before the upgrade stay exposed permanently.** Operators with long confidentiality horizons should weigh this before enabling disclosure on data that has to stay secret past a plausible CRQC timeline.
+
+### RFC 3161 timestamp tokens are not quantum-durable
+
+RFC 3161 trusted timestamps (spec §7.7, planned for v1.5 in [#482](https://github.com/agent-receipts/obsigna/issues/482)) are signed by the timestamping authority with RSA or ECDSA. A token is evidence of time only while the TSA's signature can't be forged. Once a CRQC exists, an adversary can mint back-dated tokens, so a TSA token on its own is **not** long-term evidence that a receipt existed at a given time. Durable time evidence needs either renewal before the TSA's algorithm falls (for example archive timestamps in the style of RFC 4998 Evidence Record Syntax, under a post-quantum TSA) or an external anchor with the immutability property above. Which approach #482 adopts is still open.
+
+### What stays sound
+
+- **SHA-256** (chain linkage, `parameters_hash`, `response_hash`, key fingerprints). Grover's algorithm only roughly halves preimage security (about 128 bits remain), and quantum collision search gives no practical advantage over classical. No change is planned.
+- **AES-256-GCM, HKDF-SHA256, and Argon2id** (the mcp-proxy at-rest encryption in ADR-0016, and the symmetric half of HPKE). Their security margins remain adequate.
 
 ## Out-of-scope threats
 
@@ -121,6 +155,7 @@ What remains partial — and therefore bounds the claims above:
 
 - **External anchoring is shipped with reference-grade sinks.** Key rotation and anchor-first rotation writes are implemented, and checkpoint anchoring for tail-truncation detection now ships end-to-end — the daemon emits signed chain-HEAD checkpoints (`--checkpoint-anchor`) and `obsigna verify --against-anchor` fails on truncation (ADR-0015 Phase B checkpoint anchoring, verified via the ADR-0008 §3 out-of-band check). The available sinks (`file:`, `git:`, `syslog:`) are dependency-free *reference* adapters (a plain file is only as append-only as the filesystem around it); production-grade adapters (S3 object-lock, transparency log, SIEM ingest) are **not yet shipped**. So the post-compromise integrity guarantee in [What we explicitly claim](#what-we-explicitly-claim) remains conditional on configuring a qualifying external sink, and that adapter ecosystem is still landing.
 - **HSM / cloud-KMS key custody is not yet shipped.** The `KeySource` interface is in place and the file-backed adapter is the default; PKCS#11 and KMS backends (ADR-0015 Phase C) are designed but unimplemented. Against a host-level compromise, the file-backed key is readable by the daemon user — see [Compromised daemon process](#compromised-daemon-process--daemon-user-filesystem-access).
+- **No post-quantum protection is shipped.** Signing is Ed25519 only, and disclosure is X25519 HPKE only. See [Quantum adversary](#quantum-adversary) for the exposure and [#32](https://github.com/agent-receipts/obsigna/issues/32) for the migration plan.
 - **Forensic parameter disclosure (ADR-0012) is wired in the daemon.** When a forensic public key is configured, the daemon pipeline encrypts elected parameters into an HPKE envelope addressed to that key; the matching private key lives with the offline responder, not the daemon. This is no longer an open gap.
 
 ## Mitigations and roadmap
@@ -130,8 +165,8 @@ What remains partial — and therefore bounds the claims above:
 | Daemon process separation (signing/storage isolation from agent) | [ADR-0010](adr/0010-daemon-process-separation.md) | [#236](https://github.com/agent-receipts/obsigna/issues/236) | Accepted; shipped — MCP proxy and hook are keyless emitters; the daemon is the sole signer |
 | Key rotation, BYOK, external anchoring | [ADR-0015](adr/0015-key-rotation-byok-anchoring.md), [ADR-0008](adr/0008-response-hashing-and-chain-completeness.md) | [#307](https://github.com/agent-receipts/obsigna/issues/307) (PR [#319](https://github.com/agent-receipts/obsigna/pull/319)) | Accepted; rotation + anchor-first writes + checkpoint anchoring (truncation detection, ADR-0015 Phase B) shipped with file/git/syslog reference sinks; production anchor adapters (S3 object-lock, transparency log, SIEM) & HSM/KMS (Phase C) pending |
 | DID-based identity for issuer/key resolution | [ADR-0007](adr/0007-did-method-strategy.md) | [#46](https://github.com/agent-receipts/obsigna/issues/46) | Proposed |
-| Algorithm agility (PQ-ready signing) | — (`KeySource` interface in ADR-0015 is algorithm-agnostic by design) | [#32](https://github.com/agent-receipts/obsigna/issues/32) | Tracked |
+| Post-quantum migration: signing, disclosure, anchoring | ADR-0040 (proposed); `KeySource` in ADR-0015 is algorithm-agnostic by design | [#32](https://github.com/agent-receipts/obsigna/issues/32) (epic): [#1209](https://github.com/agent-receipts/obsigna/issues/1209) hybrid KEM disclosure, [#1210](https://github.com/agent-receipts/obsigna/issues/1210) agility, [#1211](https://github.com/agent-receipts/obsigna/issues/1211) hybrid ML-DSA signing, [#484](https://github.com/agent-receipts/obsigna/issues/484) production anchor | Planned: disclosure and agility for v1, hybrid signing for v1.5 |
 | Supply-chain integrity of the daemon binary | — | [#151](https://github.com/agent-receipts/obsigna/issues/151) | Tracked |
 | Key file permission hardening | — | [#156](https://github.com/agent-receipts/obsigna/issues/156) | Tracked |
 
-The `KeySource` interface in ADR-0015 is algorithm-agnostic by design — adding a post-quantum signing scheme later does not force a redesign of the interface, only a new adapter. This is the structural prerequisite for [#32](https://github.com/agent-receipts/obsigna/issues/32).
+The `KeySource` interface in ADR-0015 is algorithm-agnostic by design — adding a post-quantum signing scheme later does not force a redesign of the interface, only a new adapter. This is the structural prerequisite for [#32](https://github.com/agent-receipts/obsigna/issues/32). The wire-level agility rules (allow-list dispatch on `proof.type`, a one-way downgrade rule) are the subject of ADR-0040.

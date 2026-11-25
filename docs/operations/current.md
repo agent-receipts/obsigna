@@ -18,6 +18,8 @@
 
 ## Last updated
 
+`2026-11-25` — **Post-quantum migration reopens v1.** A quantum-exposure audit reopened #32 as an epic, with sub-issues #1208–#1211 and #484 linked. Two new v1 blockers follow from ADR-0001's "agility is a v1 prerequisite" and from harvest-now-decrypt-later exposure of disclosure envelopes: #1209 (hybrid KEM disclosure) and #1210 (ADR-0040 agility). The "declare v1" call below now waits on them. The ADR-0040 decisions are listed under *Decisions blocked on Otto*.
+
 `2026-06-24` — **Active DAG is clear.** The two foreground closures both completed: forensic **response disclosure** shipped (#936 merged, #819 closed — Go SDK + daemon caught up to TS/Py, protocol bumped to 0.6.0/context v3), and the **checkpoint-anchoring** thread closed out (#932 crypto extraction + #933 browser-verifier wiring merged; #872 closed — its v1-relevant hardening shipped in #914, the v1.5 residue folded into #484). No open active nodes remain. **The headline "next" is now a decision, not code: declare v1** — see *Decisions blocked on Otto*. v1 is engineering-complete (all Post-3 + v1 blockers done, Signer/KeyProvider parity verified across SDKs, no open in-flight limitation).
 
 `2026-06-23` — **Reconciliation sweep after a two-week gap.** ~100 PRs merged since the prior `2026-06-08` snapshot retired the entire old active DAG (closures 0–2, wave-1/2 items, and all ADR-0024 verification gates had already shipped). The shipped detail for those is removed from this file (git + PRs are the record) and the live sections below are rebuilt around the work that is genuinely in flight. Headline: the **Obsigna brand split + dual-site docs** and the **ADR-0037 Go vanity-path migration** both completed; **grounded-principal** (ADR-0038) and **checkpoint anchoring** landed as features; release train carried sdk/go to **0.23.0** and the umbrella to **0.29.0**.
@@ -26,6 +28,7 @@
 
 ## Decisions blocked on Otto
 
+- **Post-quantum migration: ADR-0040 open decisions** (draft PR #1212, issue #1210). (1) Composite proof vs W3C proof set, including same-bytes vs domain-separated signing for a composite. (2) TS floor: Node >=24.7 vs `@noble/post-quantum`. (3) Phase 1 hybrid KEM disclosure (#1209): before Post 3, or v1. Phase 1 code waits on these.
 - **Declare v1 (the headline).** v1 is engineering-complete and has no open in-flight limitation. What remains is a decision + a release act, not code:
   1. **Version-label call** — spec is at `0.6.0`, SDKs at `0.x` (sdk-go 0.23.0, sdk-ts 0.15.0, sdk-py 0.14.0, umbrella 0.29.0). Decide what carries the 1.0 stamp: spec → 1.0.0 only / coordinated 1.0 across everything / positioning-only declaration keeping 0.x numbers.
   2. **v1 limitations statement** — mostly assembled already in `docs/threat-model.md`; consolidate the deferred gaps (v1.5: #482/#483/#484/#492/#731; v2: #481/#485; out-of-scope: #151) into one explicit "known limitations" note.
