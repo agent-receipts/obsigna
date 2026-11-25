@@ -15,9 +15,9 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.3.0",
+    "@astrojs/markdown-remark": "^7.3.10",
     "@astrojs/sitemap": "^3.7",
-    "@astrojs/starlight": "^0.42",
+    "@astrojs/starlight": "^0.43",
     "astro": "^7",
     "sharp": "^0.35",
     "starlight-theme-flexoki": "^0.3.0"
@@ -38,7 +38,7 @@
     }
   },
   "devDependencies": {
-    "playwright": "^1.64.1",
+    "playwright": "^1.65.1",
     "rehype-mermaid": "^3.0.0"
   }
 }
