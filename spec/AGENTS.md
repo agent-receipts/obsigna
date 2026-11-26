@@ -4,6 +4,7 @@ Protocol specification for Agent Receipts — cryptographically signed, hash-cha
 
 ## Repo structure
 
+- `v0.7.0/spec.md` — the next version, drafted and not yet tagged. New normative text goes here until it is released.
 - `v0.6.0/spec.md` — the protocol specification at v0.6.0 (normative; current). Earlier released versions stay at `v0.4.0/spec.md` and `v0.5.0/spec.md`; future versions land at `v<X.Y.Z>/spec.md` under the same per-version convention. See [ADR-0021](../docs/adr/0021-spec-and-context-versioning.md) — historical versions v0.1.0–v0.3.0 are not republished as canonical files; they remain accessible via git tags.
 - `spec/taxonomy/action-types.json` — canonical action type definitions (source of truth)
 - `schema/agent-receipt.schema.json` — JSON Schema (Draft 2020-12) for receipt validation

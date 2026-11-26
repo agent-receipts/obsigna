@@ -64,6 +64,7 @@ The protocol is designed for receipts to travel — publishing to a shared ledge
 
 | Document | Description |
 |:---|:---|
+| [v0.7.0/spec.md](v0.7.0/spec.md) | Protocol specification, next version (draft, not yet released) |
 | [v0.6.0/spec.md](v0.6.0/spec.md) | Protocol specification (Draft v0.6.0; latest) |
 | [v0.5.0/spec.md](v0.5.0/spec.md) | Protocol specification (Draft v0.5.0) |
 | [v0.4.0/spec.md](v0.4.0/spec.md) | Protocol specification (Draft v0.4.0) |

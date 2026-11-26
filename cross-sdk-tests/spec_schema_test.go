@@ -185,7 +185,7 @@ func TestSpecSchemaRejectsNonRFC3339IssuanceDate(t *testing.T) {
 
 // TestSpecSchemaCouplesVersionAndContext pins the ADR-0026 allOf binding: a
 // receipt's protocol version and its Agent Receipts @context URI must agree
-// (0.1.0–0.4.0 → context v1; 0.5.0 → v2). Without the coupling, a 0.5.0 receipt
+// (0.1.0–0.4.0 → context v1; 0.5.0 → v2; 0.6.0 → v3; 0.7.0 → v4). Without the coupling, a 0.5.0 receipt
 // could declare context v1 (whose JSON-LD has no runtime term) and validate.
 func TestSpecSchemaCouplesVersionAndContext(t *testing.T) {
 	schema := loadSchema(t)
@@ -223,6 +223,34 @@ func TestSpecSchemaCouplesVersionAndContext(t *testing.T) {
 	mismatch2["@context"] = ctx2
 	if err := schema.Validate(mismatch2); err == nil {
 		t.Error("schema accepted a 0.1.0–0.4.0 version with context v2 — version/context coupling missing")
+	}
+
+	// Each version is pinned to exactly one context: it must validate with that
+	// context and be rejected with every other.
+	const ctxPrefix = "https://agentreceipts.ai/context/"
+	pinned := []struct {
+		version string
+		context string
+	}{
+		{"0.4.0", "v1"},
+		{"0.5.0", "v2"},
+		{"0.6.0", "v3"},
+		{"0.7.0", "v4"},
+	}
+	for _, p := range pinned {
+		for _, ctx := range []string{"v1", "v2", "v3", "v4"} {
+			r, c := load()
+			r["version"] = p.version
+			c[1] = ctxPrefix + ctx
+			r["@context"] = c
+			err := schema.Validate(r)
+			if ctx == p.context && err != nil {
+				t.Errorf("schema rejected version %s with its own context %s: %v", p.version, ctx, err)
+			}
+			if ctx != p.context && err == nil {
+				t.Errorf("schema accepted version %s with context %s, want only %s", p.version, ctx, p.context)
+			}
+		}
 	}
 }
 
