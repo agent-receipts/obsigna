@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentreceipts.ai/schema/v0.1/agent-receipt.schema.json",
   "title": "Agent Receipt",
-  "description": "A cryptographically signed record of a single action taken by an AI agent on behalf of a human principal. Validates receipts conforming to the Agent Receipt Protocol v0.1 through v0.5 — the protocol `version` enum on each receipt selects the applicable version; see CHANGELOG.md for what each version adds.",
+  "description": "A cryptographically signed record of a single action taken by an AI agent on behalf of a human principal. Validates receipts conforming to the Agent Receipt Protocol v0.1 through v0.6 — the protocol `version` enum on each receipt selects the applicable version; see CHANGELOG.md for what each version adds.",
   "type": "object",
   "required": [
     "@context",

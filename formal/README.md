@@ -97,7 +97,7 @@ distinct parts with different readiness:
   [ADR-0007](../docs/adr/0007-did-method-strategy.md)). With a self-certifying
   method (`did:key`) there is no protocol to verify; with a registry or `did:web`
   the trust is an *external* PKI concern. This part may simply be **not ours.**
-- **Rotation traversal** ([§7.3.7](../spec/v0.5.0/spec.md),
+- **Rotation traversal** ([§7.3.7](../spec/v0.6.0/spec.md),
   [ADR-0015](../docs/adr/0015-key-rotation-byok-anchoring.md)) — a genuine
   in-project cryptographic protocol: a receipt signed with the outgoing key binds
   the incoming key, and a verifier chains through unbounded rotations from the
