@@ -5,7 +5,7 @@
 ### An open protocol for cryptographically signed, tamper-evident records of AI agent actions
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Status: Draft](https://img.shields.io/badge/Status-Draft_v0.5.0-orange.svg)](v0.5.0/spec.md)
+[![Status: Draft](https://img.shields.io/badge/Status-Draft_v0.6.0-orange.svg)](v0.6.0/spec.md)
 
 ---
 
@@ -64,7 +64,9 @@ The protocol is designed for receipts to travel — publishing to a shared ledge
 
 | Document | Description |
 |:---|:---|
-| [v0.5.0/spec.md](v0.5.0/spec.md) | Protocol specification (Draft v0.5.0; latest) |
+| [v0.6.0/spec.md](v0.6.0/spec.md) | Protocol specification (Draft v0.6.0; latest) |
+| [v0.5.0/spec.md](v0.5.0/spec.md) | Protocol specification (Draft v0.5.0) |
+| [v0.4.0/spec.md](v0.4.0/spec.md) | Protocol specification (Draft v0.4.0) |
 | [schema/agent-receipt.schema.json](schema/agent-receipt.schema.json) | JSON Schema for receipts (Draft 2020-12) |
 | [spec/taxonomy/action-types.json](spec/taxonomy/action-types.json) | Canonical action type definitions |
 | [schema/taxonomy.schema.json](schema/taxonomy.schema.json) | JSON Schema for the taxonomy |
@@ -78,9 +80,12 @@ The protocol defines a hierarchical vocabulary of action types organized by doma
 | Domain | Examples | Risk levels |
 |:---|:---|:---|
 | **Filesystem** | `filesystem.file.read`, `filesystem.file.delete` | low — high |
-| **System** | `system.command.execute`, `system.browser.navigate` | low — high |
-| **Communication** | `communication.email.send` (planned) | medium — critical |
-| **Financial** | `financial.payment.initiate` (planned) | high — critical |
+| **System** | `system.command.execute`, `system.pty.open` | low — critical |
+| **Communication** | `communication.email.send`, `communication.message.send` | low — high |
+| **Documents** | `document.file.share`, `document.spreadsheet.modify_formula` | low — high |
+| **Financial** | `financial.payment.initiate`, `financial.booking.create` | high — critical |
+| **Data** | `data.api.write`, `data.database.modify` | low — high |
+| **Network** | `network.egress.observed` | medium |
 
 The canonical definitions live in [`spec/taxonomy/action-types.json`](spec/taxonomy/action-types.json). The taxonomy is extensible — implementations can add domain-specific types and override default risk levels.
 
@@ -137,7 +142,7 @@ The canonical definitions live in [`spec/taxonomy/action-types.json`](spec/taxon
 
 ## Contributing
 
-The most valuable contributions right now aren't code — they're domain expertise. If you work in a regulated industry deploying AI agents, [open an issue](https://github.com/agent-receipts/spec/issues) or comment on the [spec](v0.4.0/spec.md).
+The most valuable contributions right now aren't code — they're domain expertise. If you work in a regulated industry deploying AI agents, [open an issue](https://github.com/agent-receipts/spec/issues) or comment on the [spec](v0.6.0/spec.md).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 

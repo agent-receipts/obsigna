@@ -6,7 +6,7 @@
  *  Formalizes and machine-checks the tamper-evidence property of the Agent
  *  Receipt Protocol receipt chain, as specified in:
  *
- *     spec/v0.5.0/spec.md  §3 (Core Concepts), §4.3.2 (chain{} object),
+ *     spec/v0.6.0/spec.md  §3 (Core Concepts), §4.3.2 (chain{} object),
  *                          §7 (Receipt Chain Verification)
  *
  *  See the companion README.md for how to run this, and ADR-0039 for the

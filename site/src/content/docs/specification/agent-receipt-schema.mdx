@@ -46,11 +46,11 @@ An Agent Receipt is a W3C Verifiable Credential with type `AgentReceipt`. This p
 {
   "@context": [
     "https://www.w3.org/ns/credentials/v2",
-    "https://agentreceipts.ai/context/v2"
+    "https://agentreceipts.ai/context/v3"
   ],
   "id": "urn:receipt:550e8400-e29b-41d4-a716-446655440000",
   "type": ["VerifiableCredential", "AgentReceipt"],
-  "version": "0.5.0",
+  "version": "0.6.0",
 
   "issuer": {
     "id": "did:agent:claude-cowork-instance-abc123",
@@ -144,7 +144,7 @@ An Agent Receipt is a W3C Verifiable Credential with type `AgentReceipt`. This p
 | `@context` | Yes | JSON-LD context. Must include the W3C VC v2 and Agent Receipt context URIs in order. |
 | `id` | Yes | Globally unique identifier. Must be `urn:receipt:<uuid>`. |
 | `type` | Yes | Must be `["VerifiableCredential", "AgentReceipt"]`. |
-| `version` | Yes | Protocol version. Must be `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, or `"0.5.0"`. Verifiers MUST accept all six. Versions `0.1.0`–`0.4.0` reference Agent Receipts context v1; `0.5.0` references v2. |
+| `version` | Yes | Protocol version. Must be `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, `"0.5.0"`, or `"0.6.0"`. Verifiers MUST accept all seven. Versions `0.1.0`–`0.4.0` reference Agent Receipts context v1, `0.5.0` references v2, and `0.6.0` references v3. |
 | `issuer` | Yes | The agent or platform that issued the receipt. |
 | `issuanceDate` | Yes | ISO 8601 datetime when the receipt was issued. May differ from `action.timestamp`. |
 | `credentialSubject` | Yes | The receipt payload. |
@@ -245,6 +245,7 @@ This envelope decrypts to `{"command":"echo \"build complete\""}` for the holder
 | `reversal_window_seconds` | No | Seconds within which reversal is possible. Absent (not `null`) when not applicable. |
 | `reversal_of` | No | `urn:receipt:<uuid>` of the original receipt this receipt reverses. Present only on reversal receipts. |
 | `response_hash` | No | `sha256:` prefixed hash of the tool's response (RFC 8785 canonical JSON). |
+| `response_disclosure` | No | HPKE envelope sealing the tool response (v0.6.0+). Same shape, keypair and `kid` resolution as the [`parameters_disclosure` envelope](#parameters_disclosure-envelope-hpke). `response_hash` stays authoritative; this field is additive and is enabled separately from parameter disclosure. |
 | `state_change.before_hash` | Conditional | `sha256:` hash of state before. Required when `state_change` is present. |
 | `state_change.after_hash` | Conditional | `sha256:` hash of state after. Required when `state_change` is present. |
 
@@ -276,6 +277,20 @@ Present when this chain was spawned by delegation from another agent. All fields
 | `previous_receipt_hash` | Yes | `sha256:` hash of previous receipt, or `null` for first in chain. |
 | `terminal` | No | `true` if this is the final receipt in the chain. Enables tail-truncation detection by verifiers — see [Receipt Chain Verification](/specification/receipt-chain-verification/#chain-integrity-verification). Explicit `false` is schema-invalid; omit the field instead. |
 | `status` | No | Only meaningful alongside `terminal: true`. One of `"complete"` (issuer reached normal end-of-session) or `"interrupted"` (best-effort terminator emitted on signal or known abort path). Absent on a terminal receipt is equivalent to `"complete"`. A non-terminal receipt carrying `status` is schema-invalid. The verifier-derived value `"unknown"` (chains with no terminal) is never written on the wire. |
+
+### `keyRotation`
+
+Present only on a key-rotation event (v0.6.0+, [ADR-0015](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0015-key-rotation-byok-anchoring.md)). A receipt that is not a rotation event MUST NOT include it. The rotation receipt is signed with the **outgoing** key and carries the incoming key inline, so a verifier can follow rotations from the genesis key alone. All seven fields are required when `keyRotation` is present. Note the camelCase field name.
+
+| Field | Required | Description |
+|---|---|---|
+| `event_type` | Conditional | Constant `"key_rotated"`. |
+| `new_public_key` | Conditional | The incoming public key's raw bytes (Ed25519: 32 bytes), multibase-encoded with the `u` base64url prefix. |
+| `old_key_fingerprint` | Conditional | `sha256:` hash of the outgoing public key's raw bytes. |
+| `new_key_fingerprint` | Conditional | `sha256:` hash of the incoming public key's raw bytes. MUST match the bytes decoded from `new_public_key`. |
+| `old_algorithm` | Conditional | Algorithm of the outgoing key (e.g. `"ed25519"`). |
+| `new_algorithm` | Conditional | Algorithm of the incoming key. |
+| `signed_with` | Conditional | Constant `"old"`. |
 
 ## Proof
 
