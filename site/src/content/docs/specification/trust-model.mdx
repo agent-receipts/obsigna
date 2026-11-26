@@ -22,7 +22,7 @@ of confusion about what a receipt proves.
 
 | Role | What it is | Where it appears |
 |---|---|---|
-| **Issuer** (`issuer.id`) | An identity claim — the agent or platform on whose behalf the action was recorded. A *subject* of the receipt, not necessarily the key holder. | Receipt body |
+| **Issuer** (`issuer.id`) | The signer's declared identity: the agent under in-process signing, the daemon under daemon signing. A claim in the receipt body, which the signature alone does not prove. | Receipt body |
 | **Operator** (`issuer.operator`) | The entity running the agent or host. Orthogonal to the signer. | Receipt body |
 | **Signer** | The process that holds the private key and produces the signature. | Outside the receipt — a deployment fact |
 | **Key custody** (`KeySource`) | Where the private key physically lives: a file, an HSM, or a cloud KMS. May be non-extractable. | Configured per deployment |
@@ -33,7 +33,8 @@ than *being* it: the daemon captures the connecting process's OS credentials
 `action.peer_credential`, signed. The agent's self-asserted identity is never
 trusted; it is witnessed. A receipt is therefore not "the agent vouching for
 itself" — it is the signing authority vouching for what it independently
-observed the agent do.
+observed the agent do. A verifier can rely on that only if it knows the key is
+held by the daemon; see [What a receipt cannot tell you](#what-a-receipt-cannot-tell-you-who-held-the-key).
 
 ## The trust boundary is a dial
 
@@ -135,12 +136,35 @@ boundary is partially shipped. We state both rather than blur them.
 
 ## Verification is uniform across all models
 
-A verifier does not need to know which deployment produced a receipt. It checks
-the Ed25519 signature against the issuer's public key, recomputes the canonical
-bytes (RFC 8785), and walks `chain.previous_receipt_hash` — and, across
-rotations, the inline `keyRotation.new_public_key` witness. The trust model an
-operator chose changes *what a valid receipt lets you conclude about a
-compromised agent or operator*; it does not change *how* you validate one.
+The verification steps are the same whichever deployment produced a receipt.
+A verifier checks the Ed25519 signature against the issuer's public key,
+recomputes the canonical bytes (RFC 8785), and walks
+`chain.previous_receipt_hash` — and, across rotations, the inline
+`keyRotation.new_public_key` witness. The trust model an operator chose changes
+*what a valid receipt lets you conclude about a compromised agent or operator*;
+it does not change *how* you validate one.
+
+## What a receipt cannot tell you: who held the key
+
+A receipt does not prove which deployment signed it. The `proof` looks the same
+in every deployment. The fields that describe a daemon deployment are ordinary
+signed fields: `issuer.type` (`"AgentReceiptsDaemon"` for a daemon, `"AIAgent"`
+for client-side signing), the daemon's `issuer.id`, and the OS-attested
+`action.peer_credential`. An in-process signer can write exactly the same
+values.
+
+So the daemon's guarantees hold for the deployment, but a verifier can only
+rely on them if it knows, independently of the receipts, that the signing key
+belongs to a daemon the agent cannot reach. Examples: the verifier runs that
+daemon itself, or the operator has published a statement binding the key to a
+daemon deployment. Without that knowledge, read a receipt as the signer's own
+account of the action, which is exactly what it is under in-process signing.
+
+For first-party audit this is rarely a problem, because the operator knows its
+own deployment. For third-party and cross-organisation verification it is a
+real gap. The protocol does not yet define a way to prove key custody from the
+key itself, and that work is deferred. The draft 0.7.0 spec states the rule for
+verifiers explicitly.
 
 ## Summary
 
@@ -151,6 +175,9 @@ compromised agent or operator*; it does not change *how* you validate one.
 - The default daemon deployment puts the signer outside the agent, under its own
   OS user, with a key the agent cannot reach, and attests the agent's identity
   rather than trusting it.
+- A receipt does not prove which deployment signed it. Daemon-specific fields
+  such as `issuer.type` and `peer_credential` mean what they say only when the
+  verifier knows independently that the key is daemon-held.
 - Defending against the operator is a separate, designed boundary
   (non-extractable custody + external anchoring) that is partially shipped today;
   we mark exactly what is and is not in place.

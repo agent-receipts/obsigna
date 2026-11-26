@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+Drafted in `spec/v0.7.0/spec.md`. Not yet tagged.
+
+### Added
+- Defined `issuer.type` values, one per signing deployment (§4.3.1): `"AIAgent"` when the agent signs its own receipts (client-side signing, ADR-0020), and `"AgentReceiptsDaemon"` when an observing daemon signs them (ADR-0010). Other values remain allowed, and verifiers MUST NOT reject an unrecognized value.
+- §7.10 Signing mode and key custody. A receipt carries no in-band proof of which deployment signed it, because `issuer.type`, `issuer.id`, `action.peer_credential` and `action.emitter_metadata` are ordinary signed fields that a client-side signer can set. Verifiers MUST NOT conclude daemon signing from those fields alone, MAY do so with independent knowledge that the key is daemon-held, and SHOULD report the custody they could establish.
+- Spec field rows for `action.peer_credential` and `action.emitter_metadata` (§4.3.2). Both were previously defined only in the schema.
+- §9 open question 12, key custody evidence: binding daemon custody to the key rather than to receipt fields.
+- JSON-LD **context v4** (`https://agentreceipts.ai/context/v4`) adds the `AgentReceiptsDaemon` term, so that issuer type expands to `ar:AgentReceiptsDaemon` instead of the W3C VC v2 catch-all IRI. Identical to v3 otherwise. Receipts at `0.7.0` reference context v4. Contexts are published when merged, so v4 is live and final from this entry on; 0.7.0 adds no further JSON-LD terms. v1–v3 remain permanent (ADR-0021 D3).
+
+### Changed
+- `version` field now accepts `"0.7.0"` in addition to `"0.1.0"`–`"0.6.0"`. Verifiers MUST accept all eight.
+- `issuer.type` previously had a single SHOULD (`"AIAgent"`), which the daemon never followed because it is not an AI agent. The SHOULD is now per signer role.
+- Schema descriptions of `peer_credential` and `emitter_metadata` no longer call them "daemon-attested, not agent-claimed" without qualification. They are attested by the daemon only when the key is known to be daemon-held.
+
 ## [0.6.0] - 2026-06-21
 
 ### Added

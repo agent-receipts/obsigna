@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentreceipts.ai/schema/v0.1/agent-receipt.schema.json",
   "title": "Agent Receipt",
-  "description": "A cryptographically signed record of a single action taken by an AI agent on behalf of a human principal. Validates receipts conforming to the Agent Receipt Protocol v0.1 through v0.6 — the protocol `version` enum on each receipt selects the applicable version; see CHANGELOG.md for what each version adds.",
+  "description": "A cryptographically signed record of a single action taken by an AI agent on behalf of a human principal. Validates receipts conforming to the Agent Receipt Protocol v0.1 through v0.7 — the protocol `version` enum on each receipt selects the applicable version; see CHANGELOG.md for what each version adds.",
   "type": "object",
   "required": [
     "@context",
@@ -20,11 +20,11 @@
       "type": "array",
       "prefixItems": [
         { "const": "https://www.w3.org/ns/credentials/v2" },
-        { "enum": ["https://agentreceipts.ai/context/v1", "https://agentreceipts.ai/context/v2", "https://agentreceipts.ai/context/v3"] }
+        { "enum": ["https://agentreceipts.ai/context/v1", "https://agentreceipts.ai/context/v2", "https://agentreceipts.ai/context/v3", "https://agentreceipts.ai/context/v4"] }
       ],
       "minItems": 2,
       "items": { "type": "string" },
-      "description": "JSON-LD context. First two entries MUST be the W3C VC v2 and Agent Receipts context URIs in order. The Agent Receipts context is v1 for receipts at versions 0.1.0–0.4.0, v2 (which adds issuer.runtime) for 0.5.0, and v3 (which adds outcome.response_disclosure) for 0.6.0+; all remain permanent. Additional context URIs MAY follow."
+      "description": "JSON-LD context. First two entries MUST be the W3C VC v2 and Agent Receipts context URIs in order. The Agent Receipts context is v1 for receipts at versions 0.1.0–0.4.0, v2 (which adds issuer.runtime) for 0.5.0, v3 (which adds outcome.response_disclosure) for 0.6.0, and v4 (which adds the AgentReceiptsDaemon issuer type) for 0.7.0+; all remain permanent. Additional context URIs MAY follow."
     },
     "id": {
       "type": "string",
@@ -42,8 +42,8 @@
       "description": "MUST be [\"VerifiableCredential\", \"AgentReceipt\"]."
     },
     "version": {
-      "enum": ["0.1.0", "0.2.0", "0.2.1", "0.3.0", "0.4.0", "0.5.0", "0.6.0"],
-      "description": "Protocol version. MUST be one of \"0.1.0\", \"0.2.0\", \"0.2.1\", \"0.3.0\", \"0.4.0\", \"0.5.0\", or \"0.6.0\". Verifiers MUST accept all seven."
+      "enum": ["0.1.0", "0.2.0", "0.2.1", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0"],
+      "description": "Protocol version. MUST be one of \"0.1.0\", \"0.2.0\", \"0.2.1\", \"0.3.0\", \"0.4.0\", \"0.5.0\", \"0.6.0\", or \"0.7.0\". Verifiers MUST accept all eight."
     },
     "issuer": { "$ref": "#/$defs/issuer" },
     "issuanceDate": {
@@ -58,7 +58,7 @@
   "allOf": [
     {
       "title": "Context is pinned to the protocol version",
-      "description": "Versions 0.1.0–0.4.0 MUST reference Agent Receipts context v1; 0.5.0 (which adds issuer.runtime) MUST reference v2; 0.6.0 (which adds outcome.response_disclosure) MUST reference v3. This couples the two so a receipt cannot declare a version whose context does not define its fields.",
+      "description": "Versions 0.1.0–0.4.0 MUST reference Agent Receipts context v1; 0.5.0 (which adds issuer.runtime) MUST reference v2; 0.6.0 (which adds outcome.response_disclosure) MUST reference v3; 0.7.0 (which adds the AgentReceiptsDaemon issuer type) MUST reference v4. This couples the two so a receipt cannot declare a version whose context does not define its fields.",
       "if": {
         "properties": { "version": { "enum": ["0.1.0", "0.2.0", "0.2.1", "0.3.0", "0.4.0"] } }
       },
@@ -90,6 +90,18 @@
         "properties": {
           "@context": {
             "prefixItems": [{}, { "const": "https://agentreceipts.ai/context/v3" }]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "version": { "const": "0.7.0" } }
+      },
+      "then": {
+        "properties": {
+          "@context": {
+            "prefixItems": [{}, { "const": "https://agentreceipts.ai/context/v4" }]
           }
         }
       }
@@ -162,7 +174,7 @@
         },
         "type": {
           "type": "string",
-          "description": "SHOULD be \"AIAgent\"."
+          "description": "Declared signer role. SHOULD be \"AIAgent\" when the agent signs its own receipts (client-side signing, ADR-0020) and \"AgentReceiptsDaemon\" when an observing daemon signs them (ADR-0010). Other values MAY be used. A declaration, not proof: any signer can set any value. See spec §4.3.1 and §7.10."
         },
         "name": {
           "type": "string",
@@ -277,7 +289,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["platform", "pid"],
-          "description": "OS-attested peer process metadata captured by the daemon at the SDK↔daemon boundary. Present only on receipts emitted through a daemon (ADR-0010); absent on direct SDK emissions. Daemon-attested, not agent-claimed.",
+          "description": "OS-attested peer process metadata captured by the daemon at the SDK↔daemon boundary. Present only on receipts emitted through a daemon (ADR-0010); absent on direct SDK emissions. Attested by the daemon only when the signing key is independently known to be daemon-held; a client-side signer can set this field too. See spec §7.10.",
           "properties": {
             "platform": {
               "type": "string",
@@ -306,7 +318,7 @@
         "emitter_metadata": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Daemon-observed emitter-side metadata. Currently used for synthetic events_dropped receipts (ADR-0010). Daemon-attested, not agent-claimed.",
+          "description": "Daemon-observed emitter-side metadata. Currently used for synthetic events_dropped receipts (ADR-0010). Attested by the daemon only when the signing key is independently known to be daemon-held; see spec §7.10.",
           "properties": {
             "drop_count": {
               "type": "integer",

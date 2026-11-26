@@ -154,8 +154,8 @@ An Agent Receipt is a W3C Verifiable Credential with type `AgentReceipt`. This p
 
 | Field | Required | Description |
 |---|---|---|
-| `id` | Yes | DID or URI identifying the agent instance. |
-| `type` | No | Should be `"AIAgent"`. |
+| `id` | Yes | DID or URI of the signer: the agent instance, or the daemon when a daemon signs on the agent's behalf. |
+| `type` | No | Declared signer role: `"AIAgent"` when the agent signs its own receipts, `"AgentReceiptsDaemon"` when a daemon signs them. A declaration, not proof of who signed; see [Trust Model](/specification/trust-model/#what-a-receipt-cannot-tell-you-who-held-the-key). |
 | `name` | No | Human-readable agent name. |
 | `operator.id` | Conditional | DID or URI of the operating entity. Required when `operator` is present. |
 | `operator.name` | Conditional | Human-readable operator name. Required when `operator` is present. |
@@ -185,8 +185,8 @@ An Agent Receipt is a W3C Verifiable Credential with type `AgentReceipt`. This p
 | `target.resource` | No | The specific resource within the system. |
 | `parameters_hash` | No | `sha256:` prefixed hash of action parameters (RFC 8785 canonical JSON). Always authoritative for parameter integrity; `parameters_disclosure` is additive metadata. |
 | `parameters_disclosure` | No | Operator-controlled disclosure of action parameters. Either the legacy flat-map (v0.2.x — `{ [key: string]: string }`) or the HPKE asymmetric encryption envelope defined by ADR-0012 (v0.3.0+). Mode is per-emitter; a receipt MUST NOT mix shapes. See [`parameters_disclosure` envelope (HPKE)](#parameters_disclosure-envelope-hpke) for the envelope shape and an example. Operators MUST NOT place plaintext secrets or PII in the legacy flat-map form. |
-| `peer_credential` | No | OS-attested peer process metadata captured by the daemon at the SDK↔daemon boundary (`platform`, `pid`, optional `uid`/`gid`/`exe_path`). Present only on receipts emitted through a daemon (ADR-0010); absent on direct SDK emissions. Daemon-attested, not agent-claimed. |
-| `emitter_metadata` | No | Daemon-observed emitter-side metadata. Currently a single `drop_count` field on synthetic events_dropped receipts (ADR-0010). Daemon-attested, not agent-claimed. |
+| `peer_credential` | No | OS-attested peer process metadata captured by the daemon at the SDK↔daemon boundary (`platform`, `pid`, optional `uid`/`gid`/`exe_path`). Present only on receipts emitted through a daemon (ADR-0010); absent on direct SDK emissions. Attested by the daemon only when the verifier knows the signing key is daemon-held, because an in-process signer can set it too; see [Trust Model](/specification/trust-model/#what-a-receipt-cannot-tell-you-who-held-the-key). |
+| `emitter_metadata` | No | Daemon-observed emitter-side metadata. Currently a single `drop_count` field on synthetic events_dropped receipts (ADR-0010). The same caveat as `peer_credential` applies. |
 | `timestamp` | Yes | ISO 8601 datetime when the action was executed. |
 | `trusted_timestamp` | No | Base64-encoded RFC 3161 TimeStampToken. Absent (not `null`) when not present — see [Optional-field rule](#optional-field-rule). |
 | `idempotency_key` | No | Stable identifier for the logical operation this action represents (e.g. a request ID). When an agent retries a tool call, the SDK or MCP proxy stamps the same `idempotency_key` on every receipt for that operation; verifiers surface duplicates across a chain as a warning, not a failure (retries are legitimate). Non-empty string when present; absent (not `null`) otherwise. Added in v0.4.0 (ADR-0019 §S5). |
