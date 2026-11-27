@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (2026-11-27)
 
 ## Context
 
@@ -226,7 +226,8 @@ grant's times, never the receipt's.
 The verifier SHOULD surface a warning alongside the result when the receipt
 states a value and the grant's corresponding value differs at millisecond
 precision: `granted_at` against `valid_from`, `expires_at` against `expires_at`.
-A field the receipt leaves out is not a disagreement. The warning is not a
+A field the receipt leaves out is not a disagreement. A receipt that states `expires_at` for a grant with no expiry does
+disagree, and gets the warning. The warning is not a
 failure in its own right, because the outcome is already decided by the grant,
 following the precedent of spec §7.3.6 for duplicate idempotency keys. Warnings are
 attached to the receipt's result whatever its outcome, once the grant has

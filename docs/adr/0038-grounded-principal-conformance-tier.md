@@ -4,6 +4,8 @@
 
 Accepted
 
+Extended by [ADR-0041](0041-grant-validity-and-scope-in-grounded-tier.md), which replaces the D3 resolver contract and resolves the open question on grant freshness.
+
 ## Context
 
 The protocol authenticates *who signed a receipt* and *what they claimed*. It

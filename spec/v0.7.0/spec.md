@@ -618,36 +618,83 @@ A receipt that passes steps 1–4 is individually valid: the holder of the resol
 
 > **Note:** This algorithm depends on DID resolution (step 2), which is not fully specified in this version. Implementations MUST document their DID resolution strategy. See §9.6.
 
-### 7.9 Grounded-principal tier verification (ADR-0038)
+### 7.9 Grounded-principal tier verification (ADR-0038, ADR-0041)
 
 This section defines additional verification steps applied when a verifier operates in the **grounded-principal conformance tier** (ADR-0038). The tier is opt-in: a base-tier verifier that has no grant resolver configured MUST NOT apply these steps, and their absence is never a verification failure in the base tier.
 
-A verifier enters the grounded-principal tier by supplying a **grant resolver** — an external function that, given `(grant_ref, principal_id)`, returns a resolved grant exposing at minimum `{ subject, scopes, issued_at, expires_at, issuer }`, or a resolution failure. The resolver is an implementation concern; the spec defines only the contract it must satisfy.
+A verifier enters the grounded-principal tier by supplying a **grant resolver**: an external function that, given `(grant_ref, principal_id)`, returns a resolved grant or a resolution failure. The resolver is an implementation concern; the spec defines only the contract it must satisfy.
 
-**Grounded-principal check (applied per receipt, after step 6 of §7.8):**
+All time comparisons in §7.9 (the malformed-grant rules in §7.9.1, the validity window in §7.9.3 and the warnings in §7.9.4) are made in UTC at millisecond precision: values with finer precision are truncated (floored) to the millisecond before comparing.
 
-For any receipt whose `action.risk_level` is `high` or `critical`, when a grant resolver is configured:
+#### 7.9.1 Resolved grant
 
-1. **Grant presence check.** If `credentialSubject.authorization` is absent or `credentialSubject.authorization.grant_ref` is absent or empty, the receipt outcome is `UNGROUNDED_PRINCIPAL`. This is a hard failure in the grounded-principal tier.
+A resolved grant exposes:
 
-2. **Grant resolution.** Resolve `authorization.grant_ref` via the configured grant resolver, passing the receipt's `credentialSubject.principal.id` as the principal hint. If resolution fails (network error, token not found, token revoked), the receipt outcome is `UNGROUNDED_PRINCIPAL`.
+| Field | Required | Meaning |
+|---|---|---|
+| `subject` | Yes | The principal the grant was issued for. |
+| `scopes` | Yes | The scopes the grant conferred. MUST be non-empty. |
+| `valid_from` | Yes | When the grant became valid. For a JWT access token this is `nbf` when present, otherwise `iat`. |
+| `expires_at` | No | When the grant expires. Absent means no expiry. |
+| `revocation` | Yes | `not_revoked` (not revoked as of resolution, which covers any earlier action), `revoked`, or `unknown` (the resolver cannot see revocation). |
+| `revoked_at` | No | When the grant was revoked. Allowed only with `revocation: revoked`. |
+| `issuer` | Yes | The authorization server that minted the grant. |
 
-3. **Subject match.** If the resolved grant's `subject` does not equal `credentialSubject.principal.id` (exact string equality), the receipt outcome is `PRINCIPAL_GRANT_MISMATCH`.
+A grant that has expired or been revoked is still a resolved grant: when the resolver can establish its terms, it MUST return them rather than a resolution failure. Resolution failure is reserved for a grant that cannot be found, a resolver that cannot be reached, or a response it cannot interpret. A resolver that learns only that a grant is inactive, without its terms (as with plain RFC 7662 token introspection), MUST report a resolution failure. Resolver documentation SHOULD state whether a resolver returns the terms of lapsed grants and whether it can see revocation. A resolver that cannot see revocation MUST return `revocation: unknown` and MUST NOT omit the field.
 
-A receipt that passes all three steps is **grounded**: an external authorization server confirms the named principal delegated authority under which the action was taken.
+A resolved grant is **malformed** if a required field is missing, `scopes` is empty, `expires_at` is not after `valid_from`, or `revoked_at` is present with `revocation` other than `revoked`. A verifier treats a malformed grant as a resolution failure. A `revoked_at` before `valid_from` is not malformed: the grant was revoked before it took effect, and its validity window (§7.9.3) is empty.
+
+#### 7.9.2 Grounded-principal check
+
+Applied per receipt, after step 6 of §7.8, to any receipt whose `action.risk_level` is `high` or `critical`, when a grant resolver is configured. The steps run in order, and the first failure is the receipt's outcome.
+
+1. **Grant presence.** If `credentialSubject.authorization` is absent, or `authorization.grant_ref` is absent or empty, the outcome is `UNGROUNDED_PRINCIPAL`.
+2. **Grant resolution.** Resolve `authorization.grant_ref` via the configured grant resolver, passing `credentialSubject.principal.id` as the principal hint. If resolution fails, or the resolved grant is malformed (§7.9.1), the outcome is `UNGROUNDED_PRINCIPAL`.
+3. **Subject match.** If the grant's `subject` does not equal `credentialSubject.principal.id` (exact string equality), the outcome is `PRINCIPAL_GRANT_MISMATCH`.
+4. **Validity at the action time.** Evaluate the validity window (§7.9.3). The outcome is `GRANT_NOT_VALID_AT_ACTION_TIME` or `GRANT_VALIDITY_UNRESOLVED` as defined there.
+5. **Scope containment.** If any entry in `authorization.scopes` does not appear in the grant's `scopes` (exact string comparison; no scope hierarchy is defined), the outcome is `GRANT_SCOPE_EXCEEDED`.
+
+A receipt that passes all five steps is **grounded**: an external authorization server confirms that the named principal held a grant, in force at the issuer-asserted action time, conferring the scopes the receipt claims.
+
+Step 5 compares the receipt's claimed scopes with the grant. It does not show that the action needed only those scopes: this version defines no mapping from `action.type` to scopes.
+
+#### 7.9.3 Validity window
+
+The action time `t` is `action.timestamp`. It is the issuer's own statement, so this check shows that the issuer's claimed time falls inside the grant, not that the action did. A verifier MUST say so when it reports a grounded result, for example "valid at the issuer-asserted action time". `action.trusted_timestamp` does not supply the action time: under §7.7 it stamps the receipt, so it is at most an upper bound on when the action happened.
+
+The grant's **validity window** is the half-open interval `W = [valid_from, end)`, where `end` is the earliest of `expires_at` and `revoked_at` that the grant has; if it has neither, `end` is unbounded. Let `δ ≥ 0` be the verifier's clock-skew tolerance, and `I = [t − δ, t + δ]`.
+
+1. If `I` lies entirely outside `W`, the outcome is `GRANT_NOT_VALID_AT_ACTION_TIME`, whatever the grant's revocation status.
+2. If `I` lies partly inside and partly outside `W`, the outcome is `GRANT_VALIDITY_UNRESOLVED`.
+3. If `I` lies entirely inside `W`:
+   - with `revocation: not_revoked`, or `revoked` with a `revoked_at`, the check passes;
+   - with `revocation: unknown`, or `revoked` without a `revoked_at`, the outcome is `GRANT_VALIDITY_UNRESOLVED`.
+
+With `δ = 0`, `I` is the single point `t`, and the check is whether `t` lies in `[valid_from, end)`. Expiry or revocation after the action does not affect the result. Because `I` is closed and `W` is half-open, the two ends of the window behave differently when `δ > 0`: `t − δ` equal to `end` falls under case 1, while `t + δ` equal to `valid_from` falls under case 2.
+
+`δ` is supplied by the verifier in milliseconds. It defaults to zero, and a negative value is a configuration error.
+
+#### 7.9.4 Receipt-stated grant fields
+
+`authorization.granted_at` and `authorization.expires_at` are the issuer's statement about the grant. The resolved grant is authoritative, and §7.9.3 uses only the grant's times. When the receipt states one of these fields and the grant's corresponding value (`valid_from`, `expires_at`) differs, the verifier SHOULD surface a warning alongside the result, as §7.3.6 does for duplicate idempotency keys. A field the receipt leaves out is not a disagreement. A receipt that states `expires_at` for a grant with no expiry does disagree, and gets the warning. The warning applies once the grant has resolved (§7.9.2 step 2), whatever the receipt's outcome, and it does not change the outcome.
+
+#### 7.9.5 Tier applicability
 
 **Receipts at `risk_level` `low` or `medium` are not subject to these checks**, even in the grounded-principal tier. D1 of ADR-0038 targets only the action classes where reasonable-oversight regimes apply.
 
 **Absence of a resolver is not a failure.** A verifier without a configured grant resolver behaves as a base-tier verifier for all receipts regardless of risk level. No error is raised. This mirrors the ADR-0008 pattern where `RequireTerminal` is absent by default.
 
-**New verification outcomes (grounded-principal tier only):**
+#### 7.9.6 Verification outcomes
 
 | Outcome | Meaning |
 |---|---|
-| `UNGROUNDED_PRINCIPAL` | A `high`/`critical` receipt lacks a resolvable `grant_ref` in the grounded-principal tier. |
+| `UNGROUNDED_PRINCIPAL` | A `high`/`critical` receipt has no `grant_ref`, or its grant cannot be resolved or is malformed. |
 | `PRINCIPAL_GRANT_MISMATCH` | The resolved grant's subject does not equal `principal.id`. |
+| `GRANT_NOT_VALID_AT_ACTION_TIME` | The grant was not in force at the action time: before it took effect, or after it expired or was revoked. |
+| `GRANT_VALIDITY_UNRESOLVED` | The verifier cannot tell whether the grant was in force at the action time: the action is within the clock-skew tolerance of a boundary, or the grant's revocation status or time is unknown. |
+| `GRANT_SCOPE_EXCEEDED` | `authorization.scopes` contains a scope the grant does not confer. |
 
-These outcomes supplement the base-tier outcomes (`MALFORMED_RECEIPT`, `UNRESOLVABLE_DID`, `INVALID_SIGNATURE`, `INVALID_TIMESTAMP`) defined in §7.8. They are never raised in the base tier.
+These outcomes supplement the base-tier outcomes (`MALFORMED_RECEIPT`, `UNRESOLVABLE_DID`, `INVALID_SIGNATURE`, `INVALID_TIMESTAMP`) defined in §7.8. They are never raised in the base tier. All five are failures within the tier.
 
 ### 7.10 Signing mode and key custody
 
