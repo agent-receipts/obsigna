@@ -38,6 +38,9 @@ import (
 // mirrors [receipt.CreateInput] minus Chain: the chain head is owned by the
 // ReceiptChain and must not be supplied per call.
 type EmitInput struct {
+	// Issuer identifies the signer. ReceiptChain signs in the agent's own
+	// process, so an empty Issuer.Type defaults to [receipt.IssuerTypeAIAgent].
+	// Do not declare [receipt.IssuerTypeAgentReceiptsDaemon] here (spec §4.3.1).
 	Issuer        receipt.Issuer
 	Principal     receipt.Principal
 	Action        receipt.Action
@@ -205,8 +208,12 @@ func (c *ReceiptChain) Emit(ctx context.Context, input EmitInput) (receipt.Agent
 		PreviousReceiptHash: c.previousHash,
 		ChainID:             c.chainID,
 	}
+	issuer := input.Issuer
+	if issuer.Type == "" {
+		issuer.Type = receipt.IssuerTypeAIAgent
+	}
 	unsigned := receipt.Create(receipt.CreateInput{
-		Issuer:            input.Issuer,
+		Issuer:            issuer,
 		Principal:         input.Principal,
 		Action:            input.Action,
 		Outcome:           input.Outcome,

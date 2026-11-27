@@ -11,6 +11,14 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+### Added
+
+- **`receipt.IssuerTypeAIAgent` and `receipt.IssuerTypeAgentReceiptsDaemon`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that draft spec 0.7.0 defines for client-side and daemon signing.
+
+### Changed
+
+- **`chain.ReceiptChain` defaults `issuer.type` to `"AIAgent"`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)) when `EmitInput.Issuer.Type` is empty. `ReceiptChain` signs in the agent's own process, so the receipt declares client-side signing. An explicit value is kept. `receipt.Create` is unchanged, so daemon-built receipts still carry `"AgentReceiptsDaemon"`. Doc comments on `PeerCredential` and `EmitterMetadata` no longer call them daemon-attested without qualification.
+
 ## [0.24.0] - 2026-07-17
 
 ### Added

@@ -350,6 +350,48 @@ func TestEmitPreservesCorrelationID(t *testing.T) {
 	}
 }
 
+func TestEmitDefaultsIssuerType(t *testing.T) {
+	keys := testKeys(t)
+	rc, err := chain.New(chain.Options{
+		ChainID:            "chain_test",
+		PrivateKeyPEM:      keys.PrivateKey,
+		VerificationMethod: verificationMethod,
+		Emitter:            emitters.NewInMemory(),
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+
+	r, err := rc.Emit(ctx, emitInput())
+	if err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+	if got := r.Issuer.Type; got != receipt.IssuerTypeAIAgent {
+		t.Errorf("unset issuer.type = %q, want default %q", got, receipt.IssuerTypeAIAgent)
+	}
+
+	input := emitInput()
+	input.Issuer.Type = "CustomAgent"
+	r, err = rc.Emit(ctx, input)
+	if err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+	if got := r.Issuer.Type; got != "CustomAgent" {
+		t.Errorf("explicit issuer.type = %q, want caller's %q", got, "CustomAgent")
+	}
+
+	input = emitInput()
+	input.Issuer.Type = ""
+	r, err = rc.Emit(ctx, input)
+	if err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+	if got := r.Issuer.Type; got != receipt.IssuerTypeAIAgent {
+		t.Errorf("empty issuer.type = %q, want default %q", got, receipt.IssuerTypeAIAgent)
+	}
+}
+
 type failingEmitter struct {
 	inner    *emitters.InMemoryEmitter
 	failNext bool

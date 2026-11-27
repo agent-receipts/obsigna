@@ -20,6 +20,18 @@ export const CREDENTIAL_TYPE = [
 
 export const VERSION = "0.6.0";
 
+/**
+ * `issuer.type` for an agent that signs its own receipts (client-side signing,
+ * ADR-0020; spec §4.3.1). `ReceiptChain` sets it when `issuer.type` is unset.
+ * Like any `issuer.type`, it is a declaration, not proof of who signed (§7.10).
+ */
+export const ISSUER_TYPE_AI_AGENT = "AIAgent";
+/**
+ * `issuer.type` for an observing daemon that signs on the agent's behalf while
+ * the agent holds no key (ADR-0010; spec §4.3.1).
+ */
+export const ISSUER_TYPE_AGENT_RECEIPTS_DAEMON = "AgentReceiptsDaemon";
+
 // --- Risk levels ---
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
@@ -78,7 +90,9 @@ export interface ActionTarget {
 /**
  * OS-attested peer process metadata captured by the daemon at the SDK↔daemon
  * boundary. Present only on receipts emitted through a daemon (ADR-0010);
- * absent on direct SDK emissions. Daemon-attested, not agent-claimed.
+ * absent on direct SDK emissions. Daemon-attested only when the verifier knows
+ * the signing key is daemon-held; a client-side signer can set it too (spec
+ * §7.10).
  *
  * `pid` is a JS `number` because TS/JSON has no fixed-width integer type; the
  * spec describes it as POSIX `pid_t` (32-bit signed). `uid` and `gid` are
@@ -101,7 +115,8 @@ export interface PeerCredential {
 
 /**
  * Daemon-observed emitter-side metadata. Currently used for synthetic
- * events_dropped receipts (ADR-0010). Daemon-attested, not agent-claimed.
+ * events_dropped receipts (ADR-0010). Daemon-attested only when the signing key
+ * is known to be daemon-held (spec §7.10).
  */
 export interface EmitterMetadata {
 	/** Count of audit events the emitter dropped from its in-process buffer
