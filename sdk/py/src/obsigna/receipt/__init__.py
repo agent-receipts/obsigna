@@ -22,6 +22,8 @@ from obsigna.receipt.signing import (
 from obsigna.receipt.types import (
     CONTEXT,
     CREDENTIAL_TYPE,
+    ISSUER_TYPE_AGENT_RECEIPTS_DAEMON,
+    ISSUER_TYPE_AI_AGENT,
     VERSION,
     Action,
     ActionTarget,
@@ -68,6 +70,8 @@ __all__ = [
     # Constants
     "CONTEXT",
     "CREDENTIAL_TYPE",
+    "ISSUER_TYPE_AGENT_RECEIPTS_DAEMON",
+    "ISSUER_TYPE_AI_AGENT",
     "VERSION",
     # Creation
     "CreateReceiptInput",

@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from obsigna import (
+    ISSUER_TYPE_AI_AGENT,
     ChainEmitInput,
     InMemoryEmitter,
     ReceiptChain,
@@ -246,3 +247,21 @@ def test_resumes_existing_chain() -> None:
     assert r.credentialSubject.chain.sequence == 7
     assert r.credentialSubject.chain.previous_receipt_hash == "sha256:deadbeef"
     assert chain.next_sequence == 8
+
+
+def test_defaults_issuer_type_and_keeps_explicit_value() -> None:
+    chain = _make_chain()
+    unset = _make_input("/a")
+
+    r = chain.emit(unset)
+    assert ISSUER_TYPE_AI_AGENT == "AIAgent"
+    assert r.issuer.type == ISSUER_TYPE_AI_AGENT
+    assert unset.issuer.type is None
+
+    custom = _make_input("/b")
+    custom.issuer.type = "CustomAgent"
+    assert chain.emit(custom).issuer.type == "CustomAgent"
+
+    empty = _make_input("/c")
+    empty.issuer.type = ""
+    assert chain.emit(empty).issuer.type == ISSUER_TYPE_AI_AGENT

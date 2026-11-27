@@ -77,7 +77,20 @@ type Operator struct {
 	Name string `json:"name"`
 }
 
-// Issuer represents the agent that issued the receipt.
+// Defined issuer.type values (spec §4.3.1). Each names a signing deployment.
+// A value is a declaration, not proof of how the receipt was signed (§7.10).
+const (
+	// IssuerTypeAIAgent is declared when the agent signs its own receipts
+	// (client-side signing, ADR-0020). chain.ReceiptChain sets it when the
+	// caller leaves Issuer.Type empty.
+	IssuerTypeAIAgent = "AIAgent"
+	// IssuerTypeAgentReceiptsDaemon is declared when an observing daemon signs
+	// the receipts and the agent holds no key (ADR-0010).
+	IssuerTypeAgentReceiptsDaemon = "AgentReceiptsDaemon"
+)
+
+// Issuer identifies the entity that signed the receipt: the agent, or a daemon
+// signing on its behalf.
 type Issuer struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type,omitempty"`
@@ -240,9 +253,10 @@ type ActionTarget struct {
 
 // PeerCredential is OS-attested peer process metadata captured by the daemon
 // at the SDK↔daemon boundary (ADR-0010). Present only on receipts emitted
-// through a daemon; absent on direct-SDK emissions. The values are daemon-
-// attested, not agent-claimed, and are signature-protected by the surrounding
-// receipt.
+// through a daemon; absent on direct-SDK emissions. The values are signature-
+// protected by the surrounding receipt, but they are daemon-attested only when
+// the verifier knows the signing key is daemon-held: a client-side signer can
+// set them too (spec §7.10).
 //
 // Field widths follow POSIX: PID is int32 (signed pid_t, -1 is a valid
 // sentinel); UID/GID are *uint32 (pointer so that uid=0 / gid=0 — the root
@@ -259,7 +273,8 @@ type PeerCredential struct {
 
 // EmitterMetadata holds daemon-observed emitter-side metadata (ADR-0010).
 // Currently records the drop counter on synthetic events_dropped receipts.
-// Daemon-attested, not agent-claimed.
+// Daemon-attested only when the signing key is known to be daemon-held (spec
+// §7.10).
 type EmitterMetadata struct {
 	DropCount int64 `json:"drop_count,omitempty"`
 }

@@ -60,6 +60,8 @@ export {
 	type CredentialSubject,
 	type EmitterMetadata,
 	type Intent,
+	ISSUER_TYPE_AGENT_RECEIPTS_DAEMON,
+	ISSUER_TYPE_AI_AGENT,
 	type Issuer,
 	type KeyRotation,
 	type Operator,

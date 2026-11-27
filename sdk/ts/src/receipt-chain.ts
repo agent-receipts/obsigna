@@ -26,13 +26,19 @@ import type { Emitter } from "./emitters/types.js";
 import { type CreateReceiptInput, createReceipt } from "./receipt/create.js";
 import { hashReceipt } from "./receipt/hash.js";
 import { signReceipt } from "./receipt/signing.js";
-import type { AgentReceipt, Chain } from "./receipt/types.js";
+import {
+	type AgentReceipt,
+	type Chain,
+	ISSUER_TYPE_AI_AGENT,
+} from "./receipt/types.js";
 
 /**
  * Per-receipt inputs accepted by {@link ReceiptChain.emit}. Identical to
  * {@link CreateReceiptInput} minus `chain`: the chain head (sequence,
  * previous_receipt_hash, chain_id) is owned by the {@link ReceiptChain} and
- * must not be supplied per call.
+ * must not be supplied per call. `ReceiptChain` signs in the agent's own
+ * process, so an unset `issuer.type` defaults to {@link ISSUER_TYPE_AI_AGENT}.
+ * Do not declare `ISSUER_TYPE_AGENT_RECEIPTS_DAEMON` here (spec §4.3.1).
  */
 export type ReceiptChainEmitInput = Omit<CreateReceiptInput, "chain">;
 
@@ -187,7 +193,10 @@ export class ReceiptChain {
 			previous_receipt_hash: this.#previousReceiptHash,
 			chain_id: this.#chainId,
 		};
-		const unsigned = createReceipt({ ...input, chain });
+		const issuer = input.issuer.type
+			? input.issuer
+			: { ...input.issuer, type: ISSUER_TYPE_AI_AGENT };
+		const unsigned = createReceipt({ ...input, issuer, chain });
 		const signed = signReceipt(
 			unsigned,
 			this.#privateKey,

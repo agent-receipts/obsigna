@@ -14,10 +14,12 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ### Added
 
+- **`ISSUER_TYPE_AI_AGENT` and `ISSUER_TYPE_AGENT_RECEIPTS_DAEMON`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that draft spec 0.7.0 defines for client-side and daemon signing. Exported from `obsigna.receipt` and `obsigna`.
 - **`open_store_read_only`** ([#1173](https://github.com/agent-receipts/obsigna/issues/1173)) — opens an existing receipt store with the SQLite URI `file:<abs-path>?mode=ro` (each path segment percent-encoded), skipping schema creation, the `tool_name` migration and the WAL switch, so a read-only tool can run alongside the daemon. Python counterpart to Go's `OpenReadOnly` and TypeScript's `openStoreReadOnly`. `":memory:"` is rejected, a missing path raises without creating a file, and `insert()` raises `sqlite3.OperationalError`. Exported from `obsigna.store` and `obsigna`, with an `openStoreReadOnly` camelCase alias.
 
 ### Changed
 
+- **`ReceiptChain` defaults `issuer.type` to `"AIAgent"`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)) when the caller leaves it unset. `ReceiptChain` signs in the agent's own process, so the receipt declares client-side signing. An explicit value is kept, and the caller's `Issuer` is not modified. `create_receipt` is unchanged. Docstrings on `PeerCredential` and `EmitterMetadata` no longer call them daemon-attested without qualification.
 - **`ReceiptStore` enables WAL journal mode** ([#729](https://github.com/agent-receipts/obsigna/issues/729)) — matches the Go store (ADR-0004), so a reader can read while a writer holds a write transaction. The 5 s busy timeout is unchanged (it was already `sqlite3.connect`'s default and is now passed explicitly). Opening the store also retries `SQLITE_BUSY` during the WAL switch and schema setup for up to 5 s, since SQLite can skip the busy handler when several processes open a fresh database at once. WAL persists in the database file; in-memory stores are unaffected.
 
 ### Fixed

@@ -4,7 +4,7 @@ import type { Emitter } from "./emitters/types.js";
 import { verifyChain } from "./receipt/chain.js";
 import { hashReceipt } from "./receipt/hash.js";
 import { generateKeyPair } from "./receipt/signing.js";
-import type { AgentReceipt } from "./receipt/types.js";
+import { type AgentReceipt, ISSUER_TYPE_AI_AGENT } from "./receipt/types.js";
 import {
 	ReceiptChain,
 	type ReceiptChainEmitInput,
@@ -203,5 +203,24 @@ describe("ReceiptChain", () => {
 			"sha256:deadbeef",
 		);
 		expect(chain.nextSequence).toBe(8);
+	});
+
+	it("defaults issuer.type to AIAgent and keeps an explicit value", async () => {
+		const chain = makeChain();
+		const input = makeInput("/a");
+
+		const r = await chain.emit(input);
+		expect(ISSUER_TYPE_AI_AGENT).toBe("AIAgent");
+		expect(r.issuer.type).toBe(ISSUER_TYPE_AI_AGENT);
+		expect(input.issuer.type).toBeUndefined();
+
+		const custom = makeInput("/b");
+		custom.issuer.type = "CustomAgent";
+		const r2 = await chain.emit(custom);
+		expect(r2.issuer.type).toBe("CustomAgent");
+
+		const empty = makeInput("/c");
+		empty.issuer.type = "";
+		expect((await chain.emit(empty)).issuer.type).toBe(ISSUER_TYPE_AI_AGENT);
 	});
 });

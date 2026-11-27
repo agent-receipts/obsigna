@@ -26,6 +26,16 @@ CREDENTIAL_TYPE: list[str] = [
 
 VERSION = "0.6.0"
 
+ISSUER_TYPE_AI_AGENT = "AIAgent"
+"""``issuer.type`` for an agent that signs its own receipts (client-side signing,
+ADR-0020; spec §4.3.1). :class:`~obsigna.ReceiptChain` sets it when
+``issuer.type`` is unset. Like any ``issuer.type``, it is a declaration, not
+proof of who signed (§7.10)."""
+
+ISSUER_TYPE_AGENT_RECEIPTS_DAEMON = "AgentReceiptsDaemon"
+"""``issuer.type`` for an observing daemon that signs on the agent's behalf while
+the agent holds no key (ADR-0010; spec §4.3.1)."""
+
 RiskLevel = Literal["low", "medium", "high", "critical"]
 
 OutcomeStatus = Literal["success", "failure", "pending"]
@@ -85,7 +95,8 @@ class PeerCredential(BaseModel):
     """OS-attested peer process metadata captured by the daemon (ADR-0010).
 
     Present only on receipts emitted through a daemon; absent on direct SDK
-    emissions. Daemon-attested, not agent-claimed.
+    emissions. Daemon-attested only when the verifier knows the signing key is
+    daemon-held; a client-side signer can set it too (spec §7.10).
 
     ``uid`` and ``gid`` are POSIX-only — they are absent on platforms where
     UIDs/GIDs do not apply (e.g. Windows). ``exe_path`` is best-effort and
@@ -114,8 +125,8 @@ class PeerCredential(BaseModel):
 class EmitterMetadata(BaseModel):
     """Daemon-observed emitter-side metadata (ADR-0010).
 
-    Currently used for synthetic ``events_dropped`` receipts. Daemon-attested,
-    not agent-claimed.
+    Currently used for synthetic ``events_dropped`` receipts. Daemon-attested
+    only when the signing key is known to be daemon-held (spec §7.10).
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -178,8 +189,9 @@ class Action(BaseModel):
         ),
     )
     peer_credential: PeerCredential | None = None
-    """Daemon-attested peer process metadata (ADR-0010). Set by the daemon
-    at the SDK↔daemon boundary; absent on direct SDK emissions."""
+    """Peer process metadata (ADR-0010). Set by the daemon at the SDK↔daemon
+    boundary; absent on direct SDK emissions. Daemon-attested only when the
+    signing key is known to be daemon-held (spec §7.10)."""
 
     emitter_metadata: EmitterMetadata | None = None
     """Daemon-observed emitter-side metadata (ADR-0010). Currently used for

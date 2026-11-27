@@ -37,6 +37,7 @@ from obsigna.receipt.create import (
 from obsigna.receipt.hash import hash_receipt
 from obsigna.receipt.signing import Signer, sign_receipt
 from obsigna.receipt.types import (
+    ISSUER_TYPE_AI_AGENT,
     Authorization,
     Chain,
     Intent,
@@ -64,7 +65,11 @@ class ChainEmitInput(BaseModel):
 
     Mirrors :class:`CreateReceiptInput` minus ``chain``: the chain head
     (sequence, previous_receipt_hash, chain_id) is owned by the
-    :class:`ReceiptChain` and must not be supplied per call.
+    :class:`ReceiptChain` and must not be supplied per call. ``ReceiptChain``
+    signs in the agent's own process, so an unset ``issuer.type`` defaults to
+    :data:`~obsigna.ISSUER_TYPE_AI_AGENT`.
+    Do not declare :data:`~obsigna.ISSUER_TYPE_AGENT_RECEIPTS_DAEMON` here
+    (spec §4.3.1).
     """
 
     issuer: Issuer
@@ -185,9 +190,12 @@ class ReceiptChain:
                     previous_receipt_hash=self._previous_hash,
                     chain_id=self._chain_id,
                 )
+                issuer = input.issuer
+                if not issuer.type:
+                    issuer = issuer.model_copy(update={"type": ISSUER_TYPE_AI_AGENT})
                 unsigned = create_receipt(
                     CreateReceiptInput(
-                        issuer=input.issuer,
+                        issuer=issuer,
                         principal=input.principal,
                         action=input.action,
                         outcome=input.outcome,
