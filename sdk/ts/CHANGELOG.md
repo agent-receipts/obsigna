@@ -12,9 +12,11 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-29
+
 ### Added
 
-- **`ISSUER_TYPE_AI_AGENT` and `ISSUER_TYPE_AGENT_RECEIPTS_DAEMON`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that draft spec 0.7.0 defines for client-side and daemon signing.
+- **`ISSUER_TYPE_AI_AGENT` and `ISSUER_TYPE_AGENT_RECEIPTS_DAEMON`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that spec 0.7.0 defines for client-side and daemon signing.
 
 ### Changed
 
