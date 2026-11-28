@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
 import pytest
 
@@ -19,9 +19,6 @@ from obsigna.receipt.grant_resolver import (
     verify_grounded_principal_tier,
 )
 from obsigna.receipt.types import AgentReceipt
-
-if TYPE_CHECKING:
-    from obsigna.receipt.grant_resolver import Revocation
 
 _CORPUS = (
     Path(__file__).parent.parent.parent.parent
@@ -36,17 +33,19 @@ def _time(value: str | None) -> datetime | None:
 
 
 def _grant(g: dict[str, Any]) -> GrantInfo:
-    # Missing required fields stay missing (None), so the malformed-grant cases
-    # reach the verifier as a loosely typed resolver could send them.
-    return GrantInfo(
-        subject=cast("str", g.get("subject")),
-        scopes=cast("list[str]", g.get("scopes")),
-        valid_from=cast("datetime", _time(g.get("valid_from"))),
-        revocation=cast("Revocation", g.get("revocation")),
-        issuer=cast("str", g.get("issuer")),
-        expires_at=_time(g.get("expires_at")),
-        revoked_at=_time(g.get("revoked_at")),
-    )
+    # The corpus is untyped JSON. Missing required fields stay missing (None)
+    # and invalid values stay invalid, so the malformed-grant cases reach the
+    # verifier as a loosely typed resolver could send them.
+    fields: dict[str, Any] = {
+        "subject": g.get("subject"),
+        "scopes": g.get("scopes"),
+        "valid_from": _time(g.get("valid_from")),
+        "revocation": g.get("revocation"),
+        "issuer": g.get("issuer"),
+        "expires_at": _time(g.get("expires_at")),
+        "revoked_at": _time(g.get("revoked_at")),
+    }
+    return GrantInfo(**fields)
 
 
 def _receipt(case: dict[str, Any]) -> AgentReceipt:
