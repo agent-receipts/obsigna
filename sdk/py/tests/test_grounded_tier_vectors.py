@@ -9,17 +9,19 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from obsigna.receipt.grant_resolver import (
     GrantInfo,
     GrantResolver,
-    Revocation,
     verify_grounded_principal_tier,
 )
 from obsigna.receipt.types import AgentReceipt
+
+if TYPE_CHECKING:
+    from obsigna.receipt.grant_resolver import Revocation
 
 _CORPUS = (
     Path(__file__).parent.parent.parent.parent
