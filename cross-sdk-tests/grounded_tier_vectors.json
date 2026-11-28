@@ -1,0 +1,2965 @@
+{
+  "description": "Grounded-principal tier corpus (spec v0.7.0 §7.9, ADR-0041). Each case is one receipt, the answer a fixed resolver gives for its grant_ref, and the expected result. All three SDKs run every case and must agree: this is the verifier-agreement gate of ADR-0041 D8.",
+  "format": {
+    "clock_skew_ms": "The verifier's tolerance δ in milliseconds.",
+    "receipt": "Keys risk_level, principal_id, action_timestamp and authorization: the values of credentialSubject.action.risk_level, credentialSubject.principal.id, credentialSubject.action.timestamp and credentialSubject.authorization (null means absent) on an otherwise minimal, unsigned receipt.",
+    "resolver": "Either {grant}: the resolved grant, fields as in §7.9.1 with times as RFC 3339 strings and missing fields omitted, or {error}: a resolution failure.",
+    "receipt_times": "Receipt times are read as RFC 3339 date-times (T/t, Z/z or a numeric offset with minutes, optional fraction, no leap second). An unreadable action.timestamp gives GRANT_VALIDITY_UNRESOLVED; an unreadable granted_at or expires_at raises no warning.",
+    "expected": "{config_error: true} when the options are invalid; {checked: false} when the receipt is outside the tier; otherwise {checked: true, outcome, warnings}, where outcome null means grounded and warnings are codes in order: GRANTED_AT_DISAGREES, EXPIRES_AT_DISAGREES."
+  },
+  "cases": [
+    {
+      "name": "low_risk_not_checked",
+      "spec": "§7.9.5",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "low",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": false
+      }
+    },
+    {
+      "name": "medium_risk_not_checked",
+      "spec": "§7.9.5",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "medium",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": false
+      }
+    },
+    {
+      "name": "grounded_high",
+      "spec": "§7.9.2",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "grounded_critical",
+      "spec": "§7.9.2",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "critical",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "authorization_absent",
+      "spec": "§7.9.2 step 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": null
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "grant_ref_empty",
+      "spec": "§7.9.2 step 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": ""
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "grant_ref_absent",
+      "spec": "§7.9.2 step 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "resolution_error",
+      "spec": "§7.9.2 step 2",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "error": "grant not found"
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "subject_mismatch",
+      "spec": "§7.9.2 step 3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:bob",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "PRINCIPAL_GRANT_MISMATCH",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_missing_subject",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_missing_scopes",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_empty_scopes",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_missing_valid_from",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_missing_revocation",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_unknown_revocation_value",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "maybe",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_missing_issuer",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_expires_equal_valid_from",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T12:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_expires_before_valid_from",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T11:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_expires_equal_after_floor",
+      "spec": "§7.9.1, §7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00.000400Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00.000400Z",
+          "expires_at": "2026-03-01T12:00:00.000600Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_revoked_at_without_revoked",
+      "spec": "§7.9.1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T12:45:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "malformed_checked_before_subject",
+      "spec": "§7.9.2 order",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:bob",
+          "scopes": [],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "at_valid_from",
+      "spec": "§7.9.3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "before_valid_from",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T11:59:59.999Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "just_before_expiry",
+      "spec": "§7.9.3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:59:59.999Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "at_expiry",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T13:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "after_expiry",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T14:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "no_expiry_unbounded",
+      "spec": "§7.9.3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2030-01-01T00:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_after_action",
+      "spec": "§7.9.3 case 3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T12:45:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_at_action_time",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T12:30:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_before_action",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T12:15:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_without_time",
+      "spec": "§7.9.3 case 3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revocation_unknown_inside_window",
+      "spec": "§7.9.3 case 3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "unknown",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revocation_unknown_before_valid_from",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T11:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "unknown",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revocation_unknown_after_expiry",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T14:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "unknown",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_before_valid_from_empty_window",
+      "spec": "§7.9.1, §7.9.3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T11:00:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_inside_window",
+      "spec": "§7.9.3",
+      "clock_skew_ms": 1000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_just_after_valid_from",
+      "spec": "§7.9.3 case 2",
+      "clock_skew_ms": 1000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:00:00.500Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_t_plus_delta_equals_valid_from",
+      "spec": "§7.9.3 case 2",
+      "clock_skew_ms": 1000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T11:59:59Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_t_minus_delta_equals_expiry",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 1000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T13:00:01Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_just_before_expiry",
+      "spec": "§7.9.3 case 2",
+      "clock_skew_ms": 1000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:59:59.500Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_window_shorter_than_two_delta",
+      "spec": "§7.9.3 case 2",
+      "clock_skew_ms": 1000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:00:00.750Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T12:00:01.500Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T12:00:01.500Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "negative_skew_is_config_error",
+      "spec": "§7.9.3",
+      "clock_skew_ms": -1,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "config_error": true
+      }
+    },
+    {
+      "name": "offset_action_time_at_expiry",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T14:00:00+01:00",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "offset_action_time_inside",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T07:30:00-05:00",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "sub_millisecond_floored_before_expiry",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:59:59.999999Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "sub_millisecond_floored_at_valid_from",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:00:00.000999Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "scope_exceeded",
+      "spec": "§7.9.2 step 5",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read",
+            "files:delete"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_SCOPE_EXCEEDED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "scope_no_hierarchy",
+      "spec": "§7.9.2 step 5",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:*"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_SCOPE_EXCEEDED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "scope_all_granted",
+      "spec": "§7.9.2 step 5",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:write",
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "subject_mismatch_before_validity",
+      "spec": "§7.9.2 order",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T14:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:bob",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "PRINCIPAL_GRANT_MISMATCH",
+        "warnings": []
+      }
+    },
+    {
+      "name": "validity_before_scope",
+      "spec": "§7.9.2 order",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T14:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:delete"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "warn_granted_at_disagrees",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T11:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": [
+          "GRANTED_AT_DISAGREES"
+        ]
+      }
+    },
+    {
+      "name": "warn_expires_at_disagrees",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T14:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": [
+          "EXPIRES_AT_DISAGREES"
+        ]
+      }
+    },
+    {
+      "name": "warn_expires_at_stated_grant_has_none",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": [
+          "EXPIRES_AT_DISAGREES"
+        ]
+      }
+    },
+    {
+      "name": "no_warn_receipt_omits_expires_at",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "no_warn_equal_after_floor",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00.000999Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "warn_both_fields",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T11:00:00Z",
+          "expires_at": "2026-03-01T14:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": [
+          "GRANTED_AT_DISAGREES",
+          "EXPIRES_AT_DISAGREES"
+        ]
+      }
+    },
+    {
+      "name": "warn_with_failed_outcome",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T11:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:bob",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "PRINCIPAL_GRANT_MISMATCH",
+        "warnings": [
+          "GRANTED_AT_DISAGREES"
+        ]
+      }
+    },
+    {
+      "name": "no_warn_when_resolution_fails",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T11:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "error": "unreachable"
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "UNGROUNDED_PRINCIPAL",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_lowercase_t_and_z",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01t12:30:00z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_without_offset",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_date_only",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_space_separator",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01 12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_no_seconds",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_offset_without_colon",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T13:30:00+0100",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_offset_hours_only",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T13:30:00+01",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_comma_fraction",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00,5Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_basic_format",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "20260301T123000Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_impossible_date",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-02-30T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_hour_24",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T24:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_leap_second",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:29:60Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_leap_day",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2028-02-29T12:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2028-02-29T00:00:00Z",
+          "expires_at": "2028-03-01T00:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2028-02-29T00:00:00Z",
+          "expires_at": "2028-03-01T00:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "action_time_long_fraction_floored",
+      "spec": "§7.9 time comparison",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:59:59.9999999999Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "warnings_kept_when_action_time_unreadable",
+      "spec": "§7.9.2 step 4, §7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T11:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": [
+          "GRANTED_AT_DISAGREES"
+        ]
+      }
+    },
+    {
+      "name": "unreadable_granted_at_ignored",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "unreadable_expires_at_ignored",
+      "spec": "§7.9.4",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "next tuesday",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_spans_empty_window",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 3600000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T11:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T11:00:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "end_is_expiry_when_revoked_later",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T13:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T14:00:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_without_time_after_expiry",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T14:00:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_no_expiry_after_revocation",
+      "spec": "§7.9.3 case 1",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:50:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T12:45:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_NOT_VALID_AT_ACTION_TIME",
+        "warnings": []
+      }
+    },
+    {
+      "name": "revoked_no_expiry_before_revocation",
+      "spec": "§7.9.3 case 3",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "revocation": "revoked",
+          "issuer": "https://auth.example.com",
+          "revoked_at": "2026-03-01T12:45:00Z"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    },
+    {
+      "name": "skew_unknown_revocation_inside_window",
+      "spec": "§7.9.3 case 3",
+      "clock_skew_ms": 1000,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [
+            "files:read"
+          ],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "unknown",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": "GRANT_VALIDITY_UNRESOLVED",
+        "warnings": []
+      }
+    },
+    {
+      "name": "receipt_scopes_empty",
+      "spec": "§7.9.2 step 5",
+      "clock_skew_ms": 0,
+      "receipt": {
+        "risk_level": "high",
+        "principal_id": "did:user:alice",
+        "action_timestamp": "2026-03-01T12:30:00Z",
+        "authorization": {
+          "scopes": [],
+          "granted_at": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "grant_ref": "grant-1"
+        }
+      },
+      "resolver": {
+        "grant": {
+          "subject": "did:user:alice",
+          "scopes": [
+            "files:read",
+            "files:write"
+          ],
+          "valid_from": "2026-03-01T12:00:00Z",
+          "expires_at": "2026-03-01T13:00:00Z",
+          "revocation": "not_revoked",
+          "issuer": "https://auth.example.com"
+        }
+      },
+      "expected": {
+        "checked": true,
+        "outcome": null,
+        "warnings": []
+      }
+    }
+  ]
+}

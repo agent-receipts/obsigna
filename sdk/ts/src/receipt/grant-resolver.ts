@@ -1,177 +1,388 @@
-import type { AgentReceipt } from "./types.js";
+import { parseReceiptTimeMs } from "./receipt-time.js";
+import type { AgentReceipt, Authorization } from "./types.js";
+
+/** A resolved grant's revocation status (spec §7.9.1). */
+export type Revocation = "not_revoked" | "revoked" | "unknown";
+
+const REVOCATIONS: readonly string[] = ["not_revoked", "revoked", "unknown"];
 
 /**
- * The resolved representation of an externally-minted authorization grant
- * (e.g. an RFC 8693 OBO token or a Grantex grant token).
+ * The resolved representation of an externally-minted authorization grant,
+ * such as an RFC 8693 token-exchange token or a Grantex grant token
+ * (spec §7.9.1, ADR-0041 D2).
  *
- * `subject` MUST be populated by all resolvers. The remaining fields are
- * advisory and MAY be omitted when the resolver's backend does not expose them.
+ * A grant that is missing a required field, has empty `scopes`, has
+ * `expiresAt` not after `validFrom`, or has `revokedAt` without
+ * `revocation: "revoked"` is malformed, and the verifier treats it as a
+ * resolution failure.
  */
 export interface GrantInfo {
-	/**
-	 * The principal on whose behalf the grant was issued. MUST equal
-	 * `credentialSubject.principal.id` for the grounded-principal tier check
-	 * to pass (spec §7.9, ADR-0038 D2).
-	 */
+	/** The principal the grant was issued for. Must equal `principal.id`. */
 	subject: string;
-	/** Authorization scopes active under the grant. */
-	scopes?: string[];
-	/** When the authorization server minted the grant. */
-	issuedAt?: Date;
-	/** When the grant expires. */
+	/** The scopes the grant conferred. Non-empty. */
+	scopes: string[];
+	/**
+	 * When the grant took effect. For a JWT access token this is `nbf` when
+	 * present, otherwise `iat`.
+	 */
+	validFrom: Date;
+	/** When the grant expires. Absent means no expiry. */
 	expiresAt?: Date;
-	/** Identifies the authorization server that minted the grant. */
-	issuer?: string;
+	/**
+	 * `"not_revoked"` means not revoked as of resolution, which covers any
+	 * earlier action. A resolver that cannot see revocation must report
+	 * `"unknown"`.
+	 */
+	revocation: Revocation;
+	/** When the grant was revoked, if known. Only with `revocation: "revoked"`. */
+	revokedAt?: Date;
+	/** The authorization server that minted the grant. */
+	issuer: string;
 }
 
 /**
- * Resolves an authorization grant reference to its minted grant, confirming
- * the named principal delegated authority to the agent.
+ * Resolves an authorization grant reference to the grant's terms
+ * (spec §7.9.1).
  *
- * Input:
- * - `grantRef` — the `authorization.grant_ref` value from the receipt.
- * - `principalId` — the `credentialSubject.principal.id` from the receipt
- *   (supplied as a hint; resolvers MAY use it to select a cached entry).
+ * - `grantRef`: the `authorization.grant_ref` value from the receipt.
+ * - `principalId`: the receipt's `credentialSubject.principal.id`, supplied
+ *   as a hint; resolvers MAY use it to select a cached entry.
  *
- * Output: the resolved `GrantInfo`. Throw an `Error` on resolution failure
- * (network error, token not found, token revoked, etc.).
+ * A grant that has expired or been revoked is still a resolved grant: when the
+ * resolver can establish its terms it must return them, not reject. Reject
+ * only when the grant cannot be found, the backend cannot be reached, or its
+ * response cannot be interpreted. A resolver that learns only that a grant is
+ * inactive, without its terms (as with plain RFC 7662 token introspection),
+ * must reject. Document whether your resolver returns the terms of lapsed
+ * grants and whether it can see revocation.
  *
- * Implementations MAY perform network I/O (token introspection, OIDC
- * userinfo). Caching is an implementation concern.
- *
- * The SDK ships this interface only. Integrators supply a resolver for their
- * authorization server (RFC 8693 token introspection, OIDC, Grantex). The
- * project does not endorse a single authorization server, mirroring the
- * ADR-0007 stance on DID methods.
+ * The SDK ships this interface only; integrators supply a resolver for their
+ * authorization server, mirroring the ADR-0007 stance on DID methods.
  */
 export interface GrantResolver {
 	resolveGrant(grantRef: string, principalId: string): Promise<GrantInfo>;
 }
 
-/**
- * The outcome of a grounded-principal tier check on a single receipt
- * (spec §7.9, ADR-0038).
- */
+/** Failure outcomes of the grounded-principal tier (spec §7.9.6). */
 export const GroundedOutcome = {
-	/**
-	 * A high/critical receipt lacks a resolvable `grant_ref`.
-	 * Corresponds to `UNGROUNDED_PRINCIPAL` in spec §7.9.
-	 */
+	/** No `grant_ref`, or the grant cannot be resolved or is malformed. */
 	UngroundedPrincipal: "UNGROUNDED_PRINCIPAL",
-	/**
-	 * The resolved grant's subject does not equal the receipt's `principal.id`.
-	 * Corresponds to `PRINCIPAL_GRANT_MISMATCH` in spec §7.9.
-	 */
+	/** The grant's subject does not equal `principal.id`. */
 	PrincipalGrantMismatch: "PRINCIPAL_GRANT_MISMATCH",
+	/** The grant was not in force at the action time. */
+	GrantNotValidAtActionTime: "GRANT_NOT_VALID_AT_ACTION_TIME",
+	/** The verifier cannot tell whether the grant was in force at the action time. */
+	GrantValidityUnresolved: "GRANT_VALIDITY_UNRESOLVED",
+	/** `authorization.scopes` contains a scope the grant does not confer. */
+	GrantScopeExceeded: "GRANT_SCOPE_EXCEEDED",
 } as const;
 
 export type GroundedOutcome =
 	(typeof GroundedOutcome)[keyof typeof GroundedOutcome];
 
-/** A grounded-principal tier failure for a single receipt. */
-export interface GroundedPrincipalViolation {
-	/** Position of the offending receipt in the input array. */
-	index: number;
-	/** The receipt's `id` field. */
-	receiptId: string;
-	/** The receipt's `credentialSubject.principal.id`. */
-	principalId: string;
-	/**
-	 * The `authorization.grant_ref` value. May be empty for
-	 * `UNGROUNDED_PRINCIPAL` violations where no `grant_ref` is present.
-	 */
-	grantRef: string;
-	/** The specific failure outcome. */
-	outcome: GroundedOutcome;
-	/** Human-readable description, including resolver error messages. */
+/** Warnings raised alongside a grounded-tier result (spec §7.9.4). */
+export const GroundedWarningCode = {
+	/** `authorization.granted_at` differs from the grant's `validFrom`. */
+	GrantedAtDisagrees: "GRANTED_AT_DISAGREES",
+	/** `authorization.expires_at` differs from the grant's expiry, including when it has none. */
+	ExpiresAtDisagrees: "EXPIRES_AT_DISAGREES",
+} as const;
+
+export type GroundedWarningCode =
+	(typeof GroundedWarningCode)[keyof typeof GroundedWarningCode];
+
+/** A warning raised alongside a grounded-tier result. It never changes the outcome. */
+export interface GroundedWarning {
+	code: GroundedWarningCode;
 	detail: string;
 }
 
+/** The grounded-principal tier result for one checked receipt. */
+export interface GroundedResult {
+	/** Position of the receipt in the input array. */
+	index: number;
+	/** The receipt's `id`. */
+	receiptId: string;
+	/** The receipt's `credentialSubject.principal.id`. */
+	principalId: string;
+	/** `authorization.grant_ref`; empty when absent. */
+	grantRef: string;
+	/** `null` when the receipt is grounded. */
+	outcome: GroundedOutcome | null;
+	/** Whether the receipt passed every check (`outcome === null`). */
+	grounded: boolean;
+	/**
+	 * Explains the outcome. For a grounded receipt it states that validity was
+	 * established at the issuer-asserted action time (§7.9.3).
+	 */
+	detail: string;
+	/** Raised once the grant has resolved, whatever the outcome. */
+	warnings: GroundedWarning[];
+}
+
+/** Options for {@link verifyGroundedPrincipalTier}. */
+export interface GroundedOptions {
+	/**
+	 * Clock-skew tolerance δ around the action time, in milliseconds
+	 * (§7.9.3). Defaults to 0. A negative or non-finite value throws a
+	 * `RangeError`.
+	 */
+	clockSkewMs?: number;
+}
+
 /**
- * Apply the grounded-principal conformance tier checks (spec §7.9,
- * ADR-0038 D1–D3) to a set of receipts.
+ * Apply the grounded-principal tier checks (spec v0.7.0 §7.9, ADR-0038 and
+ * ADR-0041) and return one result for every receipt checked: those at risk
+ * level `"high"` or `"critical"`. Low and medium receipts produce no result.
  *
- * For each receipt whose `action.risk_level` is `"high"` or `"critical"`:
- * 1. If `authorization.grant_ref` is absent or empty → `UNGROUNDED_PRINCIPAL`.
- * 2. If the resolver throws → `UNGROUNDED_PRINCIPAL`.
- * 3. If the resolved grant's `subject` ≠ `principal.id` →
- *    `PRINCIPAL_GRANT_MISMATCH`.
+ * For each checked receipt the steps run in order, and the first failure is
+ * the outcome: grant presence, grant resolution (including the malformed-
+ * grant rules), subject match, validity at the action time, and scope
+ * containment.
  *
- * Receipts at `risk_level` `"low"` or `"medium"` are not checked.
- *
- * When `resolver` is `null`, no checks are performed and an empty array is
- * returned — this is the correct behaviour for base-tier verifiers that have
- * not configured a resolver (ADR-0038 D3: "absence of a resolver in the base
- * tier is not a verification failure").
- *
- * All violations are collected and returned; the function does not stop at
- * the first failure so callers get a complete picture of the tier's state.
+ * A `null` resolver means the verifier is in the base tier: no checks run and
+ * the result is empty.
  */
 export async function verifyGroundedPrincipalTier(
 	receipts: AgentReceipt[],
 	resolver: GrantResolver | null,
-): Promise<GroundedPrincipalViolation[]> {
+	options: GroundedOptions = {},
+): Promise<GroundedResult[]> {
+	const skew = options.clockSkewMs ?? 0;
+	if (!Number.isFinite(skew) || skew < 0) {
+		throw new RangeError(
+			"grounded-tier clockSkewMs must be a finite, non-negative number",
+		);
+	}
 	if (resolver == null) {
 		return [];
 	}
+	const skewMs = Math.floor(skew);
 
-	const violations: GroundedPrincipalViolation[] = [];
-
+	const results: GroundedResult[] = [];
 	for (let i = 0; i < receipts.length; i++) {
 		const r = receipts[i];
 		if (!r) continue;
-
 		const riskLevel = r.credentialSubject.action.risk_level;
-		if (riskLevel !== "high" && riskLevel !== "critical") {
-			continue;
-		}
+		if (riskLevel !== "high" && riskLevel !== "critical") continue;
 
-		const principalId = r.credentialSubject.principal.id;
-		const auth = r.credentialSubject.authorization;
-		const grantRef = auth?.grant_ref ?? "";
+		const result: GroundedResult = {
+			index: i,
+			receiptId: r.id,
+			principalId: r.credentialSubject.principal.id,
+			grantRef: "",
+			outcome: null,
+			grounded: false,
+			detail: "",
+			warnings: [],
+		};
+		await checkGrounded(r, resolver, skewMs, result);
+		result.grounded = result.outcome === null;
+		results.push(result);
+	}
+	return results;
+}
 
-		// Step 1: grant_ref must be present and non-empty.
-		if (!grantRef) {
-			violations.push({
-				index: i,
-				receiptId: r.id,
-				principalId,
-				grantRef: "",
-				outcome: GroundedOutcome.UngroundedPrincipal,
-				detail: `authorization.grant_ref is absent on a ${riskLevel} receipt`,
-			});
-			continue;
-		}
+function fail(
+	result: GroundedResult,
+	outcome: GroundedOutcome,
+	detail: string,
+): void {
+	result.outcome = outcome;
+	result.detail = detail;
+}
 
-		// Step 2: resolve the grant.
-		let grant: GrantInfo;
-		try {
-			grant = await resolver.resolveGrant(grantRef, principalId);
-		} catch (err) {
-			const reason = err instanceof Error ? err.message : String(err);
-			violations.push({
-				index: i,
-				receiptId: r.id,
-				principalId,
-				grantRef,
-				outcome: GroundedOutcome.UngroundedPrincipal,
-				detail: `grant resolution failed: ${reason}`,
-			});
-			continue;
-		}
+async function checkGrounded(
+	r: AgentReceipt,
+	resolver: GrantResolver,
+	skewMs: number,
+	result: GroundedResult,
+): Promise<void> {
+	const auth = r.credentialSubject.authorization;
+	if (!auth?.grant_ref) {
+		fail(
+			result,
+			GroundedOutcome.UngroundedPrincipal,
+			`authorization.grant_ref is absent on a ${r.credentialSubject.action.risk_level} receipt`,
+		);
+		return;
+	}
+	result.grantRef = auth.grant_ref;
 
-		// Step 3: subject must equal principal.id.
-		if (grant.subject !== principalId) {
-			violations.push({
-				index: i,
-				receiptId: r.id,
-				principalId,
-				grantRef,
-				outcome: GroundedOutcome.PrincipalGrantMismatch,
-				detail: `grant subject ${grant.subject} does not match principal.id ${principalId}`,
-			});
-		}
+	let grant: GrantInfo;
+	try {
+		grant = await resolver.resolveGrant(auth.grant_ref, result.principalId);
+	} catch (err) {
+		const reason = err instanceof Error ? err.message : String(err);
+		fail(
+			result,
+			GroundedOutcome.UngroundedPrincipal,
+			`grant resolution failed: ${reason}`,
+		);
+		return;
+	}
+	const malformed = malformedGrant(grant);
+	if (malformed !== null) {
+		fail(
+			result,
+			GroundedOutcome.UngroundedPrincipal,
+			`resolved grant is malformed: ${malformed}`,
+		);
+		return;
+	}
+	result.warnings = grantFieldWarnings(auth, grant);
+
+	if (grant.subject !== result.principalId) {
+		fail(
+			result,
+			GroundedOutcome.PrincipalGrantMismatch,
+			`grant subject ${grant.subject} does not match principal.id ${result.principalId}`,
+		);
+		return;
 	}
 
-	return violations;
+	const t = parseReceiptTimeMs(r.credentialSubject.action.timestamp);
+	if (t === null) {
+		fail(
+			result,
+			GroundedOutcome.GrantValidityUnresolved,
+			"action.timestamp is not a readable RFC 3339 date-time",
+		);
+		return;
+	}
+	const window = checkValidityWindow(grant, t, skewMs);
+	if (window !== null) {
+		fail(result, window.outcome, window.detail);
+		return;
+	}
+
+	for (const s of auth.scopes ?? []) {
+		if (!grant.scopes.includes(s)) {
+			fail(
+				result,
+				GroundedOutcome.GrantScopeExceeded,
+				`authorization.scopes contains ${s}, which the grant does not confer`,
+			);
+			return;
+		}
+	}
+	result.detail = "grounded at the issuer-asserted action time";
+}
+
+/** Milliseconds since the epoch; JavaScript dates are already millisecond-precise. */
+function ms(d: Date): number {
+	return d.getTime();
+}
+
+function isDate(d: unknown): d is Date {
+	return d instanceof Date && !Number.isNaN(d.getTime());
+}
+
+/** Why a resolved grant is malformed (§7.9.1), or `null`. */
+function malformedGrant(g: GrantInfo | null | undefined): string | null {
+	if (typeof g !== "object" || g === null)
+		return "the resolver did not return a grant";
+	if (typeof g.subject !== "string" || !g.subject) return "subject is missing";
+	if (
+		!Array.isArray(g.scopes) ||
+		g.scopes.length === 0 ||
+		!g.scopes.every((s) => typeof s === "string")
+	) {
+		return "scopes is missing, empty or not a list of strings";
+	}
+	if (!isDate(g.validFrom)) return "valid_from is missing or not a valid Date";
+	if (typeof g.issuer !== "string" || !g.issuer) return "issuer is missing";
+	if (g.revocation === undefined) return "revocation is missing";
+	if (!REVOCATIONS.includes(g.revocation)) {
+		return `revocation ${g.revocation} is not one of not_revoked, revoked, unknown`;
+	}
+	if (g.expiresAt !== undefined && !isDate(g.expiresAt)) {
+		return "expires_at is not a valid Date";
+	}
+	if (g.revokedAt !== undefined && !isDate(g.revokedAt)) {
+		return "revoked_at is not a valid Date";
+	}
+	if (g.expiresAt !== undefined && ms(g.expiresAt) <= ms(g.validFrom)) {
+		return "expires_at is not after valid_from";
+	}
+	if (g.revokedAt !== undefined && g.revocation !== "revoked") {
+		return `revoked_at is set but revocation is ${g.revocation}`;
+	}
+	return null;
+}
+
+/** Apply §7.9.3 to action time `t` (ms since the epoch); `null` when in force. */
+function checkValidityWindow(
+	g: GrantInfo,
+	t: number,
+	skewMs: number,
+): { outcome: GroundedOutcome; detail: string } | null {
+	const start = ms(g.validFrom);
+	const ends: number[] = [];
+	if (g.expiresAt !== undefined) ends.push(ms(g.expiresAt));
+	if (g.revocation === "revoked" && g.revokedAt !== undefined) {
+		ends.push(ms(g.revokedAt));
+	}
+	const end = ends.length > 0 ? Math.min(...ends) : null;
+
+	const lo = t - skewMs;
+	const hi = t + skewMs;
+	const emptyWindow = end !== null && end <= start;
+	const overlaps = !emptyWindow && hi >= start && (end === null || lo < end);
+	if (!overlaps) {
+		return {
+			outcome: GroundedOutcome.GrantNotValidAtActionTime,
+			detail: "the grant was not in force at the issuer-asserted action time",
+		};
+	}
+	const inside = lo >= start && (end === null || hi < end);
+	if (!inside) {
+		return {
+			outcome: GroundedOutcome.GrantValidityUnresolved,
+			detail:
+				"the action time is within the clock-skew tolerance of a grant boundary",
+		};
+	}
+	if (g.revocation === "unknown") {
+		return {
+			outcome: GroundedOutcome.GrantValidityUnresolved,
+			detail: "the resolver cannot see whether the grant was revoked",
+		};
+	}
+	if (g.revocation === "revoked" && g.revokedAt === undefined) {
+		return {
+			outcome: GroundedOutcome.GrantValidityUnresolved,
+			detail: "the grant was revoked at an unknown time",
+		};
+	}
+	return null;
+}
+
+/**
+ * Compare the receipt's stated grant fields with the grant (§7.9.4). A stated
+ * value that is not a readable RFC 3339 date-time raises no warning.
+ */
+function grantFieldWarnings(
+	auth: Authorization,
+	g: GrantInfo,
+): GroundedWarning[] {
+	const warnings: GroundedWarning[] = [];
+	const grantedAt = parseReceiptTimeMs(auth.granted_at);
+	if (grantedAt !== null && grantedAt !== ms(g.validFrom)) {
+		warnings.push({
+			code: GroundedWarningCode.GrantedAtDisagrees,
+			detail: "authorization.granted_at differs from the grant's valid_from",
+		});
+	}
+	const expiresAt = parseReceiptTimeMs(auth.expires_at);
+	if (
+		expiresAt !== null &&
+		(g.expiresAt === undefined || expiresAt !== ms(g.expiresAt))
+	) {
+		warnings.push({
+			code: GroundedWarningCode.ExpiresAtDisagrees,
+			detail: "authorization.expires_at differs from the grant's expiry",
+		});
+	}
+	return warnings;
 }
