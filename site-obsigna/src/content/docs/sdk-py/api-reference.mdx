@@ -361,9 +361,9 @@ class Proof(BaseModel):
 RiskLevel = Literal["low", "medium", "high", "critical"]
 OutcomeStatus = Literal["success", "failure", "pending"]
 
-CONTEXT: list[str]          # ["https://www.w3.org/ns/credentials/v2", "https://agentreceipts.ai/context/v2"]
+CONTEXT: list[str]          # ["https://www.w3.org/ns/credentials/v2", "https://agentreceipts.ai/context/v4"]
 CREDENTIAL_TYPE: list[str]  # ["VerifiableCredential", "AgentReceipt"]
-RECEIPT_VERSION: str        # "0.5.0" (receipt schema)
+RECEIPT_VERSION: str        # "0.7.0" (receipt schema)
 VERSION: str                # current package version
 ```
 

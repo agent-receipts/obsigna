@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 CONTEXT: list[str] = [
     "https://www.w3.org/ns/credentials/v2",
-    "https://agentreceipts.ai/context/v3",
+    "https://agentreceipts.ai/context/v4",
 ]
 
 CREDENTIAL_TYPE: list[str] = [
@@ -24,7 +24,7 @@ CREDENTIAL_TYPE: list[str] = [
     "AgentReceipt",
 ]
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 ISSUER_TYPE_AI_AGENT = "AIAgent"
 """``issuer.type`` for an agent that signs its own receipts (client-side signing,

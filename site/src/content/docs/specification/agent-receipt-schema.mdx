@@ -46,11 +46,11 @@ An Agent Receipt is a W3C Verifiable Credential with type `AgentReceipt`. This p
 {
   "@context": [
     "https://www.w3.org/ns/credentials/v2",
-    "https://agentreceipts.ai/context/v3"
+    "https://agentreceipts.ai/context/v4"
   ],
   "id": "urn:receipt:550e8400-e29b-41d4-a716-446655440000",
   "type": ["VerifiableCredential", "AgentReceipt"],
-  "version": "0.6.0",
+  "version": "0.7.0",
 
   "issuer": {
     "id": "did:agent:claude-cowork-instance-abc123",
@@ -144,7 +144,7 @@ An Agent Receipt is a W3C Verifiable Credential with type `AgentReceipt`. This p
 | `@context` | Yes | JSON-LD context. Must include the W3C VC v2 and Agent Receipt context URIs in order. |
 | `id` | Yes | Globally unique identifier. Must be `urn:receipt:<uuid>`. |
 | `type` | Yes | Must be `["VerifiableCredential", "AgentReceipt"]`. |
-| `version` | Yes | Protocol version. Must be `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, `"0.5.0"`, or `"0.6.0"`. Verifiers MUST accept all seven. Versions `0.1.0`–`0.4.0` reference Agent Receipts context v1, `0.5.0` references v2, and `0.6.0` references v3. |
+| `version` | Yes | Protocol version. Must be `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, `"0.5.0"`, `"0.6.0"`, or `"0.7.0"`. Verifiers MUST accept all eight. Versions `0.1.0`–`0.4.0` reference Agent Receipts context v1, `0.5.0` references v2, `0.6.0` references v3, and `0.7.0` references v4. |
 | `issuer` | Yes | The agent or platform that issued the receipt. |
 | `issuanceDate` | Yes | ISO 8601 datetime when the receipt was issued. May differ from `action.timestamp`. |
 | `credentialSubject` | Yes | The receipt payload. |

@@ -23,7 +23,7 @@ class TestConstants:
         assert CONTEXT[0] == "https://www.w3.org/ns/credentials/v2"
 
     def test_context_includes_agent_receipts_uri(self) -> None:
-        assert CONTEXT[1] == "https://agentreceipts.ai/context/v3"
+        assert CONTEXT[1] == "https://agentreceipts.ai/context/v4"
 
     def test_credential_type_has_two_entries(self) -> None:
         assert len(CREDENTIAL_TYPE) == 2
@@ -35,7 +35,7 @@ class TestConstants:
         assert "AgentReceipt" in CREDENTIAL_TYPE
 
     def test_version(self) -> None:
-        assert VERSION == "0.6.0"
+        assert VERSION == "0.7.0"
 
 
 class TestAgentReceipt:

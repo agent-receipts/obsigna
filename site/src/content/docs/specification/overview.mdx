@@ -5,17 +5,15 @@ description: Design principles and core concepts of the Agent Receipt Protocol.
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-<Badge text="v0.6.0" variant="note" /> <Badge text="Draft" variant="caution" />
+<Badge text="v0.7.0" variant="note" /> <Badge text="Draft" variant="caution" />
 
 The Agent Receipt Protocol defines a standard format for cryptographically signed records of AI agent actions. This page covers the design principles and core concepts. For the full specification, see the [spec source on GitHub](https://github.com/agent-receipts/obsigna/tree/main/spec).
 
-<Aside type="note" title="What's new in v0.6.0">
-- `outcome.response_disclosure` seals the tool response in the same HPKE envelope that `action.parameters_disclosure` uses for the input. Only the holder of the forensic private key can recover it. `outcome.response_hash` stays the authoritative commitment. Response disclosure is enabled separately from parameter disclosure.
-- `keyRotation` records a signing-key change inside the chain. The rotation receipt is signed with the outgoing key and carries the incoming public key, so a verifier can follow rotations from the genesis key alone. See [ADR-0015](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0015-key-rotation-byok-anchoring.md).
-- An opt-in **grounded-principal tier** for verifiers. With a grant resolver configured, `high` and `critical` receipts must reference a grant whose subject is `principal.id`. See [ADR-0038](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0038-grounded-principal-conformance-tier.md).
-- New [action types](/specification/action-taxonomy/): `filesystem.directory.list`, `system.code.execute`, `system.pty.open`, `system.pty.close`, and a `network` domain with `network.egress.observed`.
-- JSON-LD **context v3** (`https://agentreceipts.ai/context/v3`) adds the `response_disclosure` term. Receipts at `0.6.0` reference context v3; earlier versions keep their contexts permanently.
-- `version` field now accepts `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, `"0.5.0"`, or `"0.6.0"`. Verifiers MUST accept all seven; new receipts SHOULD use `"0.6.0"`. See the [full changelog](https://github.com/agent-receipts/obsigna/blob/main/spec/CHANGELOG.md).
+<Aside type="note" title="What's new in v0.7.0">
+- **Signer roles.** `issuer.type` has a defined value per signing deployment: `"AIAgent"` when the agent signs its own receipts, `"AgentReceiptsDaemon"` when a daemon signs for it. A receipt does not prove which deployment signed it: these are declarations, meaningful only when the verifier knows independently who holds the key. See the [Trust Model](/specification/trust-model/#what-a-receipt-cannot-tell-you-who-held-the-key).
+- **Grant validity and scope.** The grounded-principal tier now checks that the grant was in force at the issuer-asserted action time and conferred the scopes the receipt claims, with new outcomes `GRANT_NOT_VALID_AT_ACTION_TIME`, `GRANT_VALIDITY_UNRESOLVED` and `GRANT_SCOPE_EXCEEDED`. See [ADR-0041](https://github.com/agent-receipts/obsigna/blob/main/docs/adr/0041-grant-validity-and-scope-in-grounded-tier.md).
+- JSON-LD **context v4** (`https://agentreceipts.ai/context/v4`) adds the `AgentReceiptsDaemon` term. Receipts at `0.7.0` reference context v4; earlier versions keep their contexts permanently.
+- `version` field now accepts `"0.1.0"`, `"0.2.0"`, `"0.2.1"`, `"0.3.0"`, `"0.4.0"`, `"0.5.0"`, `"0.6.0"`, or `"0.7.0"`. Verifiers MUST accept all eight; new receipts SHOULD use `"0.7.0"`. See the [full changelog](https://github.com/agent-receipts/obsigna/blob/main/spec/CHANGELOG.md).
 </Aside>
 
 ## Design principles
