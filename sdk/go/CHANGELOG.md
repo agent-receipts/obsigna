@@ -17,6 +17,11 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ### Changed
 
+- **Breaking: grounded-principal tier checks validity and scope** (refs [#1207](https://github.com/agent-receipts/obsigna/issues/1207), ADR-0041, spec v0.7.0 §7.9). `VerifyGroundedPrincipalTier` now checks that the grant was in force at the issuer-asserted action time and that `authorization.scopes` is a subset of the grant's scopes, adding the outcomes `GroundedOutcomeNotValidAtActionTime`, `GroundedOutcomeValidityUnresolved` and `GroundedOutcomeScopeExceeded`. Migration:
+  - The signature is now `VerifyGroundedPrincipalTier(receipts, resolver, GroundedOptions) ([]GroundedResult, error)`. It returns a result for every high/critical receipt, with an empty `Outcome` (and `Grounded()` true) when the receipt is grounded, plus `Warnings` (`WarningGrantedAtDisagrees`, `WarningExpiresAtDisagrees`). `GroundedPrincipalViolation` is removed; filter on `!r.Grounded()` for the old behaviour. The only error is `ErrNegativeClockSkew`.
+  - `GrantInfo` changes: `IssuedAt` is renamed `ValidFrom`; `ExpiresAt` is now `*time.Time` (nil means no expiry); new `Revocation` (`RevocationNotRevoked`, `RevocationRevoked`, `RevocationUnknown`) and `RevokedAt *time.Time`. `Subject`, `Scopes` (non-empty), `ValidFrom`, `Revocation` and `Issuer` are required: a resolver that sets only `Subject` now yields `UNGROUNDED_PRINCIPAL` for every receipt.
+  - Resolvers should return the terms of an expired or revoked grant instead of an error, and report `RevocationUnknown` when they cannot see revocation.
+  - Receipt times (`action.timestamp`, `authorization.granted_at`, `authorization.expires_at`) are read with a strict RFC 3339 grammar shared with the TypeScript and Python SDKs. An unreadable `action.timestamp` gives `GRANT_VALIDITY_UNRESOLVED`.
 - **`chain.ReceiptChain` defaults `issuer.type` to `"AIAgent"`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)) when `EmitInput.Issuer.Type` is empty. `ReceiptChain` signs in the agent's own process, so the receipt declares client-side signing. An explicit value is kept. `receipt.Create` is unchanged, so daemon-built receipts still carry `"AgentReceiptsDaemon"`. Doc comments on `PeerCredential` and `EmitterMetadata` no longer call them daemon-attested without qualification.
 
 ## [0.24.0] - 2026-07-17

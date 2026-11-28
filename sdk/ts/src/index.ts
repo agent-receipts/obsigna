@@ -55,8 +55,12 @@ export {
 export {
 	type GrantInfo,
 	type GrantResolver,
+	type GroundedOptions,
 	GroundedOutcome,
-	type GroundedPrincipalViolation,
+	type GroundedResult,
+	type GroundedWarning,
+	GroundedWarningCode,
+	type Revocation,
 	verifyGroundedPrincipalTier,
 } from "./receipt/grant-resolver.js";
 export { canonicalize, hashReceipt, sha256 } from "./receipt/hash.js";

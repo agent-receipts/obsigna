@@ -2,6 +2,7 @@ package receipt
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -22,6 +23,41 @@ func (s *stubResolver) ResolveGrant(grantRef, _ string) (GrantInfo, error) {
 		return g, nil
 	}
 	return GrantInfo{}, errors.New("resolver: unknown grant ref")
+}
+
+// validGrant is a well-formed grant for subject, in force around now.
+func validGrant(subject string) GrantInfo {
+	now := time.Now().UTC()
+	exp := now.Add(time.Hour)
+	return GrantInfo{
+		Subject:    subject,
+		Scopes:     []string{"files:write"},
+		ValidFrom:  now.Add(-time.Hour),
+		ExpiresAt:  &exp,
+		Revocation: RevocationNotRevoked,
+		Issuer:     "https://auth.example.com",
+	}
+}
+
+// failures returns the results that are not grounded.
+func failures(results []GroundedResult) []GroundedResult {
+	var out []GroundedResult
+	for _, r := range results {
+		if !r.Grounded() {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// verify runs the tier with default options and fails the test on error.
+func verify(t *testing.T, receipts []AgentReceipt, resolver GrantResolver) []GroundedResult {
+	t.Helper()
+	results, err := VerifyGroundedPrincipalTier(receipts, resolver, GroundedOptions{})
+	if err != nil {
+		t.Fatalf("VerifyGroundedPrincipalTier: %v", err)
+	}
+	return results
 }
 
 func makeGroundedReceipt(t *testing.T, kp KeyPair, principalID string, riskLevel RiskLevel, grantRef string) AgentReceipt {
@@ -53,14 +89,7 @@ func makeGroundedReceipt(t *testing.T, kp KeyPair, principalID string, riskLevel
 
 // TestGrantInfoFields verifies the GrantInfo struct carries the expected fields.
 func TestGrantInfoFields(t *testing.T) {
-	now := time.Now().UTC()
-	g := GrantInfo{
-		Subject:   "did:user:alice",
-		Scopes:    []string{"files:write"},
-		IssuedAt:  now,
-		ExpiresAt: now.Add(time.Hour),
-		Issuer:    "https://auth.example.com",
-	}
+	g := validGrant("did:user:alice")
 	if g.Subject != "did:user:alice" {
 		t.Errorf("unexpected Subject: %s", g.Subject)
 	}
@@ -74,7 +103,7 @@ func TestGrantInfoFields(t *testing.T) {
 func TestVerifyGroundedPrincipalTier_NoResolver(t *testing.T) {
 	kp, _ := GenerateKeyPair()
 	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "")
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, nil)
+	violations := verify(t, []AgentReceipt{r}, nil)
 	if len(violations) != 0 {
 		t.Errorf("expected no violations without resolver, got %d", len(violations))
 	}
@@ -87,7 +116,7 @@ func TestVerifyGroundedPrincipalTier_LowMediumSkipped(t *testing.T) {
 	resolver := &stubResolver{grants: map[string]GrantInfo{}}
 	lowR := makeGroundedReceipt(t, kp, "did:user:alice", RiskLow, "")
 	medR := makeGroundedReceipt(t, kp, "did:user:alice", RiskMedium, "")
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{lowR, medR}, resolver)
+	violations := verify(t, []AgentReceipt{lowR, medR}, resolver)
 	if len(violations) != 0 {
 		t.Errorf("expected no violations for low/medium receipts, got %d", len(violations))
 	}
@@ -99,7 +128,7 @@ func TestVerifyGroundedPrincipalTier_MissingGrantRef(t *testing.T) {
 	kp, _ := GenerateKeyPair()
 	resolver := &stubResolver{grants: map[string]GrantInfo{}}
 	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "")
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, resolver)
+	violations := failures(verify(t, []AgentReceipt{r}, resolver))
 	if len(violations) != 1 {
 		t.Fatalf("expected 1 violation, got %d", len(violations))
 	}
@@ -117,7 +146,7 @@ func TestVerifyGroundedPrincipalTier_ResolutionFailure(t *testing.T) {
 		errorRefs: map[string]struct{}{"bad-ref": {}},
 	}
 	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "bad-ref")
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, resolver)
+	violations := failures(verify(t, []AgentReceipt{r}, resolver))
 	if len(violations) != 1 {
 		t.Fatalf("expected 1 violation, got %d", len(violations))
 	}
@@ -132,14 +161,11 @@ func TestVerifyGroundedPrincipalTier_PrincipalMismatch(t *testing.T) {
 	kp, _ := GenerateKeyPair()
 	resolver := &stubResolver{
 		grants: map[string]GrantInfo{
-			"grant-abc": {
-				Subject: "did:user:bob", // mismatch: receipt says alice
-				Scopes:  []string{"files:write"},
-			},
+			"grant-abc": validGrant("did:user:bob"), // mismatch: receipt says alice
 		},
 	}
 	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "grant-abc")
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, resolver)
+	violations := failures(verify(t, []AgentReceipt{r}, resolver))
 	if len(violations) != 1 {
 		t.Fatalf("expected 1 violation, got %d", len(violations))
 	}
@@ -154,14 +180,11 @@ func TestVerifyGroundedPrincipalTier_ValidGrounding(t *testing.T) {
 	kp, _ := GenerateKeyPair()
 	resolver := &stubResolver{
 		grants: map[string]GrantInfo{
-			"grant-xyz": {
-				Subject: "did:user:alice",
-				Scopes:  []string{"files:write"},
-			},
+			"grant-xyz": validGrant("did:user:alice"),
 		},
 	}
 	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "grant-xyz")
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, resolver)
+	violations := failures(verify(t, []AgentReceipt{r}, resolver))
 	if len(violations) != 0 {
 		t.Errorf("expected no violations for grounded receipt, got %d", len(violations))
 	}
@@ -173,7 +196,7 @@ func TestVerifyGroundedPrincipalTier_CriticalAlsoChecked(t *testing.T) {
 	kp, _ := GenerateKeyPair()
 	resolver := &stubResolver{grants: map[string]GrantInfo{}}
 	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskCritical, "")
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, resolver)
+	violations := failures(verify(t, []AgentReceipt{r}, resolver))
 	if len(violations) != 1 {
 		t.Fatalf("expected 1 violation for critical receipt without grant_ref, got %d", len(violations))
 	}
@@ -188,14 +211,18 @@ func TestVerifyGroundedPrincipalTier_MultipleViolations(t *testing.T) {
 	kp, _ := GenerateKeyPair()
 	resolver := &stubResolver{
 		grants: map[string]GrantInfo{
-			"grant-good": {Subject: "did:user:alice"},
+			"grant-good": validGrant("did:user:alice"),
 		},
 		errorRefs: map[string]struct{}{"grant-bad": {}},
 	}
 	r1 := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "")              // UNGROUNDED
 	r2 := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "grant-good")    // OK
 	r3 := makeGroundedReceipt(t, kp, "did:user:alice", RiskCritical, "grant-bad") // UNGROUNDED (resolution fails)
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r1, r2, r3}, resolver)
+	results := verify(t, []AgentReceipt{r1, r2, r3}, resolver)
+	if len(results) != 3 {
+		t.Errorf("expected a result for each of 3 checked receipts, got %d", len(results))
+	}
+	violations := failures(results)
 	if len(violations) != 2 {
 		t.Errorf("expected 2 violations, got %d", len(violations))
 	}
@@ -208,7 +235,7 @@ func TestVerifyGroundedPrincipalTier_ReceiptIndexReported(t *testing.T) {
 	resolver := &stubResolver{grants: map[string]GrantInfo{}}
 	low := makeGroundedReceipt(t, kp, "did:user:alice", RiskLow, "")   // index 0, skipped
 	high := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "") // index 1, violation
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{low, high}, resolver)
+	violations := failures(verify(t, []AgentReceipt{low, high}, resolver))
 	if len(violations) != 1 {
 		t.Fatalf("expected 1 violation, got %d", len(violations))
 	}
@@ -221,7 +248,7 @@ func TestVerifyGroundedPrincipalTier_ReceiptIndexReported(t *testing.T) {
 // empty receipt slice.
 func TestVerifyGroundedPrincipalTier_EmptyChain(t *testing.T) {
 	resolver := &stubResolver{grants: map[string]GrantInfo{}}
-	violations := VerifyGroundedPrincipalTier(nil, resolver)
+	violations := verify(t, nil, resolver)
 	if len(violations) != 0 {
 		t.Errorf("expected no violations for empty chain, got %d", len(violations))
 	}
@@ -235,8 +262,33 @@ func TestVerifyGroundedPrincipalTier_TypedNilResolver(t *testing.T) {
 	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "")
 
 	var typed *stubResolver // typed nil: concrete type known, pointer is nil
-	violations := VerifyGroundedPrincipalTier([]AgentReceipt{r}, typed)
+	violations := verify(t, []AgentReceipt{r}, typed)
 	if len(violations) != 0 {
 		t.Errorf("expected no violations for typed-nil resolver, got %d", len(violations))
+	}
+}
+
+// TestVerifyGroundedPrincipalTier_GroundedDetailNamesTimeSource checks that a
+// grounded result says its validity rests on the issuer-asserted action time
+// (spec §7.9.3).
+func TestVerifyGroundedPrincipalTier_GroundedDetailNamesTimeSource(t *testing.T) {
+	kp, _ := GenerateKeyPair()
+	resolver := &stubResolver{grants: map[string]GrantInfo{"grant-xyz": validGrant("did:user:alice")}}
+	r := makeGroundedReceipt(t, kp, "did:user:alice", RiskHigh, "grant-xyz")
+	results := verify(t, []AgentReceipt{r}, resolver)
+	if len(results) != 1 || !results[0].Grounded() {
+		t.Fatalf("expected one grounded result, got %+v", results)
+	}
+	if !strings.Contains(results[0].Detail, "issuer-asserted action time") {
+		t.Errorf("grounded detail %q does not name the time source", results[0].Detail)
+	}
+}
+
+// TestVerifyGroundedPrincipalTier_NegativeSkewWithoutResolver confirms the
+// option is validated even in the base tier.
+func TestVerifyGroundedPrincipalTier_NegativeSkewWithoutResolver(t *testing.T) {
+	_, err := VerifyGroundedPrincipalTier(nil, nil, GroundedOptions{ClockSkew: -time.Millisecond})
+	if !errors.Is(err, ErrNegativeClockSkew) {
+		t.Errorf("err = %v, want ErrNegativeClockSkew", err)
 	}
 }

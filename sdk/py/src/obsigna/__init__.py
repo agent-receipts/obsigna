@@ -57,7 +57,10 @@ from obsigna.receipt.grant_resolver import (
     GrantInfo,
     GrantResolver,
     GroundedOutcome,
-    GroundedPrincipalViolation,
+    GroundedResult,
+    GroundedWarning,
+    GroundedWarningCode,
+    Revocation,
     verify_grounded_principal_tier,
 )
 from obsigna.receipt.hash import canonicalize, hash_raw_receipt, hash_receipt, sha256
@@ -189,11 +192,14 @@ __all__ = [
     "CreateReceiptInput",
     "create_receipt",
     "createReceipt",
-    # Grounded-principal conformance tier (ADR-0038)
+    # Grounded-principal conformance tier (ADR-0038, ADR-0041)
     "GrantInfo",
     "GrantResolver",
     "GroundedOutcome",
-    "GroundedPrincipalViolation",
+    "GroundedResult",
+    "GroundedWarning",
+    "GroundedWarningCode",
+    "Revocation",
     "verify_grounded_principal_tier",
     "verifyGroundedPrincipalTier",
     # Disclosure (HPKE envelope, ADR-0012)

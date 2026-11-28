@@ -624,7 +624,7 @@ This section defines additional verification steps applied when a verifier opera
 
 A verifier enters the grounded-principal tier by supplying a **grant resolver**: an external function that, given `(grant_ref, principal_id)`, returns a resolved grant or a resolution failure. The resolver is an implementation concern; the spec defines only the contract it must satisfy.
 
-All time comparisons in §7.9 (the malformed-grant rules in §7.9.1, the validity window in §7.9.3 and the warnings in §7.9.4) are made in UTC at millisecond precision: values with finer precision are truncated (floored) to the millisecond before comparing.
+All time comparisons in §7.9 (the malformed-grant rules in §7.9.1, the validity window in §7.9.3 and the warnings in §7.9.4) are made in UTC at millisecond precision: values with finer precision are truncated (floored) to the millisecond before comparing. The receipt's `action.timestamp`, `authorization.granted_at` and `authorization.expires_at` are read as RFC 3339 `date-time` values with a numeric offset or `Z`, and without a leap second; `T` and `Z` may be lowercase (RFC 3339 §5.6). If `action.timestamp` cannot be read that way, the outcome of step 4 (§7.9.2) is `GRANT_VALIDITY_UNRESOLVED`. A stated `granted_at` or `expires_at` that cannot be read raises no warning (§7.9.4).
 
 #### 7.9.1 Resolved grant
 
@@ -651,7 +651,7 @@ Applied per receipt, after step 6 of §7.8, to any receipt whose `action.risk_le
 1. **Grant presence.** If `credentialSubject.authorization` is absent, or `authorization.grant_ref` is absent or empty, the outcome is `UNGROUNDED_PRINCIPAL`.
 2. **Grant resolution.** Resolve `authorization.grant_ref` via the configured grant resolver, passing `credentialSubject.principal.id` as the principal hint. If resolution fails, or the resolved grant is malformed (§7.9.1), the outcome is `UNGROUNDED_PRINCIPAL`.
 3. **Subject match.** If the grant's `subject` does not equal `credentialSubject.principal.id` (exact string equality), the outcome is `PRINCIPAL_GRANT_MISMATCH`.
-4. **Validity at the action time.** Evaluate the validity window (§7.9.3). The outcome is `GRANT_NOT_VALID_AT_ACTION_TIME` or `GRANT_VALIDITY_UNRESOLVED` as defined there.
+4. **Validity at the action time.** Evaluate the validity window (§7.9.3). The outcome is `GRANT_NOT_VALID_AT_ACTION_TIME` or `GRANT_VALIDITY_UNRESOLVED` as defined there. If `action.timestamp` cannot be read (§7.9), the outcome is `GRANT_VALIDITY_UNRESOLVED`.
 5. **Scope containment.** If any entry in `authorization.scopes` does not appear in the grant's `scopes` (exact string comparison; no scope hierarchy is defined), the outcome is `GRANT_SCOPE_EXCEEDED`.
 
 A receipt that passes all five steps is **grounded**: an external authorization server confirms that the named principal held a grant, in force at the issuer-asserted action time, conferring the scopes the receipt claims.
