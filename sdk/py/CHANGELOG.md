@@ -12,9 +12,11 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-29
+
 ### Added
 
-- **`ISSUER_TYPE_AI_AGENT` and `ISSUER_TYPE_AGENT_RECEIPTS_DAEMON`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that draft spec 0.7.0 defines for client-side and daemon signing. Exported from `obsigna.receipt` and `obsigna`.
+- **`ISSUER_TYPE_AI_AGENT` and `ISSUER_TYPE_AGENT_RECEIPTS_DAEMON`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that spec 0.7.0 defines for client-side and daemon signing. Exported from `obsigna.receipt` and `obsigna`.
 - **`open_store_read_only`** ([#1173](https://github.com/agent-receipts/obsigna/issues/1173)) — opens an existing receipt store with the SQLite URI `file:<abs-path>?mode=ro` (each path segment percent-encoded), skipping schema creation, the `tool_name` migration and the WAL switch, so a read-only tool can run alongside the daemon. Python counterpart to Go's `OpenReadOnly` and TypeScript's `openStoreReadOnly`. `":memory:"` is rejected, a missing path raises without creating a file, and `insert()` raises `sqlite3.OperationalError`. Exported from `obsigna.store` and `obsigna`, with an `openStoreReadOnly` camelCase alias.
 
 ### Changed
