@@ -9,7 +9,7 @@ import "testing"
 // breaks that SDK's test in isolation, closing the gap surfaced by #512 where
 // the existing v030 cross-SDK byte-identicality tests load a pre-built JSON
 // fixture and never consult the SDK's VERSION constant.
-const liveEmitVersion = "0.6.0"
+const liveEmitVersion = "0.7.0"
 
 // TestCreateStampsCrossSDKVersion asserts that Create() stamps the
 // cross-SDK-agreed literal version string. This pins the SDK's Version
@@ -30,5 +30,24 @@ func TestCreateStampsCrossSDKVersion(t *testing.T) {
 	}
 	if Version != liveEmitVersion {
 		t.Errorf("package Version constant = %q, want cross-SDK literal %q", Version, liveEmitVersion)
+	}
+}
+
+// liveEmitContext is the Agent Receipts JSON-LD context the live version pins
+// (spec v0.7.0 → context v4). The TS and Python SDKs assert the same URI.
+const liveEmitContext = "https://agentreceipts.ai/context/v4"
+
+// TestCreateStampsCrossSDKContext asserts that Create() stamps the context the
+// live version requires, so the version and context cannot drift apart.
+func TestCreateStampsCrossSDKContext(t *testing.T) {
+	r := Create(CreateInput{
+		Issuer:    Issuer{ID: "did:agent:test"},
+		Principal: Principal{ID: "did:user:alice"},
+		Action:    Action{Type: "filesystem.file.read", RiskLevel: RiskLow},
+		Outcome:   Outcome{Status: StatusSuccess},
+		Chain:     Chain{Sequence: 1, ChainID: "chain-1"},
+	})
+	if len(r.Context) != 2 || r.Context[1] != liveEmitContext {
+		t.Errorf("Create() stamped @context %v, want [VC v2, %s]", r.Context, liveEmitContext)
 	}
 }

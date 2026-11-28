@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-Drafted in `spec/v0.7.0/spec.md`. Not yet tagged.
+## [0.7.0] - 2026-11-29
 
 ### Added
 - Defined `issuer.type` values, one per signing deployment (§4.3.1): `"AIAgent"` when the agent signs its own receipts (client-side signing, ADR-0020), and `"AgentReceiptsDaemon"` when an observing daemon signs them (ADR-0010). Other values remain allowed, and verifiers MUST NOT reject an unrecognized value.
@@ -21,6 +21,12 @@ Drafted in `spec/v0.7.0/spec.md`. Not yet tagged.
 - `version` field now accepts `"0.7.0"` in addition to `"0.1.0"`–`"0.6.0"`. Verifiers MUST accept all eight.
 - `issuer.type` previously had a single SHOULD (`"AIAgent"`), which the daemon never followed because it is not an AI agent. The SHOULD is now per signer role.
 - Schema descriptions of `peer_credential` and `emitter_metadata` no longer call them "daemon-attested, not agent-claimed" without qualification. They are attested by the daemon only when the key is known to be daemon-held.
+
+### Upgrade notes
+
+**Issuers:** Upgrade to `"version": "0.7.0"` with context v4 when emitting new receipts; the Go, TypeScript and Python SDKs do so from this release. Client-side signers (ADR-0020) SHOULD declare `issuer.type: "AIAgent"`, which `ReceiptChain` in all three SDKs sets by default; daemons SHOULD declare `"AgentReceiptsDaemon"`. A client-side signer SHOULD NOT declare the daemon type or set `peer_credential` / `emitter_metadata`.
+
+**Verifiers:** Receipts at `0.1.0`–`0.6.0` validate unchanged against their pinned contexts. Do not infer daemon signing from `issuer.type`, `issuer.id`, `peer_credential` or `emitter_metadata` alone (§7.10). Grounded-principal tier verifiers must adopt the §7.9.1 resolver contract, which is a breaking change for grant-resolver implementations; the three SDKs ship it.
 
 ## [0.6.0] - 2026-06-21
 

@@ -18,6 +18,7 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ### Changed
 
+- **Receipts are emitted at spec version 0.7.0 with JSON-LD context v4** (`VERSION`, `CONTEXT`), up from 0.6.0 / v3. Context v4 adds the `AgentReceiptsDaemon` issuer-type term. Verification of earlier versions is unchanged.
 - **Breaking: grounded-principal tier checks validity and scope** (refs [#1207](https://github.com/agent-receipts/obsigna/issues/1207), ADR-0041, spec v0.7.0 §7.9). `verifyGroundedPrincipalTier` now checks that the grant was in force at the issuer-asserted action time and that `authorization.scopes` is a subset of the grant's scopes, adding the outcomes `GrantNotValidAtActionTime`, `GrantValidityUnresolved` and `GrantScopeExceeded`. Migration:
   - It now takes an optional `{ clockSkewMs }` and resolves to `GroundedResult[]`: one result per high/critical receipt, with `outcome: null` and `grounded: true` when grounded, plus `warnings` (`GRANTED_AT_DISAGREES`, `EXPIRES_AT_DISAGREES`). `GroundedPrincipalViolation` is removed; filter on `!r.grounded` for the old behaviour. A negative `clockSkewMs` throws a `RangeError`.
   - `GrantInfo` changes (a compile-time break): `issuedAt` is renamed `validFrom`; new `revocation` (`"not_revoked" | "revoked" | "unknown"`) and optional `revokedAt`. `subject`, `scopes` (non-empty), `validFrom`, `revocation` and `issuer` are required: a resolver that returns only `subject` now yields `UNGROUNDED_PRINCIPAL` for every receipt.

@@ -9,9 +9,8 @@ import { VERSION } from "./types.js";
 // breaks that SDK's test in isolation, closing the gap surfaced by #512 where
 // the existing v030 cross-SDK byte-identicality tests load a pre-built JSON
 // fixture and never consult the SDK's VERSION constant.
-// All three SDKs are aligned at "0.6.0" (Go caught up in the response-disclosure
-// follow-up, #819), restoring the three-way invariant documented above.
-const LIVE_EMIT_VERSION = "0.6.0";
+// All three SDKs are aligned at "0.7.0" (spec v0.7.0, context v4).
+const LIVE_EMIT_VERSION = "0.7.0";
 
 describe("createReceipt cross-SDK version invariant", () => {
 	it("stamps the cross-SDK literal version on freshly-emitted receipts", () => {

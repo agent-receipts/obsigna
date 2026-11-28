@@ -10,7 +10,7 @@ import type { DisclosureEnvelope } from "./disclosure.js";
 
 export const CONTEXT = [
 	"https://www.w3.org/ns/credentials/v2",
-	"https://agentreceipts.ai/context/v3",
+	"https://agentreceipts.ai/context/v4",
 ] as const;
 
 export const CREDENTIAL_TYPE = [
@@ -18,7 +18,7 @@ export const CREDENTIAL_TYPE = [
 	"AgentReceipt",
 ] as const;
 
-export const VERSION = "0.6.0";
+export const VERSION = "0.7.0";
 
 /**
  * `issuer.type` for an agent that signs its own receipts (client-side signing,

@@ -29,9 +29,8 @@ from obsigna.receipt.types import (
     Principal,
 )
 
-# All three SDKs are aligned at "0.6.0" (Go caught up in the response-disclosure
-# follow-up, #819), restoring the three-way invariant documented above.
-LIVE_EMIT_VERSION = "0.6.0"
+# All three SDKs are aligned at "0.7.0" (spec v0.7.0, context v4).
+LIVE_EMIT_VERSION = "0.7.0"
 
 
 class TestCreateReceiptCrossSDKVersion:
