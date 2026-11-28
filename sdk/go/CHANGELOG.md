@@ -11,9 +11,11 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-29
+
 ### Added
 
-- **`receipt.IssuerTypeAIAgent` and `receipt.IssuerTypeAgentReceiptsDaemon`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that draft spec 0.7.0 defines for client-side and daemon signing.
+- **`receipt.IssuerTypeAIAgent` and `receipt.IssuerTypeAgentReceiptsDaemon`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)): the `issuer.type` values that spec 0.7.0 defines for client-side and daemon signing.
 
 ### Changed
 
@@ -24,6 +26,7 @@ tracked in [#253](https://github.com/agent-receipts/obsigna/issues/253).
   - Resolvers should return the terms of an expired or revoked grant instead of an error, and report `RevocationUnknown` when they cannot see revocation.
   - Receipt times (`action.timestamp`, `authorization.granted_at`, `authorization.expires_at`) are read with a strict RFC 3339 grammar shared with the TypeScript and Python SDKs. An unreadable `action.timestamp` gives `GRANT_VALIDITY_UNRESOLVED`.
 - **`chain.ReceiptChain` defaults `issuer.type` to `"AIAgent"`** (refs [#1206](https://github.com/agent-receipts/obsigna/issues/1206)) when `EmitInput.Issuer.Type` is empty. `ReceiptChain` signs in the agent's own process, so the receipt declares client-side signing. An explicit value is kept. `receipt.Create` is unchanged, so daemon-built receipts still carry `"AgentReceiptsDaemon"`. Doc comments on `PeerCredential` and `EmitterMetadata` no longer call them daemon-attested without qualification.
+- Dependency updates: `github.com/cloudflare/circl` 1.6.5, `modernc.org/sqlite` 1.62.0, and indirect `golang.org/x/crypto` 0.54.0 and `golang.org/x/sys` 0.49.0.
 
 ## [0.24.0] - 2026-07-17
 
