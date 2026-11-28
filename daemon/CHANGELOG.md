@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Receipts are emitted at spec version 0.7.0 with JSON-LD context v4.** The daemon, `obsigna-mcp`, `obsigna-hook` and `obsigna-collector` now build against `obsigna.dev/sdk/go` v0.25.0 (up from v0.24.0; the collector from v0.22.0). Context v4 defines the `AgentReceiptsDaemon` term, so the daemon's `issuer.type` now expands to `ar:AgentReceiptsDaemon` instead of the W3C VC v2 catch-all IRI. The sdk/go release also brings the grounded-tier validity and scope checks (ADR-0041); nothing in the toolset calls that API yet.
+
 ### Security
 
 - **Validate `runtime.usage` for canonicalisation-safety before embedding it in the signed receipt** ([#1008](https://github.com/agent-receipts/obsigna/issues/1008)) — `issuer.runtime.usage` is an ADR-0026 open container forwarded verbatim from an external artifact (e.g. the Claude Code transcript). It previously reached the signer unvalidated, so a syntactically-valid-but-uncanonicalisable payload (a number like `1e400`, which overflows `float64` on RFC 8785 re-parse) would fail the whole-receipt canonicalisation and drop the event, defeating the audit trail. The daemon now validates `usage` at the trust boundary; on a canonicalisation violation it drops the field, logs a warning, and still emits the receipt — mirroring the existing forensic-disclosure fallback (degrade, never drop the event).
